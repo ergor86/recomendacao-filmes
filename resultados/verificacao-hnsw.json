@@ -13,7 +13,7 @@
   },
   "parametros": {
     "ef_search": "40",
-    "iterative_scan": "off",
+    "iterative_scan": "strict_order",
     "max_scan_tuples": "20000",
     "scan_mem_multiplier": "1"
   }

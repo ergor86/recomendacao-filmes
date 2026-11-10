@@ -93,12 +93,26 @@ export async function planoDaBusca(pool, modo) {
   }
 }
 
+// Parâmetros efetivos da busca: iterative_scan como a busca o configura (strict_order);
+// ef_search é o piso (a busca usa max(pedidas, EF_MINIMO)).
 export async function parametrosHnsw(pool) {
-  const { rows } = await pool.query(
-    `SELECT current_setting('hnsw.ef_search') AS ef_search,
-            current_setting('hnsw.iterative_scan') AS iterative_scan,
-            current_setting('hnsw.max_scan_tuples') AS max_scan_tuples,
-            current_setting('hnsw.scan_mem_multiplier') AS scan_mem_multiplier`,
-  );
-  return rows[0];
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query("SELECT set_config('hnsw.ef_search', $1, true)", [String(EF_MINIMO)]);
+    await client.query('SET LOCAL hnsw.iterative_scan = strict_order');
+    const { rows } = await client.query(
+      `SELECT current_setting('hnsw.ef_search') AS ef_search,
+              current_setting('hnsw.iterative_scan') AS iterative_scan,
+              current_setting('hnsw.max_scan_tuples') AS max_scan_tuples,
+              current_setting('hnsw.scan_mem_multiplier') AS scan_mem_multiplier`,
+    );
+    await client.query('COMMIT');
+    return rows[0];
+  } catch (erro) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw erro;
+  } finally {
+    client.release();
+  }
 }
