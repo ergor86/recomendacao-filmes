@@ -2,7 +2,7 @@ import pg from 'pg';
 
 export function criarPool(configPg, { searchPath } = {}) {
   const config = { ...configPg };
-  if (searchPath) config.options = `-c search_path=${searchPath}`;
+  if (searchPath) config.options = [config.options, `-c search_path=${searchPath}`].filter(Boolean).join(' ');
   return new pg.Pool(config);
 }
 

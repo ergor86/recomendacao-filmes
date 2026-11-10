@@ -2,6 +2,8 @@ import { validarVetor } from '../features/codificacao.js';
 
 const TAMANHO_LOTE = 500;
 
+export const citar = (id) => '"' + id.replace(/"/g, '""') + '"';
+
 export async function carregarFilmes(pool, filmes, vetores, regua) {
   const dim = regua.dimensoes.busca;
   if (filmes.length !== vetores.length) {
@@ -12,9 +14,11 @@ export async function carregarFilmes(pool, filmes, vetores, regua) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query('DROP TABLE IF EXISTS filmes');
+    const { rows: [{ s: esquema }] } = await client.query('SELECT current_schema() AS s');
+    const q = citar(esquema);
+    await client.query(`DROP TABLE IF EXISTS ${q}.filmes`);
     await client.query(
-      `CREATE TABLE filmes (id int PRIMARY KEY, titulo text NOT NULL, ano int, embedding vector(${Number(dim)}) NOT NULL)`,
+      `CREATE TABLE ${q}.filmes (id int PRIMARY KEY, titulo text NOT NULL, ano int, embedding vector(${Number(dim)}) NOT NULL)`,
     );
     for (let i = 0; i < filmes.length; i += TAMANHO_LOTE) {
       const lote = filmes.slice(i, i + TAMANHO_LOTE);
@@ -25,12 +29,12 @@ export async function carregarFilmes(pool, filmes, vetores, regua) {
         valores.push(`($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}::vector)`);
         params.push(f.id, f.titulo, f.ano, JSON.stringify(vetores[i + j]));
       });
-      await client.query(`INSERT INTO filmes (id, titulo, ano, embedding) VALUES ${valores.join(', ')}`, params);
+      await client.query(`INSERT INTO ${q}.filmes (id, titulo, ano, embedding) VALUES ${valores.join(', ')}`, params);
     }
-    await client.query('CREATE INDEX filmes_embedding_idx ON filmes USING hnsw (embedding vector_cosine_ops)');
-    await client.query('CREATE TABLE IF NOT EXISTS metadados (chave text PRIMARY KEY, valor text NOT NULL)');
+    await client.query(`CREATE INDEX filmes_embedding_idx ON ${q}.filmes USING hnsw (embedding vector_cosine_ops)`);
+    await client.query(`CREATE TABLE IF NOT EXISTS ${q}.metadados (chave text PRIMARY KEY, valor text NOT NULL)`);
     await client.query(
-      `INSERT INTO metadados (chave, valor) VALUES ('hash_regua', $1)
+      `INSERT INTO ${q}.metadados (chave, valor) VALUES ('hash_regua', $1)
        ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor`,
       [regua.hash],
     );
@@ -44,6 +48,7 @@ export async function carregarFilmes(pool, filmes, vetores, regua) {
 }
 
 export async function lerHashCarregado(pool) {
-  const { rows } = await pool.query("SELECT valor FROM metadados WHERE chave = 'hash_regua'");
+  const { rows: [{ s }] } = await pool.query('SELECT current_schema() AS s');
+  const { rows } = await pool.query(`SELECT valor FROM ${citar(s)}.metadados WHERE chave = 'hash_regua'`);
   return rows[0]?.valor ?? null;
 }
