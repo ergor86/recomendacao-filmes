@@ -1,0 +1,20 @@
+{
+  "fase": "exp",
+  "hashRegua": "529ea16fc759ba14fbeddd78c9d18043a0c302d503d85cf2ce998976bf5f46e7",
+  "nUsuarios": {
+    "20": 480,
+    "50": 480,
+    "100": 480
+  },
+  "fracaoMedia": {
+    "20": 0.9964583333333329,
+    "50": 0.9974583333333337,
+    "100": 0.9982500000000006
+  },
+  "parametros": {
+    "ef_search": "40",
+    "iterative_scan": "off",
+    "max_scan_tuples": "20000",
+    "scan_mem_multiplier": "1"
+  }
+}
