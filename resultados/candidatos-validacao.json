@@ -1,0 +1,153 @@
+{
+  "fase": "exp",
+  "hashRegua": "529ea16fc759ba14fbeddd78c9d18043a0c302d503d85cf2ce998976bf5f46e7",
+  "semente": 42,
+  "nUsuarios": 478,
+  "nUsuariosComVetor": 478,
+  "populares": {
+    "K50": {
+      "recall": 0.3234477494229787
+    },
+    "K100": {
+      "recall": 0.4623850259127693
+    },
+    "K150": {
+      "recall": 0.5768992628287014
+    },
+    "K200": {
+      "recall": 0.6474461865005788
+    }
+  },
+  "vetorial": {
+    "N20": {
+      "recall": 0.06093125774788487
+    },
+    "N50": {
+      "recall": 0.11783096013050971
+    },
+    "N100": {
+      "recall": 0.1988696188810287
+    }
+  },
+  "grade": [
+    {
+      "k": 50,
+      "n": 0,
+      "recallUniao": 0.3234477494229787,
+      "orcamentoEfetivo": 50,
+      "contribuicaoExclusiva": 0
+    },
+    {
+      "k": 50,
+      "n": 20,
+      "recallUniao": 0.36412025287068894,
+      "orcamentoEfetivo": 68.09623430962343,
+      "contribuicaoExclusiva": 0.1023349668492361
+    },
+    {
+      "k": 50,
+      "n": 50,
+      "recallUniao": 0.40501755381403054,
+      "orcamentoEfetivo": 96.5836820083682,
+      "contribuicaoExclusiva": 0.17966280295047418
+    },
+    {
+      "k": 50,
+      "n": 100,
+      "recallUniao": 0.46158277849461293,
+      "orcamentoEfetivo": 144.2426778242678,
+      "contribuicaoExclusiva": 0.2821576763485477
+    },
+    {
+      "k": 100,
+      "n": 0,
+      "recallUniao": 0.4623850259127693,
+      "orcamentoEfetivo": 100,
+      "contribuicaoExclusiva": 0
+    },
+    {
+      "k": 100,
+      "n": 20,
+      "recallUniao": 0.49132373362424653,
+      "orcamentoEfetivo": 116.4979079497908,
+      "contribuicaoExclusiva": 0.053002821442966544
+    },
+    {
+      "k": 100,
+      "n": 50,
+      "recallUniao": 0.5232888682745352,
+      "orcamentoEfetivo": 143.68410041841005,
+      "contribuicaoExclusiva": 0.09877253548139624
+    },
+    {
+      "k": 100,
+      "n": 100,
+      "recallUniao": 0.5670558915313306,
+      "orcamentoEfetivo": 189.163179916318,
+      "contribuicaoExclusiva": 0.16521584650914906
+    },
+    {
+      "k": 150,
+      "n": 0,
+      "recallUniao": 0.5768992628287014,
+      "orcamentoEfetivo": 150,
+      "contribuicaoExclusiva": 0
+    },
+    {
+      "k": 150,
+      "n": 20,
+      "recallUniao": 0.5995446490291426,
+      "orcamentoEfetivo": 165.10669456066947,
+      "contribuicaoExclusiva": 0.03402708952758507
+    },
+    {
+      "k": 150,
+      "n": 50,
+      "recallUniao": 0.6221187814680587,
+      "orcamentoEfetivo": 190.9958158995816,
+      "contribuicaoExclusiva": 0.06372078130003202
+    },
+    {
+      "k": 150,
+      "n": 100,
+      "recallUniao": 0.6562454752856245,
+      "orcamentoEfetivo": 234.2866108786611,
+      "contribuicaoExclusiva": 0.10975795402648805
+    },
+    {
+      "k": 200,
+      "n": 0,
+      "recallUniao": 0.6474461865005788,
+      "orcamentoEfetivo": 200,
+      "contribuicaoExclusiva": 0
+    },
+    {
+      "k": 200,
+      "n": 20,
+      "recallUniao": 0.6645809264204238,
+      "orcamentoEfetivo": 213.30962343096235,
+      "contribuicaoExclusiva": 0.022914218566392478
+    },
+    {
+      "k": 200,
+      "n": 50,
+      "recallUniao": 0.682605118905042,
+      "orcamentoEfetivo": 237.78242677824267,
+      "contribuicaoExclusiva": 0.04480183802412407
+    },
+    {
+      "k": 200,
+      "n": 100,
+      "recallUniao": 0.7117167940833716,
+      "orcamentoEfetivo": 278.71338912133893,
+      "contribuicaoExclusiva": 0.07981740213030848
+    }
+  ],
+  "exp2": {
+    "nUsuarios": 478,
+    "excluidosSemVetor": 0,
+    "ndcg": 0.0703527279866988,
+    "precisao": 0.061087866108786776,
+    "recall": 0.03186711844085022
+  }
+}
