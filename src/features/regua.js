@@ -3,7 +3,11 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { jsonEstavel } from '../util/json-estavel.js';
 
-// A régua guarda todos os parâmetros para codificar vetores de forma idêntica em qualquer lugar.
+// A régua guarda todos os parâmetros para codificar vetores de forma idêntica em qualquer lugar:
+// contagens de popularidade, mín/máx e média/desvio do log, pesos, médias de referência e dimensões.
+// É calculada só com o treino da fase (evita vazamento) e protegida por um hash sha256.
+
+/** Faixa de época do filme: 0 = antes de 1980, 1 = anos 80, 2 = anos 90; null se não houver ano. */
 export function faixaEpoca(ano) {
   if (ano === null || ano === undefined) return null;
   if (ano < 1980) return 0;
@@ -11,16 +15,26 @@ export function faixaEpoca(ano) {
   return 2;
 }
 
+/**
+ * Popularidade escalada para [0, 1], usada no vetor de busca: log(1 + nº de notas no treino),
+ * depois mín/máx da régua (0 = o menos popular, 1 = o mais popular).
+ * O log comprime a cauda: ir de 10 para 100 notas pesa parecido com ir de 100 para 1000.
+ */
 export function popEscalada(n, regua) {
   const { min, max } = regua.logPop;
   const v = (Math.log1p(n) - min) / (max - min);
   return Math.min(1, Math.max(0, v));
 }
 
+/**
+ * Popularidade em z-score, usada na entrada da rede (Plano 2):
+ * (log(1 + n) − média) ÷ desvio-padrão. 0 = popularidade média; +1 = um desvio acima.
+ */
 export function popZ(n, regua) {
   return (Math.log1p(n) - regua.logPopZ.media) / regua.logPopZ.desvio;
 }
 
+// Média e desvio-padrão populacional (divide por n).
 function mediaDesvio(valores) {
   const n = valores.length;
   const media = valores.reduce((a, b) => a + b, 0) / n;
@@ -28,11 +42,22 @@ function mediaDesvio(valores) {
   return { media, desvio: Math.sqrt(variancia) };
 }
 
+// Hash sha256 do conteúdo da régua (sem o próprio campo hash), sobre JSON com chaves ordenadas.
+// Qualquer mudança em qualquer parâmetro muda o hash.
 function calcularHash(regua) {
   const { hash, ...semHash } = regua;
   return crypto.createHash('sha256').update(jsonEstavel(semHash)).digest('hex');
 }
 
+/**
+ * Calcula a régua a partir do treino da fase:
+ * - contagens: nº de notas de cada filme no treino (a popularidade)
+ * - logPop / logPopZ: mín/máx e média/desvio de log(1 + contagem), para popEscalada e popZ
+ * - idade: média/desvio da idade dos usuários (entrada da rede no Plano 2)
+ * - pesos: gênero 0,6, época 0,2, popularidade 0,2
+ * - referencias: médias sobre as curtidas do treino, usadas para usuários novos
+ * - dimensoes: tamanho do vetor de busca (23) e da entrada da rede (70, ou 68 sem popularidade)
+ */
 export function calcularRegua({ treino, filmes, usuarios, generos, ocupacoes, fase }) {
   const contagens = {};
   for (const f of filmes) contagens[f.id] = 0;
@@ -84,11 +109,13 @@ export function calcularRegua({ treino, filmes, usuarios, generos, ocupacoes, fa
   return regua;
 }
 
+/** Grava a régua em disco (ex.: artefatos/regua-exp.json) em JSON com chaves ordenadas. */
 export function salvarRegua(regua, caminho) {
   fs.mkdirSync(path.dirname(path.resolve(caminho)), { recursive: true });
   fs.writeFileSync(caminho, jsonEstavel(regua));
 }
 
+/** Lê a régua do disco e confere o hash; recusa uma régua alterada à mão ou corrompida. */
 export function carregarRegua(caminho) {
   if (!fs.existsSync(caminho)) {
     const m = /regua-(exp|final).json$/.exec(caminho);

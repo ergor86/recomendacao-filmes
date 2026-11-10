@@ -1,7 +1,21 @@
 import { criarAleatorio, embaralhar } from '../util/aleatorio.js';
 
-// Para cada usuário de validação: ordena por filme, embaralha com semente + idUsuario
-// e esconde as primeiras Math.round(fracao × n) avaliações.
+/**
+ * Cria as divisões de dados do projeto a partir de u1.base e u1.test.
+ *
+ * Validação: para cada usuário de 463 a 943, esconde 40% das notas dele. Isso imita o teste
+ * oficial (u1.test esconde notas dos usuários 1 a 462), para que as escolhas feitas na
+ * validação valham também no teste.
+ *
+ * Passo a passo por usuário: ordena as notas por filme (ordem fixa), embaralha com a
+ * semente (semente + idUsuario) e esconde as primeiras Math.round(fracao × n) avaliações.
+ *
+ * @returns
+ *  - treinoExp: u1.base sem as notas escondidas (treino da fase de experimentos)
+ *  - validacao: as notas escondidas (o gabarito da validação)
+ *  - treinoFinal: u1.base inteiro (treino da fase final)
+ *  - teste: u1.test (o gabarito da avaliação final)
+ */
 export function criarDivisoes(
   { base, teste },
   { semente = 42, usuariosValidacao = [463, 943], fracao = 0.4 } = {},

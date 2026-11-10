@@ -1,4 +1,9 @@
-// Gerador mulberry32: o resultado é idêntico em qualquer máquina.
+/**
+ * Cria um gerador de números aleatórios com semente (algoritmo mulberry32).
+ * Diferente de Math.random, a mesma semente gera sempre a mesma sequência, em qualquer
+ * máquina. É o que torna as divisões e o bootstrap reprodutíveis.
+ * @returns função que devolve um número em [0, 1) a cada chamada
+ */
 export function criarAleatorio(semente) {
   let a = semente >>> 0;
   return () => {
@@ -10,7 +15,10 @@ export function criarAleatorio(semente) {
   };
 }
 
-// Fisher-Yates; devolve uma cópia e não altera o array original.
+/**
+ * Embaralha uma lista com o algoritmo de Fisher-Yates (todas as ordens são igualmente prováveis).
+ * Devolve uma cópia; a lista original não é alterada.
+ */
 export function embaralhar(array, aleatorio) {
   const copia = [...array];
   for (let i = copia.length - 1; i > 0; i--) {

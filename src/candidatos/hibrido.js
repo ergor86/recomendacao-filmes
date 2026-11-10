@@ -1,8 +1,15 @@
+// Geração híbrida de candidatos: populares não vistos ∪ vizinhos vetoriais do perfil.
+// A lista resultante é o que a rede neural (Plano 2) vai ordenar.
+
 import { popularesNaoVistos } from './populares.js';
 import { buscarVizinhos } from '../banco/busca.js';
 import { perfilUsuario, vetorBuscaUsuario, validarVetor } from '../features/codificacao.js';
 
-// Populares primeiro, depois os vizinhos novos; sem repetição.
+/**
+ * Une as duas listas sem repetição: populares primeiro, depois os vizinhos novos.
+ * Também registra a fonte de cada filme: 'pop', 'vet' ou 'ambas'.
+ * @returns { ids, fonte: Map id → fonte }
+ */
 export function unirCandidatos(populares, vizinhos) {
   const fonte = new Map();
   const ids = [];
@@ -21,6 +28,11 @@ export function unirCandidatos(populares, vizinhos) {
   return { ids, fonte };
 }
 
+/**
+ * Gera os candidatos de um usuário: os k populares que ele não viu e os n vizinhos vetoriais
+ * do perfil dele (excluindo os vistos), unidos sem repetição.
+ * Sem curtidas (ou com n = 0) não há perfil: volta só com os populares e vetorUsuario = null.
+ */
 export async function gerarCandidatos({ pool, regua, usuario, vistos, filmesCurtidos, ranking, k, n }) {
   const populares = popularesNaoVistos(ranking, vistos, k);
   const perfil = n === 0 ? null : perfilUsuario(filmesCurtidos, regua);
@@ -34,7 +46,8 @@ export async function gerarCandidatos({ pool, regua, usuario, vistos, filmesCurt
   return { ...unirCandidatos(populares, vizinhos.map((v) => v.id)), vetorUsuario };
 }
 
-// Fração dos acertos cuja única fonte foi a vetorial.
+// Contribuição exclusiva dos vetores para um usuário: fração dos acertos (relevantes entre os
+// candidatos) que só a fonte vetorial trouxe. Mede o que os vetores acrescentam aos populares.
 export function contribuicaoExclusiva(acertos, fonte) {
   if (acertos.length === 0) return 0;
   return acertos.filter((id) => fonte.get(id) === 'vet').length / acertos.length;

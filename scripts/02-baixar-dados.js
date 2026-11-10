@@ -1,3 +1,7 @@
+// Script 02 (npm run baixar-dados): baixa o MovieLens 100K do site oficial do GroupLens,
+// confere o MD5 e extrai em data/. Não faz nada se os dados já existirem.
+// Os dados não vão para o git: a licença não permite redistribuí-los.
+
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -15,6 +19,7 @@ if (fs.existsSync(uData)) {
   process.exit(0);
 }
 
+// Baixa uma URL e devolve o conteúdo binário.
 async function baixar(url) {
   const resposta = await fetch(url);
   if (!resposta.ok) throw new Error(`Falha ao baixar ${url}: HTTP ${resposta.status}`);

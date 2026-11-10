@@ -1,3 +1,8 @@
+// Script 03 (npm run eda): análise exploratória dos dados.
+// Mostra a distribuição das notas, os filmes por época, as notas por usuário e por filme, e compara
+// os usuários de validação com os de teste (precisam ser parecidos para a validação valer).
+// Só imprime no terminal: não grava arquivos e não calcula métricas no teste.
+
 import 'dotenv/config';
 import { carregarConfig } from '../src/config.js';
 import { carregarDataset } from '../src/dados/carregar.js';

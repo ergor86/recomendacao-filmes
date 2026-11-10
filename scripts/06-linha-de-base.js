@@ -1,3 +1,8 @@
+// Script 06 (npm run linha-de-base): avalia a linha de base por popularidade na validação.
+// Para cada usuário, recomenda os 10 filmes mais populares que ele não viu e mede NDCG@10, P@10,
+// R@10 e cobertura. Grava resultados/linha-de-base-validacao.json.
+// É o número que a rede neural precisa superar.
+
 import 'dotenv/config';
 import fs from 'node:fs';
 import { carregarConfig } from '../src/config.js';
@@ -12,6 +17,7 @@ const { treino, alvos, regua } = criarContexto({ fase: 'exp', dirDados });
 const ranking = rankingPopularidade(regua.contagens);
 const vistos = vistosPorUsuario(treino);
 const relevantes = relevantesPorUsuario(alvos);
+// Top 10 de cada usuário com relevantes: os 10 filmes mais populares que ele não viu.
 const top10 = new Map();
 for (const usuario of relevantes.keys()) {
   top10.set(usuario, popularesNaoVistos(ranking, vistos.get(usuario) ?? new Set(), 10));

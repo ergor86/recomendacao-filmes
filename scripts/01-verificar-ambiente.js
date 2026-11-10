@@ -1,3 +1,7 @@
+// Script 01 (npm run ambiente): confere se o ambiente está pronto.
+// 1. Mostra a versão do Node e treina uma rede minúscula com dados aleatórios (prova que o tfjs-node funciona).
+// 2. Conecta no Postgres e confere se a extensão pgvector está na versão 0.8.x.
+
 import 'dotenv/config';
 import * as tf from '@tensorflow/tfjs-node';
 import pg from 'pg';

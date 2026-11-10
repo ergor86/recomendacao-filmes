@@ -1,3 +1,7 @@
+// Script 05 (npm run verificar-hnsw): mede se o índice HNSW (aproximado) devolve os mesmos vizinhos
+// que a busca exata, para cada usuário de validação, com N = 20, 50 e 100.
+// Grava resultados/verificacao-hnsw.json e avisa se a concordância ficar abaixo de 99%.
+
 import 'dotenv/config';
 import fs from 'node:fs';
 import { carregarConfig } from '../src/config.js';
@@ -23,6 +27,7 @@ if (reguaCalculada.hash !== regua.hash) {
 
 const filmePorId = new Map(dataset.filmes.map((x) => [x.id, x]));
 const vistos = vistosPorUsuario(treino);
+// Filmes curtidos (nota ≥ 4) de cada usuário no treino: a base do perfil.
 const curtidas = new Map();
 for (const a of treino) {
   if (a.nota >= 4) {

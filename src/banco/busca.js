@@ -1,23 +1,39 @@
+// Busca de vizinhos no pgvector: dado o vetor de um usuário, devolve os N filmes mais próximos
+// pela distância cosseno, excluindo os que ele já viu.
+//
+// Garantias:
+// - Determinística: empates de distância são desfeitos pelo id, no código. Não no SQL, porque
+//   um ORDER BY com segundo critério faria o Postgres deixar de usar o índice HNSW.
+// - Segura: recusa rodar se o hash da régua gravado no banco não for o da régua em uso.
+// - Completa: pede N + 50 linhas; se houver empate exatamente no corte, dobra o pedido até 1000.
+
 import { citar, lerHashCarregado } from './carga.js';
 import { validarVetor } from '../features/codificacao.js';
 
-const N_MAXIMO = 100;
-const FOLGA = 50;
-const LIMITE_LINHAS = 1000;
-const EF_MINIMO = 40;
+const N_MAXIMO = 100; // maior N aceito por consulta
+const FOLGA = 50; // linhas extras pedidas além de N, para detectar empates no corte
+const LIMITE_LINHAS = 1000; // teto ao dobrar o pedido
+const EF_MINIMO = 40; // padrão do pgvector; a busca nunca usa menos
 const MSG_SEM_FILMES = 'banco sem filmes carregados: rode npm run carregar-filmes';
 
+// ef_search = quantos candidatos o HNSW explora numa consulta. Precisa ser pelo menos o
+// número de linhas pedidas, senão o índice devolve menos linhas que o LIMIT.
+// REGRA_EF_SEARCH é o texto gravado em resultados/verificacao-hnsw.json.
 export const REGRA_EF_SEARCH = `max(linhas pedidas, ${EF_MINIMO}); linhas pedidas = n + ${FOLGA}, dobrando até ${LIMITE_LINHAS} em empate no limite`;
 export const efSearchPara = (linhasPedidas) => Math.max(linhasPedidas, EF_MINIMO);
 export const linhasIniciais = (n) => n + FOLGA;
 
+// Converte o modo num comando SQL: 'hnsw' desliga a varredura completa (força o índice);
+// 'exata' desliga o índice (força comparar com todos os filmes, resultado exato).
 function configurarModo(modo) {
   if (modo === 'hnsw') return 'SET LOCAL enable_seqscan = off';
   if (modo === 'exata') return 'SET LOCAL enable_indexscan = off';
   throw new Error(`modo inválido: ${modo} (use 'hnsw' ou 'exata')`);
 }
 
-// Dentro de uma transação aberta: configura a sessão para a consulta do modo.
+// Dentro de uma transação aberta: ajusta o ef_search, liga a varredura iterativa em ordem estrita
+// (strict_order: o índice continua buscando quando o filtro remove linhas demais) e aplica o modo.
+// As configurações valem só até o fim da transação, então não afetam outras consultas do pool.
 async function prepararTransacao(client, modo, pedidas) {
   const comandoModo = configurarModo(modo);
   await client.query("SELECT set_config('hnsw.ef_search', $1, true)", [String(efSearchPara(pedidas))]);
@@ -25,6 +41,17 @@ async function prepararTransacao(client, modo, pedidas) {
   await client.query(comandoModo);
 }
 
+/**
+ * Devolve os n filmes mais próximos do vetor, em ordem de (distância, id).
+ * @param pool conexão com o banco
+ * @param vetor vetor de busca do usuário (23 dimensões)
+ * @param excluir ids que não podem aparecer (os filmes que ele já viu)
+ * @param n quantos vizinhos (1 a 100)
+ * @param regua régua em uso; o hash precisa bater com o gravado no banco
+ * @param modo 'hnsw' (índice aproximado, rápido) ou 'exata' (compara com todos)
+ * @param relatorio objeto opcional que recebe linhasPedidas (para registrar o ef_search usado)
+ * @returns lista de { id, distancia }
+ */
 export async function buscarVizinhos(pool, { vetor, excluir, n, regua, modo = 'hnsw', relatorio }) {
   if (!Number.isInteger(n) || n < 1) throw new Error(`n inválido: ${n}; use um inteiro entre 1 e ${N_MAXIMO}`);
   if (n > N_MAXIMO) throw new Error(`n = ${n} excede o máximo de ${N_MAXIMO}; reduza N`);
@@ -77,6 +104,10 @@ export async function buscarVizinhos(pool, { vetor, excluir, n, regua, modo = 'h
   }
 }
 
+/**
+ * Devolve o plano de execução (EXPLAIN) da consulta de busca no modo pedido.
+ * O script 05 usa isso para provar que 'hnsw' usa o índice (Index Scan) e 'exata' não (Seq Scan).
+ */
 export async function planoDaBusca(pool, modo) {
   if ((await lerHashCarregado(pool)) === null) throw new Error(MSG_SEM_FILMES);
   const client = await pool.connect();
@@ -104,8 +135,11 @@ export async function planoDaBusca(pool, modo) {
   }
 }
 
-// Parâmetros efetivos da busca: iterative_scan como a busca o configura (strict_order);
-// ef_search é o piso (a busca usa max(pedidas, EF_MINIMO)).
+/**
+ * Lê os parâmetros do HNSW como a busca os configura, para registro em resultados/.
+ * iterative_scan sai como a busca usa (strict_order); ef_search sai como o piso (40),
+ * já que cada busca usa max(linhas pedidas, 40).
+ */
 export async function parametrosHnsw(pool) {
   const client = await pool.connect();
   let descartar; // erro → a conexão é descartada em vez de devolvida ao pool

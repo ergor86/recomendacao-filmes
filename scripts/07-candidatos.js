@@ -1,3 +1,10 @@
+// Script 07 (npm run candidatos): mede a geração de candidatos na validação.
+// - Recall dos populares com K = 50, 100, 150 e 200.
+// - Recall dos vizinhos vetoriais com N = 20, 50 e 100.
+// - Grade K × N da união: recall, tamanho médio da lista e contribuição exclusiva dos vetores.
+// - Experimento 2: recomendar só os 10 vizinhos mais próximos, sem popularidade.
+// Grava resultados/candidatos-validacao.json.
+
 import 'dotenv/config';
 import fs from 'node:fs';
 import { carregarConfig } from '../src/config.js';
@@ -22,6 +29,7 @@ if (reguaCalculada.hash !== regua.hash) {
 
 const filmePorId = new Map(dataset.filmes.map((x) => [x.id, x]));
 const vistos = vistosPorUsuario(treino);
+// Filmes curtidos (nota ≥ 4) de cada usuário no treino: a base do perfil.
 const curtidas = new Map();
 for (const a of treino) {
   if (a.nota >= 4) {
@@ -33,6 +41,7 @@ const ranking = rankingPopularidade(regua.contagens);
 const relevantes = relevantesPorUsuario(alvos);
 const usuarios = [...relevantes.keys()].sort((a, b) => a - b);
 
+// Acumuladores: somam os valores de cada usuário; no fim, dividimos pelo nº de usuários.
 const acc = {
   pop: Object.fromEntries(KS.map((k) => [k, 0])),
   vet: Object.fromEntries(NS.map((n) => [n, 0])),

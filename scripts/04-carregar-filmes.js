@@ -1,3 +1,7 @@
+// Script 04 (npm run carregar-filmes -- --fase exp|final): calcula a régua da fase, grava em
+// artefatos/regua-<fase>.json, gera o vetor de busca de cada filme e carrega tudo na tabela filmes
+// do Postgres, com o índice HNSW e o hash da régua. Rode de novo ao trocar de fase.
+
 import 'dotenv/config';
 import { carregarConfig } from '../src/config.js';
 import { criarContexto } from '../src/contexto.js';

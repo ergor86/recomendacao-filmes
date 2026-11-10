@@ -1,9 +1,18 @@
+// Carga dos filmes e dos seus vetores de busca na tabela filmes do Postgres (pgvector).
+
 import { validarVetor } from '../features/codificacao.js';
 
-const TAMANHO_LOTE = 500;
+const TAMANHO_LOTE = 500; // filmes por INSERT (menos idas e voltas ao banco)
 
+// Põe um nome de schema ou tabela entre aspas duplas, escapando aspas internas (evita SQL quebrado ou injeção).
 export const citar = (id) => '"' + id.replace(/"/g, '""') + '"';
 
+/**
+ * Recria a tabela filmes do schema atual (id, título, ano e vetor de busca) e cria o índice HNSW.
+ * Tudo numa transação: se algo falhar no meio, nada muda no banco.
+ * O hash da régua é gravado por último, na tabela metadados, como selo de que a carga terminou
+ * e de qual régua gerou os vetores.
+ */
 export async function carregarFilmes(pool, filmes, vetores, regua) {
   const dim = regua.dimensoes.busca;
   if (filmes.length !== vetores.length) {
@@ -49,6 +58,10 @@ export async function carregarFilmes(pool, filmes, vetores, regua) {
   }
 }
 
+/**
+ * Lê o hash da régua gravado na última carga, no schema atual.
+ * Devolve null se a tabela metadados não existir (banco ainda não carregado).
+ */
 export async function lerHashCarregado(pool) {
   const { rows: [{ s }] } = await pool.query('SELECT current_schema() AS s');
   if (s === null) {
