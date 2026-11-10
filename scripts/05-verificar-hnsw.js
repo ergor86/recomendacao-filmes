@@ -6,7 +6,7 @@ import { carregarRegua } from '../src/features/regua.js';
 import { perfilUsuario, vetorBuscaUsuario, validarVetor } from '../src/features/codificacao.js';
 import { vistosPorUsuario } from '../src/candidatos/populares.js';
 import { criarPool, verificarConexao } from '../src/banco/conexao.js';
-import { buscarVizinhos, planoDaBusca, parametrosHnsw } from '../src/banco/busca.js';
+import { buscarVizinhos, planoDaBusca, parametrosHnsw, efSearchPara, linhasIniciais, REGRA_EF_SEARCH } from '../src/banco/busca.js';
 
 const NS = [20, 50, 100];
 const f = (x, d = 4) => x.toFixed(d).replace('.', ',');
@@ -15,7 +15,7 @@ const { pg: configPg, dirDados } = carregarConfig();
 const regua = carregarRegua('artefatos/regua-exp.json');
 const { dataset, treino, alvos, regua: reguaCalculada } = criarContexto({ fase: 'exp', dirDados });
 if (reguaCalculada.hash !== regua.hash) {
-  throw new Error('régua do arquivo difere da calculada a partir dos dados: rode npm run carregar-filmes');
+  throw new Error('régua do arquivo difere da calculada a partir dos dados: rode npm run carregar-filmes (recalcula e regrava artefatos/regua-exp.json e recarrega a tabela filmes)');
 }
 
 const filmePorId = new Map(dataset.filmes.map((x) => [x.id, x]));
@@ -39,6 +39,7 @@ try {
   }
 
   const soma = Object.fromEntries(NS.map((n) => [n, 0]));
+  const maxLinhas = Object.fromEntries(NS.map((n) => [n, linhasIniciais(n)]));
   let nUsuarios = 0;
   for (const u of usuarios) {
     const perfil = perfilUsuario(curtidas.get(u) ?? [], regua);
@@ -49,7 +50,9 @@ try {
     nUsuarios++;
     for (const n of NS) {
       const exata = await buscarVizinhos(pool, { vetor, excluir, n, regua, modo: 'exata' });
-      const hnsw = new Set((await buscarVizinhos(pool, { vetor, excluir, n, regua, modo: 'hnsw' })).map((x) => x.id));
+      const relatorio = {};
+      const hnsw = new Set((await buscarVizinhos(pool, { vetor, excluir, n, regua, modo: 'hnsw', relatorio })).map((x) => x.id));
+      maxLinhas[n] = Math.max(maxLinhas[n], relatorio.linhasPedidas);
       soma[n] += exata.filter((x) => hnsw.has(x.id)).length / n;
     }
   }
@@ -68,6 +71,8 @@ try {
     nUsuarios: Object.fromEntries(NS.map((n) => [n, nUsuarios])),
     fracaoMedia,
     parametros,
+    regraEfSearch: REGRA_EF_SEARCH,
+    efSearchPorN: Object.fromEntries(NS.map((n) => [n, efSearchPara(maxLinhas[n])])),
   };
   fs.mkdirSync('resultados', { recursive: true });
   fs.writeFileSync('resultados/verificacao-hnsw.json', JSON.stringify(saida, null, 2) + '\n');

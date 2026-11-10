@@ -16,5 +16,11 @@
     "iterative_scan": "strict_order",
     "max_scan_tuples": "20000",
     "scan_mem_multiplier": "1"
+  },
+  "regraEfSearch": "max(linhas pedidas, 40); linhas pedidas = n + 50, dobrando até 1000 em empate no limite",
+  "efSearchPorN": {
+    "20": 70,
+    "50": 100,
+    "100": 150
   }
 }

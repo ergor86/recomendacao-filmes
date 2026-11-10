@@ -7,6 +7,10 @@ const FOLGA = 50;
 const LIMITE_LINHAS = 1000;
 const EF_MINIMO = 40;
 
+export const REGRA_EF_SEARCH = `max(linhas pedidas, ${EF_MINIMO}); linhas pedidas = n + ${FOLGA}, dobrando até ${LIMITE_LINHAS} em empate no limite`;
+export const efSearchPara = (linhasPedidas) => Math.max(linhasPedidas, EF_MINIMO);
+export const linhasIniciais = (n) => n + FOLGA;
+
 function configurarModo(modo) {
   if (modo === 'hnsw') return 'SET LOCAL enable_seqscan = off';
   if (modo === 'exata') return 'SET LOCAL enable_indexscan = off';
@@ -16,12 +20,12 @@ function configurarModo(modo) {
 // Dentro de uma transação aberta: configura a sessão para a consulta do modo.
 async function prepararTransacao(client, modo, pedidas) {
   const comandoModo = configurarModo(modo);
-  await client.query("SELECT set_config('hnsw.ef_search', $1, true)", [String(Math.max(pedidas, EF_MINIMO))]);
+  await client.query("SELECT set_config('hnsw.ef_search', $1, true)", [String(efSearchPara(pedidas))]);
   await client.query('SET LOCAL hnsw.iterative_scan = strict_order');
   await client.query(comandoModo);
 }
 
-export async function buscarVizinhos(pool, { vetor, excluir, n, regua, modo = 'hnsw' }) {
+export async function buscarVizinhos(pool, { vetor, excluir, n, regua, modo = 'hnsw', relatorio }) {
   if (!Number.isInteger(n) || n < 1) throw new Error(`n inválido: ${n}; use um inteiro entre 1 e ${N_MAXIMO}`);
   if (n > N_MAXIMO) throw new Error(`n = ${n} excede o máximo de ${N_MAXIMO}; reduza N`);
   configurarModo(modo);
@@ -41,9 +45,10 @@ export async function buscarVizinhos(pool, { vetor, excluir, n, regua, modo = 'h
                  WHERE id <> ALL($2::int[]) ORDER BY embedding <=> $1::vector LIMIT $3`;
     const params = [JSON.stringify(vetor), excluir];
 
-    let pedir = n + FOLGA;
+    let pedir = linhasIniciais(n);
     for (;;) {
       await prepararTransacao(client, modo, pedir);
+      if (relatorio) relatorio.linhasPedidas = pedir; // última (maior) requisição
       const { rows } = await client.query(sql, [...params, pedir]);
       const linhas = rows
         .map((r) => ({ id: r.id, distancia: Number(r.distancia) }))
