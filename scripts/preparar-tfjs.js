@@ -11,6 +11,7 @@ if (process.platform === 'win32') {
       console.error(`preparar-tfjs: não achei ${origem} nem ${destino}; a instalação do @tensorflow/tfjs-node falhou. Apague node_modules e rode npm install de novo.`);
       process.exit(1);
     }
+    fs.mkdirSync(path.dirname(destino), { recursive: true });
     fs.copyFileSync(origem, destino);
     console.log('preparar-tfjs: tensorflow.dll copiada para lib/napi-v8');
   }

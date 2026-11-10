@@ -19,7 +19,7 @@ Demais scripts: `eda`, `carregar-filmes`, `verificar-hnsw`, `linha-de-base`, `ca
 
 - Node: v22.23.3 (`.nvmrc` = 22, `engines` >=22 <23)
 - Backend do TensorFlow.js: `tensorflow` (`@tensorflow/tfjs-node` 4.22.0)
-- Treino de verificação (2 épocas, 1000x70): ~244 ms
+- Treino de verificação (2 épocas, 1000x70): na ordem de centenas de ms
 - Imagem do banco: `pgvector/pgvector:0.8.1-pg17` (tag NÃO confirmada com `docker pull`)
 - Verificação do banco pendente: Docker não instalado
 
