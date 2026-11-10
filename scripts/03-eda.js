@@ -2,11 +2,12 @@ import 'dotenv/config';
 import { carregarConfig } from '../src/config.js';
 import { carregarDataset } from '../src/dados/carregar.js';
 import { criarDivisoes } from '../src/dados/divisoes.js';
+import { calcularRegua, popEscalada } from '../src/features/regua.js';
 import { distribuicaoNotas, resumoPopulacao, resumoLista } from '../src/dados/estatisticas.js';
 
 const f = (x, d = 1) => x.toFixed(d).replace('.', ',');
 const { dirDados } = carregarConfig();
-const { base, teste, filmes, usuarios } = carregarDataset(dirDados);
+const { base, teste, filmes, usuarios, generos, ocupacoes } = carregarDataset(dirDados);
 const { treinoExp, validacao } = criarDivisoes({ base, teste }, { semente: 42 });
 
 console.log('== Distribuição das notas (u.data = base + teste) ==');
@@ -48,4 +49,17 @@ linha('Notas por usuário (média / mediana)', `${f(t.notasMedia)} / ${f(t.notas
 linha('Curtidas por usuário (média / mediana)', `${f(t.curtidasMedia)} / ${f(t.curtidasMediana, 0)}`, `${f(v.curtidasMedia)} / ${f(v.curtidasMediana, 0)}`);
 linha('Idade média', f(t.idadeMedia), f(v.idadeMedia));
 linha('Mulheres', `${f(100 * t.fracaoMulheres)}%`, `${f(100 * v.fracaoMulheres)}%`);
-console.log('  (popularidade média dos curtidos e P@10 da popularidade dependem da régua: Task 6)');
+
+// Popularidade média dos curtidos (spec §3): só dados de treino. Régua exp para a validação,
+// régua final (treino = u1.base) para o teste; popEscalada de cada filme curtido, média por usuário e depois entre usuários.
+const popMediaCurtidos = (treino, ids) => {
+  const regua = calcularRegua({ treino, filmes, usuarios, generos, ocupacoes });
+  const pops = new Map(ids.map((id) => [id, []]));
+  for (const a of treino) {
+    if (a.nota >= 4 && pops.has(a.usuario)) pops.get(a.usuario).push(popEscalada(regua.contagens[a.filme] ?? 0, regua));
+  }
+  const medias = [...pops.values()].filter((p) => p.length > 0).map((p) => p.reduce((s, x) => s + x, 0) / p.length);
+  return medias.reduce((s, x) => s + x, 0) / medias.length;
+};
+linha('Popularidade média dos curtidos (0-1)', f(popMediaCurtidos(base, idsTeste), 3), f(popMediaCurtidos(treinoExp, idsVal), 3));
+console.log('  P@10 da popularidade no conjunto de teste não é calculado de propósito: o teste é lido uma única vez, na avaliação final (regra do teste único).');

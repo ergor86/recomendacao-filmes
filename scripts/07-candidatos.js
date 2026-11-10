@@ -5,7 +5,7 @@ import { criarContexto } from '../src/contexto.js';
 import { carregarRegua } from '../src/features/regua.js';
 import { avaliarSistema, relevantesPorUsuario } from '../src/avaliacao/metricas.js';
 import { rankingPopularidade, popularesNaoVistos, vistosPorUsuario } from '../src/candidatos/populares.js';
-import { unirCandidatos, gerarCandidatos } from '../src/candidatos/hibrido.js';
+import { unirCandidatos, gerarCandidatos, contribuicaoExclusivaAgregada } from '../src/candidatos/hibrido.js';
 import { criarPool, verificarConexao } from '../src/banco/conexao.js';
 
 const KS = [50, 100, 150, 200];
@@ -36,9 +36,9 @@ const usuarios = [...relevantes.keys()].sort((a, b) => a - b);
 const acc = {
   pop: Object.fromEntries(KS.map((k) => [k, 0])),
   vet: Object.fromEntries(NS.map((n) => [n, 0])),
-  uniao: {}, // chave `${k}/${n}`: { recall, tamanho, acertos, acertosVet }
+  uniao: {}, // chave `${k}/${n}`: { recall, tamanho, listas } (listas: { acertos, fonte } por usuário)
 };
-for (const k of KS) for (const n of NS_GRADE) acc.uniao[`${k}/${n}`] = { recall: 0, tamanho: 0, acertos: 0, acertosVet: 0 };
+for (const k of KS) for (const n of NS_GRADE) acc.uniao[`${k}/${n}`] = { recall: 0, tamanho: 0, listas: [] };
 let nComVetor = 0;
 const top10 = new Map();
 let excluidosExp2 = 0;
@@ -50,8 +50,10 @@ try {
     const rel = relevantes.get(u);
     const vistosU = vistos.get(u) ?? new Set();
     // Eficiência: a fonte vetorial é consultada UMA vez por usuário com N = 100 e os demais N são
-    // prefixos desse resultado (válido porque a busca ordena de forma determinística por
-    // (distância, id)). O mesmo vale para os populares: K = 200 e prefixos 50/100/150/200.
+    // prefixos desse resultado. Os N primeiros do resultado com n = 100 são idênticos a uma consulta
+    // com n = N só no modo 'exata' (ordenação determinística por (distância, id)). Sob HNSW
+    // (ef_search 70/100/150), uma consulta separada com N pequeno pode diferir marginalmente.
+    // O mesmo vale, exatamente, para os populares: K = 200 e prefixos 50/100/150/200.
     const { ids: vizinhos, vetorUsuario } = await gerarCandidatos({
       pool, regua, usuario: u, vistos: vistosU, filmesCurtidos: curtidas.get(u) ?? [], ranking, k: 0, n: 100,
     });
@@ -74,8 +76,7 @@ try {
         const a = acc.uniao[`${k}/${n}`];
         a.recall += acertos.length / rel.size;
         a.tamanho += ids.length;
-        a.acertos += acertos.length;
-        a.acertosVet += acertos.filter((id) => fonte.get(id) === 'vet').length;
+        a.listas.push({ acertos, fonte });
       }
     }
   }
@@ -92,6 +93,12 @@ const saida = {
   fase: 'exp',
   hashRegua: regua.hash,
   semente: 42,
+  reprodutibilidade: "idêntica por carga do índice HNSW; recarregar o banco reconstrói o grafo e pode alterar levemente os números",
+  definicoes: {
+    recallDosCandidatos: 'por usuário, acertos entre os candidatos ÷ total de filmes relevantes escondidos (nota ≥ 4); média sobre os usuários',
+    orcamentoEfetivo: 'tamanho médio da lista de candidatos após a união sem repetição (≤ K + N)',
+    contribuicaoExclusiva: 'agregada (pooled) sobre os usuários: soma dos acertos cuja única fonte foi a vetorial ÷ soma dos acertos da união; não é a média das razões por usuário',
+  },
   nUsuarios: nU,
   nUsuariosComVetor: nComVetor,
   populares: Object.fromEntries(KS.map((k) => [`K${k}`, { recall: acc.pop[k] / nU }])),
@@ -102,7 +109,7 @@ const saida = {
       k, n,
       recallUniao: a.recall / nU,
       orcamentoEfetivo: a.tamanho / nU,
-      contribuicaoExclusiva: a.acertos === 0 ? 0 : a.acertosVet / a.acertos,
+      contribuicaoExclusiva: contribuicaoExclusivaAgregada(a.listas),
     };
   })),
   exp2: {
@@ -120,7 +127,7 @@ console.log('-- Populares (recall) --');
 for (const k of KS) console.log(`  K=${k}: ${f(saida.populares[`K${k}`].recall)}`);
 console.log(`-- Vetorial (recall, ${nComVetor} usuários com vetor) --`);
 for (const n of NS) console.log(`  N=${n}: ${f(saida.vetorial[`N${n}`].recall)}`);
-console.log('-- Grade K x N: recall da união | orçamento efetivo | contribuição exclusiva (acertos só vetoriais / acertos da união) --');
+console.log('-- Grade K x N: recall da união | orçamento efetivo | contribuição exclusiva agregada (Σ acertos só vetoriais / Σ acertos da união) --');
 for (const g of saida.grade) {
   console.log(`  K=${g.k} N=${g.n}: ${f(g.recallUniao)} | ${f(g.orcamentoEfetivo, 1)} | ${f(g.contribuicaoExclusiva)}`);
 }

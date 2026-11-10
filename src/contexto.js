@@ -12,6 +12,6 @@ export function criarContexto({ fase, dirDados }) {
   const treino = fase === 'exp' ? divisoes.treinoExp : divisoes.treinoFinal;
   const alvos = fase === 'exp' ? divisoes.validacao : divisoes.teste;
   const { filmes, usuarios, generos, ocupacoes } = dataset;
-  const regua = calcularRegua({ treino, filmes, usuarios, generos, ocupacoes });
+  const regua = calcularRegua({ treino, filmes, usuarios, generos, ocupacoes, fase });
   return { dataset, divisoes, treino, alvos, regua };
 }

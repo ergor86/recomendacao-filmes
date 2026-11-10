@@ -6,8 +6,11 @@ import { carregarRegua } from '../src/features/regua.js';
 import { perfilUsuario, vetorBuscaUsuario, validarVetor } from '../src/features/codificacao.js';
 import { vistosPorUsuario } from '../src/candidatos/populares.js';
 import { criarPool, verificarConexao } from '../src/banco/conexao.js';
+import { lerHashCarregado } from '../src/banco/carga.js';
 import { buscarVizinhos, planoDaBusca, parametrosHnsw, efSearchPara, linhasIniciais, REGRA_EF_SEARCH } from '../src/banco/busca.js';
 
+// O pgvector sorteia o nível de cada nó ao construir o índice: rodar de novo na mesma carga dá o mesmo resultado.
+const REPRODUTIBILIDADE = "idêntica por carga do índice HNSW; recarregar o banco reconstrói o grafo e pode alterar levemente os números";
 const NS = [20, 50, 100];
 const f = (x, d = 4) => x.toFixed(d).replace('.', ',');
 
@@ -32,6 +35,9 @@ const usuarios = [...new Set(alvos.map((a) => a.usuario))].sort((x, y) => x - y)
 const pool = criarPool(configPg);
 try {
   await verificarConexao(pool);
+  const hashBanco = await lerHashCarregado(pool);
+  if (hashBanco === null) throw new Error('banco sem filmes carregados: rode npm run carregar-filmes');
+  if (hashBanco !== regua.hash) throw new Error(`régua do banco difere: rode npm run carregar-filmes -- --fase ${regua.fase}`);
   const planoHnsw = await planoDaBusca(pool, 'hnsw');
   const planoExata = await planoDaBusca(pool, 'exata');
   if (!/Index Scan/.test(planoHnsw) || !/Seq Scan/.test(planoExata)) {
@@ -67,6 +73,7 @@ try {
 
   const saida = {
     fase: 'exp',
+    reprodutibilidade: REPRODUTIBILIDADE,
     hashRegua: regua.hash,
     nUsuarios: Object.fromEntries(NS.map((n) => [n, nUsuarios])),
     fracaoMedia,

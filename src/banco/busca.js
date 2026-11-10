@@ -1,11 +1,11 @@
-import { citar } from './carga.js';
-import { lerHashCarregado } from './carga.js';
+import { citar, lerHashCarregado } from './carga.js';
 import { validarVetor } from '../features/codificacao.js';
 
 const N_MAXIMO = 100;
 const FOLGA = 50;
 const LIMITE_LINHAS = 1000;
 const EF_MINIMO = 40;
+const MSG_SEM_FILMES = 'banco sem filmes carregados: rode npm run carregar-filmes';
 
 export const REGRA_EF_SEARCH = `max(linhas pedidas, ${EF_MINIMO}); linhas pedidas = n + ${FOLGA}, dobrando até ${LIMITE_LINHAS} em empate no limite`;
 export const efSearchPara = (linhasPedidas) => Math.max(linhasPedidas, EF_MINIMO);
@@ -32,11 +32,13 @@ export async function buscarVizinhos(pool, { vetor, excluir, n, regua, modo = 'h
   validarVetor(vetor, regua.dimensoes.busca);
 
   const hashBanco = await lerHashCarregado(pool);
+  if (hashBanco === null) throw new Error(MSG_SEM_FILMES);
   if (hashBanco !== regua.hash) {
-    throw new Error('régua do banco difere: rode npm run carregar-filmes -- --fase <fase>');
+    throw new Error(`régua do banco difere: rode npm run carregar-filmes -- --fase ${regua.fase ?? '<fase>'}`);
   }
 
   const client = await pool.connect();
+  let descartar; // erro → a conexão é descartada em vez de devolvida ao pool
   try {
     await client.query('BEGIN');
     const { rows: [{ s }] } = await client.query('SELECT current_schema() AS s');
@@ -68,14 +70,17 @@ export async function buscarVizinhos(pool, { vetor, excluir, n, regua, modo = 'h
     }
   } catch (erro) {
     await client.query('ROLLBACK').catch(() => {});
+    descartar = erro;
     throw erro;
   } finally {
-    client.release();
+    client.release(descartar);
   }
 }
 
 export async function planoDaBusca(pool, modo) {
+  if ((await lerHashCarregado(pool)) === null) throw new Error(MSG_SEM_FILMES);
   const client = await pool.connect();
+  let descartar; // erro → a conexão é descartada em vez de devolvida ao pool
   try {
     await client.query('BEGIN');
     const { rows: [{ s }] } = await client.query('SELECT current_schema() AS s');
@@ -92,9 +97,10 @@ export async function planoDaBusca(pool, modo) {
     return rows.map((r) => r['QUERY PLAN']).join('\n');
   } catch (erro) {
     await client.query('ROLLBACK').catch(() => {});
+    descartar = erro;
     throw erro;
   } finally {
-    client.release();
+    client.release(descartar);
   }
 }
 
@@ -102,6 +108,7 @@ export async function planoDaBusca(pool, modo) {
 // ef_search é o piso (a busca usa max(pedidas, EF_MINIMO)).
 export async function parametrosHnsw(pool) {
   const client = await pool.connect();
+  let descartar; // erro → a conexão é descartada em vez de devolvida ao pool
   try {
     await client.query('BEGIN');
     await client.query("SELECT set_config('hnsw.ef_search', $1, true)", [String(EF_MINIMO)]);
@@ -116,8 +123,9 @@ export async function parametrosHnsw(pool) {
     return rows[0];
   } catch (erro) {
     await client.query('ROLLBACK').catch(() => {});
+    descartar = erro;
     throw erro;
   } finally {
-    client.release();
+    client.release(descartar);
   }
 }

@@ -37,12 +37,21 @@ test('avaliarSistema média só sobre usuários de relevantesMap', () => {
   assert.equal(r.precisao, (0.2 + 0) / 2);
   assert.equal(r.recall, (1 + 0) / 2);
   assert.equal(r.cobertura, 20 / 1682);
-  assert.equal(r.popularidadeMedia, 4 / 20);
+  assert.equal(r.popularidadeMediaContagem, 4 / 20);
   assert.deepEqual([...r.porUsuario.keys()], [1, 2]);
   assert.equal(r.porUsuario.get(1).recall, 1);
 });
 test('avaliarSistema lança erro se faltar lista de um usuário', () => {
   assert.throws(() => avaliarSistema(new Map(), new Map([[1, new Set([1])]]), {}), /usuário 1/);
+});
+test('avaliarSistema lança erro se a lista tiver id repetido', () => {
+  const top = new Map([[1, [1, 2, 3, 4, 5, 6, 7, 8, 9, 9]]]);
+  assert.throws(() => avaliarSistema(top, new Map([[1, new Set([1])]]), {}), /repetidos/);
+});
+test('avaliarSistema lança erro se a lista não tiver 10 filmes', () => {
+  const rel = new Map([[1, new Set([1])]]);
+  assert.throws(() => avaliarSistema(new Map([[1, [1, 2, 3]]]), rel, {}), /3 filmes em vez de 10/);
+  assert.throws(() => avaliarSistema(new Map([[1, Array.from({ length: 11 }, (_, i) => i + 1)]]), rel, {}), /11 filmes em vez de 10/);
 });
 test('bootstrap determinístico e IC contém a média', () => {
   const difs = [0.1, 0.0, 0.2, -0.1, 0.05, 0.15];

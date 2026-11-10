@@ -23,10 +23,10 @@ console.log(`  NDCG@10: ${f(r.ndcg)}`);
 console.log(`  P@10: ${f(r.precisao)}`);
 console.log(`  R@10: ${f(r.recall)}`);
 console.log(`  cobertura: ${r.cobertura}`);
-console.log(`  popularidade média: ${f(r.popularidadeMedia, 2)}`);
+console.log(`  popularidade média (contagem de avaliações no treino): ${f(r.popularidadeMediaContagem, 2)}`);
 console.log(`  nUsuarios: ${r.nUsuarios}`);
 
-const { ndcg, precisao, recall, cobertura, popularidadeMedia, nUsuarios } = r;
-const saida = { fase: 'exp', hashRegua: regua.hash, semente: 42, ndcg, precisao, recall, cobertura, popularidadeMedia, nUsuarios };
+const { ndcg, precisao, recall, cobertura, popularidadeMediaContagem, nUsuarios } = r;
+const saida = { fase: 'exp', hashRegua: regua.hash, semente: 42, ndcg, precisao, recall, cobertura, popularidadeMediaContagem, nUsuarios };
 fs.mkdirSync('resultados', { recursive: true });
 fs.writeFileSync('resultados/linha-de-base-validacao.json', JSON.stringify(saida, null, 2) + '\n');

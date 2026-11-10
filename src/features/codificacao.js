@@ -56,6 +56,8 @@ export function vetorBuscaFilme(filme, regua) {
   return montar(filme.generos, umHotEpoca(filme.ano), pop, regua);
 }
 
+// `popularidade` do perfil está na escala popEscalada (log1p, mín/máx, [0, 1]) e serve só ao vetor de busca;
+// a entrada da rede (spec §6) usa z-score via popZ.
 export function perfilUsuario(filmesCurtidos, regua) {
   const n = filmesCurtidos.length;
   if (n === 0) return null;

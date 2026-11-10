@@ -33,7 +33,7 @@ function calcularHash(regua) {
   return crypto.createHash('sha256').update(jsonEstavel(semHash)).digest('hex');
 }
 
-export function calcularRegua({ treino, filmes, usuarios, generos, ocupacoes }) {
+export function calcularRegua({ treino, filmes, usuarios, generos, ocupacoes, fase }) {
   const contagens = {};
   for (const f of filmes) contagens[f.id] = 0;
   for (const a of treino) contagens[a.filme] = (contagens[a.filme] ?? 0) + 1;
@@ -44,6 +44,7 @@ export function calcularRegua({ treino, filmes, usuarios, generos, ocupacoes }) 
   const idade = mediaDesvio(usuarios.map((u) => u.idade));
 
   const regua = {
+    fase: fase ?? null,
     generos: [...generos],
     faixasEpoca: ['antes1980', 'anos80', 'anos90'],
     ocupacoes: [...ocupacoes],
@@ -90,7 +91,8 @@ export function salvarRegua(regua, caminho) {
 
 export function carregarRegua(caminho) {
   if (!fs.existsSync(caminho)) {
-    throw new Error('régua não encontrada: rode npm run carregar-filmes');
+    const m = /regua-(exp|final).json$/.exec(caminho);
+    throw new Error(`régua não encontrada: rode npm run carregar-filmes${m ? ` -- --fase ${m[1]}` : ''}`);
   }
   const regua = JSON.parse(fs.readFileSync(caminho, 'utf8'));
   const esperado = calcularHash(regua);

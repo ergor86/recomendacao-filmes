@@ -41,14 +41,44 @@ O compose lê o `.env` criado no passo 3, por isso este passo vem depois dele.
 
 ### 6. Baixar os dados
 
-    npm run baixar-dados   # Task 2
+    npm run baixar-dados   # baixa e extrai o MovieLens 100K em data/ml-100k
 
 ### 7. Verificar o ambiente e rodar os testes
 
     npm run ambiente       # verifica TensorFlow.js e banco
     npm test
 
-Demais scripts: `eda`, `carregar-filmes`, `verificar-hnsw`, `linha-de-base`, `candidatos` (ver `package.json`).
+### 8. Análise exploratória
+
+    npm run eda            # precisa dos dados (passo 6); só imprime no terminal, não grava arquivo
+
+### 9. Carregar os filmes no banco (fase exp)
+
+    npm run carregar-filmes   # precisa do banco (passo 4); grava artefatos/regua-exp.json e carrega public.filmes com a régua da fase exp
+
+Não rode `npm run carregar-filmes -- --fase final` antes dos passos 10 a 12: eles exigem o banco carregado com a fase exp.
+
+### 10. Verificar o HNSW
+
+    npm run verificar-hnsw    # precisa do passo 9; grava resultados/verificacao-hnsw.json
+
+### 11. Linha de base de popularidade
+
+    npm run linha-de-base     # precisa dos dados e do passo 9 (régua); grava resultados/linha-de-base-validacao.json
+
+### 12. Candidatos híbridos (populares + vizinhos)
+
+    npm run candidatos        # precisa do banco carregado com a fase exp (passo 9); grava resultados/candidatos-validacao.json
+
+### 13. Testes de integração
+
+    npm run test:integracao   # precisa do banco; cria e remove os schemas teste_integracao e teste_busca (e teste_busca_vazio), sem tocar em public.filmes
+
+Resultados versionados em `resultados/`: `verificacao-hnsw.json`, `linha-de-base-validacao.json`, `candidatos-validacao.json`.
+
+### Reprodutibilidade do HNSW
+
+A reprodutibilidade vale por construção do índice: o pgvector sorteia o nível dos nós ao construir o HNSW. Rodar de novo `verificar-hnsw` ou `candidatos` sobre a mesma carga dá resultados idênticos, mas depois de `npm run carregar-filmes` (que reconstrói o índice) os números baseados em HNSW podem mudar levemente. A busca exata e a linha de base não dependem disso.
 
 ## Ambiente
 

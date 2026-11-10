@@ -15,7 +15,6 @@ if (fase !== 'exp' && fase !== 'final') {
 
 const { pg: configPg, dirDados } = carregarConfig();
 const { dataset, regua } = criarContexto({ fase, dirDados });
-salvarRegua(regua, `artefatos/regua-${fase}.json`);
 
 const vetores = dataset.filmes.map((f) => {
   const v = vetorBuscaFilme(f, regua);
@@ -26,6 +25,7 @@ const vetores = dataset.filmes.map((f) => {
 const pool = criarPool(configPg);
 try {
   await verificarConexao(pool);
+  salvarRegua(regua, `artefatos/regua-${fase}.json`);
   await carregarFilmes(pool, dataset.filmes, vetores, regua);
   console.log(`${dataset.filmes.length} filmes carregados`);
   console.log(`hash da régua (${fase}): ${regua.hash}`);

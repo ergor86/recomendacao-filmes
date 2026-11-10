@@ -63,7 +63,13 @@ export function avaliarSistema(top10PorUsuario, relevantesMap, contagens) {
     if (!lista) {
       throw new Error(`avaliarSistema: falta a lista top 10 do usuário ${usuario}; calcule-a antes de avaliar.`);
     }
-    listas.push(lista);
+    if (lista.length !== 10) {
+      throw new Error(`avaliarSistema: a lista do usuário ${usuario} tem ${lista.length} filmes em vez de 10; gere sempre o top 10 completo.`);
+    }
+    if (new Set(lista).size !== lista.length) {
+      throw new Error(`avaliarSistema: a lista do usuário ${usuario} tem ids repetidos; remova as repetições antes de avaliar.`);
+    }
+    listas.push(lista.slice(0, 10));
     porUsuario.set(usuario, {
       ndcg: ndcgEm10(lista, relevantes),
       precisao: precisaoEm10(lista, relevantes),
@@ -78,7 +84,8 @@ export function avaliarSistema(top10PorUsuario, relevantesMap, contagens) {
     precisao: media('precisao'),
     recall: media('recall'),
     cobertura: cobertura(listas),
-    popularidadeMedia: popularidadeMedia(listas, contagens),
+    // média da contagem bruta de avaliações de treino dos filmes recomendados (não é a escala popEscalada)
+    popularidadeMediaContagem: popularidadeMedia(listas, contagens),
     nUsuarios: n,
     porUsuario,
   };

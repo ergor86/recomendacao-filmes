@@ -12,6 +12,7 @@ export async function carregarFilmes(pool, filmes, vetores, regua) {
   for (const v of vetores) validarVetor(v, dim); // antes do BEGIN: nada é gravado se algo estiver errado
 
   const client = await pool.connect();
+  let descartar; // erro → a conexão é descartada em vez de devolvida ao pool
   try {
     await client.query('BEGIN');
     const { rows: [{ s: esquema }] } = await client.query('SELECT current_schema() AS s');
@@ -41,14 +42,20 @@ export async function carregarFilmes(pool, filmes, vetores, regua) {
     await client.query('COMMIT');
   } catch (erro) {
     await client.query('ROLLBACK').catch(() => {});
+    descartar = erro;
     throw erro;
   } finally {
-    client.release();
+    client.release(descartar);
   }
 }
 
 export async function lerHashCarregado(pool) {
   const { rows: [{ s }] } = await pool.query('SELECT current_schema() AS s');
+  if (s === null) {
+    throw new Error('nenhum schema válido no search_path; confira PGOPTIONS/search_path do banco e se o schema public existe');
+  }
+  const { rows: [{ existe }] } = await pool.query('SELECT to_regclass($1) IS NOT NULL AS existe', [`${citar(s)}.metadados`]);
+  if (!existe) return null;
   const { rows } = await pool.query(`SELECT valor FROM ${citar(s)}.metadados WHERE chave = 'hash_regua'`);
   return rows[0]?.valor ?? null;
 }

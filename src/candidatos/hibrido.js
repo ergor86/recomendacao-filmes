@@ -39,3 +39,15 @@ export function contribuicaoExclusiva(acertos, fonte) {
   if (acertos.length === 0) return 0;
   return acertos.filter((id) => fonte.get(id) === 'vet').length / acertos.length;
 }
+
+// Razão agregada (pooled) sobre os usuários: soma dos acertos só vetoriais / soma dos acertos da união.
+// Cada lista é { acertos: [ids], fonte: Map }. Difere da média das razões por usuário.
+export function contribuicaoExclusivaAgregada(listas) {
+  let vet = 0;
+  let total = 0;
+  for (const { acertos, fonte } of listas) {
+    total += acertos.length;
+    vet += acertos.filter((id) => fonte.get(id) === 'vet').length;
+  }
+  return total === 0 ? 0 : vet / total;
+}

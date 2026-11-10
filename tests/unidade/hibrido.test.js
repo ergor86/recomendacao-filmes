@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { unirCandidatos, gerarCandidatos, contribuicaoExclusiva } from '../../src/candidatos/hibrido.js';
+import { unirCandidatos, gerarCandidatos, contribuicaoExclusiva, contribuicaoExclusivaAgregada } from '../../src/candidatos/hibrido.js';
 
 const regua = { generos: ['a'], contagens: {}, dimensoes: { busca: 23 } };
 
@@ -23,4 +23,12 @@ test('n = 0 não consulta o banco', async () => {
 });
 test('contribuição exclusiva conta só acertos vindos da fonte vetorial', () => {
   assert.equal(contribuicaoExclusiva([1, 3, 4], new Map([[1, 'pop'], [3, 'ambas'], [4, 'vet']])), 1 / 3);
+});
+test('contribuição exclusiva agregada soma acertos entre usuários (não é a média das razões)', () => {
+  const listas = [
+    { acertos: [1], fonte: new Map([[1, 'vet']]) }, // razão 1
+    { acertos: [2, 3, 4, 5], fonte: new Map([[2, 'pop'], [3, 'pop'], [4, 'ambas'], [5, 'vet']]) }, // razão 1/4
+  ];
+  assert.equal(contribuicaoExclusivaAgregada(listas), 2 / 5);
+  assert.equal(contribuicaoExclusivaAgregada([]), 0);
 });

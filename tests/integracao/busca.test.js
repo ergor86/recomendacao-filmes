@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import pg from 'pg';
 import { carregarConfig } from '../../src/config.js';
 import { criarPool, verificarConexao } from '../../src/banco/conexao.js';
-import { carregarFilmes } from '../../src/banco/carga.js';
+import { carregarFilmes, lerHashCarregado } from '../../src/banco/carga.js';
 import { buscarVizinhos, planoDaBusca, parametrosHnsw } from '../../src/banco/busca.js';
 
 const SCHEMA = 'teste_busca';
@@ -85,4 +85,22 @@ test('EXPLAIN confirma índice no modo hnsw e seq scan no modo exata', async () 
 test('parametrosHnsw devolve os quatro parâmetros', async () => {
   const p = await parametrosHnsw(pool);
   assert.deepEqual(Object.keys(p), ['ef_search', 'iterative_scan', 'max_scan_tuples', 'scan_mem_multiplier']);
+});
+
+test('sem tabelas: lerHashCarregado devolve null e buscarVizinhos manda carregar os filmes', async () => {
+  const SCHEMA_VAZIO = 'teste_busca_vazio';
+  const admin = new pg.Pool(configPg);
+  await admin.query(`CREATE SCHEMA IF NOT EXISTS ${SCHEMA_VAZIO}`);
+  const vazio = criarPool(configPg, { searchPath: `${SCHEMA_VAZIO},public` });
+  try {
+    // lerHashCarregado qualifica o schema corrente, então o public.metadados existente não mascara o cenário
+    assert.equal(await contagemPublic(admin), contagemPublicAntes);
+    assert.equal(await lerHashCarregado(vazio), null);
+    await assert.rejects(buscarVizinhos(vazio, { vetor: vA, excluir: [], n: 1, regua }), /carregar-filmes/);
+    await assert.rejects(planoDaBusca(vazio, 'hnsw'), /carregar-filmes/);
+  } finally {
+    await vazio.end();
+    await admin.query(`DROP SCHEMA IF EXISTS ${SCHEMA_VAZIO}`);
+    await admin.end();
+  }
 });

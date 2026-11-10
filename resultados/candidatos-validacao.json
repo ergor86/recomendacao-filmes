@@ -1,7 +1,13 @@
 {
   "fase": "exp",
-  "hashRegua": "529ea16fc759ba14fbeddd78c9d18043a0c302d503d85cf2ce998976bf5f46e7",
+  "hashRegua": "6642727a0b38b61bf5b1b9607cf89d2ded524b801f5daf1727096e3ccbfb04cd",
   "semente": 42,
+  "reprodutibilidade": "idêntica por carga do índice HNSW; recarregar o banco reconstrói o grafo e pode alterar levemente os números",
+  "definicoes": {
+    "recallDosCandidatos": "por usuário, acertos entre os candidatos ÷ total de filmes relevantes escondidos (nota ≥ 4); média sobre os usuários",
+    "orcamentoEfetivo": "tamanho médio da lista de candidatos após a união sem repetição (≤ K + N)",
+    "contribuicaoExclusiva": "agregada (pooled) sobre os usuários: soma dos acertos cuja única fonte foi a vetorial ÷ soma dos acertos da união; não é a média das razões por usuário"
+  },
   "nUsuarios": 478,
   "nUsuariosComVetor": 478,
   "populares": {
@@ -55,7 +61,7 @@
       "k": 50,
       "n": 100,
       "recallUniao": 0.46158277849461293,
-      "orcamentoEfetivo": 144.2426778242678,
+      "orcamentoEfetivo": 144.2405857740586,
       "contribuicaoExclusiva": 0.2821576763485477
     },
     {
@@ -83,7 +89,7 @@
       "k": 100,
       "n": 100,
       "recallUniao": 0.5670558915313306,
-      "orcamentoEfetivo": 189.163179916318,
+      "orcamentoEfetivo": 189.16108786610877,
       "contribuicaoExclusiva": 0.16521584650914906
     },
     {
@@ -111,7 +117,7 @@
       "k": 150,
       "n": 100,
       "recallUniao": 0.6562454752856245,
-      "orcamentoEfetivo": 234.2866108786611,
+      "orcamentoEfetivo": 234.28242677824267,
       "contribuicaoExclusiva": 0.10975795402648805
     },
     {
@@ -139,7 +145,7 @@
       "k": 200,
       "n": 100,
       "recallUniao": 0.7117167940833716,
-      "orcamentoEfetivo": 278.71338912133893,
+      "orcamentoEfetivo": 278.7092050209205,
       "contribuicaoExclusiva": 0.07981740213030848
     }
   ],
