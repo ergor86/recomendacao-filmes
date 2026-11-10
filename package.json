@@ -7,6 +7,7 @@
     "node": ">=22 <23"
   },
   "scripts": {
+    "postinstall": "node scripts/preparar-tfjs.js",
     "test": "node --test \"tests/unidade/*.test.js\"",
     "test:integracao": "node --test \"tests/integracao/*.test.js\"",
     "ambiente": "node scripts/01-verificar-ambiente.js",
