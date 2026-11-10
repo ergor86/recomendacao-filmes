@@ -1,0 +1,16 @@
+services:
+  db:
+    # Tag NÃO confirmada: rode `docker pull pgvector/pgvector:0.8.1-pg17` assim que o Docker
+    # estiver instalado e ajuste para a tag 0.8.x-pg17 mais recente que existir.
+    image: pgvector/pgvector:0.8.1-pg17
+    environment:
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+      POSTGRES_DB: ${PGDATABASE}
+    ports:
+      - "5433:5432"
+    volumes:
+      - dados_pg:/var/lib/postgresql/data
+
+volumes:
+  dados_pg:
