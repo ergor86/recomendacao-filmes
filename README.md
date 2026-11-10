@@ -4,24 +4,47 @@ MovieLens 100K + Postgres/pgvector + TensorFlow.js. Spec em `docs/superpowers/sp
 
 ## Passo a passo
 
-Banco (Docker Engine no WSL2 Ubuntu; Docker Desktop com backend WSL2 também funciona):
+### 1. Docker Engine no WSL2 Ubuntu (uma vez)
+
+Docker Engine no WSL2 Ubuntu; Docker Desktop com backend WSL2 também funciona.
 
     # uma vez, dentro do Ubuntu/WSL
     curl -fsSL https://get.docker.com | sudo sh
     sudo usermod -aG docker $USER
     # no PowerShell: wsl --shutdown   (reabra o Ubuntu)
 
+### 2. Clonar o projeto em `C:\dev\recomendacao-filmes`
+
+Projeto no Windows: o Node roda aqui; o WSL2 encaminha a porta 5433 para localhost.
+
+    # PowerShell, na pasta C:\dev
+    git clone <url-do-repositório> recomendacao-filmes
+    cd recomendacao-filmes
+
+### 3. Criar o `.env`
+
+    cp .env.example .env
+
+Edite `PGPASSWORD` no `.env` antes de subir o banco.
+
+### 4. Subir o banco (dentro do WSL)
+
+O compose lê o `.env` criado no passo 3, por isso este passo vem depois dele.
+
     # dentro do WSL, na pasta do projeto
     cd /mnt/c/dev/recomendacao-filmes
     docker compose up -d
 
-Projeto (Windows, o Node roda aqui; o WSL2 encaminha a porta 5433 para localhost):
+### 5. Instalar dependências
 
-    git clone <url-do-repositório> recomendacao-filmes
-    cd recomendacao-filmes
-    cp .env.example .env
     npm install            # o postinstall (scripts/preparar-tfjs.js) cuida da tensorflow.dll no Windows
+
+### 6. Baixar os dados
+
     npm run baixar-dados   # Task 2
+
+### 7. Verificar o ambiente e rodar os testes
+
     npm run ambiente       # verifica TensorFlow.js e banco
     npm test
 
