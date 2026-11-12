@@ -47,19 +47,21 @@ export async function gerarCandidatos({ pool, regua, vistos, filmesCurtidos, ran
 
 // Contribuição exclusiva dos vetores para um usuário: fração dos acertos (relevantes entre os
 // candidatos) que só a fonte vetorial trouxe. Mede o que os vetores acrescentam aos populares.
-export function contribuicaoExclusiva(acertos, fonte) {
+// `origem` ('vet' por padrão, ou 'pop') escolhe qual fonte exclusiva medir.
+export function contribuicaoExclusiva(acertos, fonte, origem = 'vet') {
   if (acertos.length === 0) return 0;
-  return acertos.filter((id) => fonte.get(id) === 'vet').length / acertos.length;
+  return acertos.filter((id) => fonte.get(id) === origem).length / acertos.length;
 }
 
 // Razão agregada (pooled) sobre os usuários: soma dos acertos só vetoriais / soma dos acertos da união.
 // Cada lista é { acertos: [ids], fonte: Map }. Difere da média das razões por usuário.
-export function contribuicaoExclusivaAgregada(listas) {
+// `origem` ('vet' por padrão, ou 'pop') escolhe qual fonte exclusiva medir.
+export function contribuicaoExclusivaAgregada(listas, origem = 'vet') {
   let vet = 0;
   let total = 0;
   for (const { acertos, fonte } of listas) {
     total += acertos.length;
-    vet += acertos.filter((id) => fonte.get(id) === 'vet').length;
+    vet += acertos.filter((id) => fonte.get(id) === origem).length;
   }
   return total === 0 ? 0 : vet / total;
 }
