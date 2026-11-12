@@ -153,6 +153,17 @@ NDCG@10 de cada semente (1 / 2 / 3): Exp. 4 = 0,3439 / 0,3575 / 0,3566; Exp. 6 =
 | Exp. 6 | −0,0891 | −0,0830 | −0,0368 |
 | Exp. 7 | −0,0325 | −0,0294 | −0,0199 |
 
+### Leitura em linguagem simples
+
+- **O sistema escolhido (Exp. 4)** tem duas etapas: pega os 150 filmes mais populares que o usuário não viu, e a rede os reordena pelo perfil dele (idade, gêneros e épocas que curte). Os 10 primeiros viram a recomendação.
+- **Em média, 3 acertos em 10.** Quem diz isso é a precisão (P@10 = 0,300), não o NDCG. O NDCG (0,353) também premia a posição: um acerto no 1º lugar vale mais que um no 10º. Por isso, ele não se traduz direto em "número de acertos". A popularidade fica em cerca de 2 acertos em 10 (P@10 = 0,214).
+- **É uma média, não o que todo usuário recebe.** O número de acertos varia bastante entre usuários: 43 dos 456 (9%) ficam sem nenhum acerto nas 3 sementes. Na popularidade, são 99 sem nenhum acerto (22%).
+- **"Acerto" é um filme que o usuário assistiu e avaliou com nota ≥ 4 no `u1.test`.** Um filme recomendado que ele nunca assistiu conta como erro, mesmo que ele fosse gostar. Então "3 em 10" é um piso: mede o que dá para comprovar com os dados.
+- **A popularidade dentro da rede ajuda, mas não explica tudo.** Sem ela (Exp. 7), o NDCG cai de 0,353 para 0,320. Mesmo assim, fica bem acima dos 0,245 da popularidade: a rede tira informação do gosto do usuário.
+- **A etapa de candidatos importa.** Quando a rede ordena todos os filmes não vistos (Exp. 6), o NDCG cai para 0,264. Uma explicação provável é que filmes pouco vistos sobem ao topo sem que o usuário os tenha assistido, mas o experimento não isola essa causa.
+- **Vetores sozinhos (Exp. 2) quase não acertam:** 0,072, perto de sortear 10 filmes entre os 200 populares (0,064 na validação, em `referencia-aleatoria.json`).
+- **Teto da rede:** só 57% dos relevantes estão entre os 150 candidatos (Exp. 3). O resto, a rede nunca chega a ver.
+
 ### Hipótese principal (campo `hipotesePrincipal`)
 
 A pergunta do projeto é: o híbrido com rede (Exp. 4) supera a popularidade (Exp. 1) em NDCG@10?
