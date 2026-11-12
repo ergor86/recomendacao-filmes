@@ -127,9 +127,9 @@ São 456 usuários avaliados: os 459 do `u1.test` menos 446, 459 e 460, que não
 | Diferença média por usuário (Exp. 4 − Exp. 1) | **+0,1076** |
 | Intervalo de confiança de 95% (bootstrap pareado, 5.000 reamostragens, semente 2026) | [0,0907; 0,1250] |
 
-O intervalo não inclui o zero, então **a hipótese principal é suportada**: no `u1.test`, o híbrido com rede superou a popularidade em NDCG@10. A tabela dos 7 experimentos, a análise mainstream × nicho e as limitações estão em [`resultados/README.md`](resultados/README.md#avaliacao-finaljson).
+O intervalo não inclui o zero, então **a hipótese principal é suportada**: no `u1.test`, os populares reordenados pela rede (Exp. 4) superaram a popularidade em NDCG@10. A tabela dos 7 experimentos, a análise mainstream × nicho e as limitações estão em [`resultados/README.md`](resultados/README.md#avaliacao-finaljson).
 
-**Atenção:** a busca vetorial **não** entrou no sistema escolhido. Na grade da validação, N = 0 (nenhum vizinho) teve o maior NDCG, e o sistema avaliado usa só os 150 populares. O ganho vem da rede reordenando os populares, e não dos vetores (detalhes em `resultados/README.md`).
+**Atenção:** a busca vetorial **não** entrou no sistema escolhido. Na grade da validação, N = 0 (nenhum vizinho) teve o maior NDCG, e o sistema avaliado usa só os 150 populares. O sistema avaliado usa só os 150 populares reordenados pela rede; o valor da busca vetorial não foi medido neste sistema (detalhes em `resultados/README.md`).
 
 ## Ambiente
 

@@ -181,7 +181,7 @@ Para cada usuário, calcula-se a diferença NDCG(Exp. 4) − NDCG(Exp. 1). O **b
 
 | Campo | Valor | O que significa |
 |---|---|---|
-| `recallDaUniao` | **0,5699** | Fração média dos relevantes que entrou nos candidatos. É o teto do Exp. 4. |
+| `recallDaUniao` | **0,5699** | Fração média dos relevantes que entrou nos candidatos. É o teto de recall do Exp. 4. |
 | `orcamentoEfetivo` | 150,0 | Tamanho médio da lista de candidatos. |
 | `contribuicaoExclusiva.vet` | 0 | Fração dos acertos trazidos só pelos vetores. É zero **por construção**, porque N = 0. |
 | `contribuicaoExclusiva.pop` | 1 | Fração dos acertos trazidos só pelos populares. |
