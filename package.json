@@ -16,7 +16,8 @@
     "carregar-filmes": "node scripts/04-carregar-filmes.js",
     "verificar-hnsw": "node scripts/05-verificar-hnsw.js",
     "linha-de-base": "node scripts/06-linha-de-base.js",
-    "candidatos": "node scripts/07-candidatos.js"
+    "candidatos": "node scripts/07-candidatos.js",
+    "gerar-candidatos": "node scripts/08-gerar-candidatos.js"
   },
   "dependencies": {
     "@tensorflow/tfjs-node": "^4.22.0",
