@@ -1,0 +1,101 @@
+{
+  "passo": 2,
+  "k": 200,
+  "n": 100,
+  "modelos": [
+    {
+      "nome": "candidatos-128-64-32",
+      "ndcg": 0.3151015579771651,
+      "precisao": 0.2706415620641563,
+      "recall": 0.14743994843699948,
+      "porSemente": [
+        {
+          "semente": 1,
+          "ndcg": 0.30881918217040755,
+          "precisao": 0.26359832635983244,
+          "recall": 0.140608095875344,
+          "cobertura": 0.17360285374554102,
+          "popularidadeMediaContagem": 200.89539748953976
+        },
+        {
+          "semente": 2,
+          "ndcg": 0.3169273864029473,
+          "precisao": 0.2746861924686191,
+          "recall": 0.1509802177417347,
+          "cobertura": 0.15933412604042807,
+          "popularidadeMediaContagem": 201.94058577405858
+        },
+        {
+          "semente": 3,
+          "ndcg": 0.31955810535814044,
+          "precisao": 0.2736401673640167,
+          "recall": 0.15073153169391987,
+          "cobertura": 0.1694411414982164,
+          "popularidadeMediaContagem": 204.85251046025104
+        }
+      ],
+      "diagnosticos": {
+        "aucValidacao": 0.7764168630531852,
+        "correlacaoScorePopularidade": 0.4232113223427031
+      }
+    },
+    {
+      "nome": "candidatos-64-32",
+      "ndcg": 0.31877490581989854,
+      "precisao": 0.27078103207810306,
+      "recall": 0.14535344947469644,
+      "porSemente": [
+        {
+          "semente": 1,
+          "ndcg": 0.3115372938910927,
+          "precisao": 0.26422594142259376,
+          "recall": 0.14397658102114225,
+          "cobertura": 0.17538644470868014,
+          "popularidadeMediaContagem": 206.9387029288703
+        },
+        {
+          "semente": 2,
+          "ndcg": 0.3247664133213238,
+          "precisao": 0.27384937238493695,
+          "recall": 0.14694097433298908,
+          "cobertura": 0.18430439952437574,
+          "popularidadeMediaContagem": 202.61569037656903
+        },
+        {
+          "semente": 3,
+          "ndcg": 0.3200210102472792,
+          "precisao": 0.2742677824267781,
+          "recall": 0.14514279306995823,
+          "cobertura": 0.15933412604042807,
+          "popularidadeMediaContagem": 211.95439330543934
+        }
+      ],
+      "diagnosticos": {
+        "aucValidacao": 0.7756123937484766,
+        "correlacaoScorePopularidade": 0.4577049371249851
+      }
+    }
+  ],
+  "escolha": {
+    "escolhida": "candidatos-64-32",
+    "melhor": "candidatos-64-32",
+    "fragil": true,
+    "tabela": [
+      {
+        "nome": "candidatos-128-64-32",
+        "media": 0.3151015579771651,
+        "diferenca": 0.003673347842733432,
+        "erroPadrao": 0.0029905323957641183,
+        "empata": false
+      },
+      {
+        "nome": "candidatos-64-32",
+        "media": 0.31877490581989854,
+        "diferenca": 0,
+        "erroPadrao": 0,
+        "empata": true
+      }
+    ]
+  },
+  "controle": null
+}
