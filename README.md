@@ -80,6 +80,30 @@ Resultados versionados em `resultados/`: `verificacao-hnsw.json`, `linha-de-base
 
 A reprodutibilidade vale por construção do índice: o pgvector sorteia o nível dos nós ao construir o HNSW. Rodar de novo `verificar-hnsw` ou `candidatos` sobre a mesma carga dá resultados idênticos, mas depois de `npm run carregar-filmes` (que reconstrói o índice) os números baseados em HNSW podem mudar levemente. A busca exata e a linha de base não dependem disso.
 
+## Plano 2: treino da rede
+
+### Treinar (`npm run treinar`)
+
+    npm run gerar-candidatos -- --fase exp   # precisa do banco na fase exp; grava artefatos/candidatos-exp.json
+    npm run treinar -- --fase exp --negativos uniforme|candidatos --arquitetura 128-64-32|64-32 [--sem-pop]
+
+O script 09 não usa o banco nem lê o `u1.test`. Ele treina as sementes 1, 2 e 3. Para cada uma, grava o modelo em `modelos/<nome>-<fase>-s<semente>/` e atualiza `resultados/treino-<nome>-<fase>.json` (`nome` = `<negativos>-<arquitetura>[-sempop]`). Cada execução acrescenta uma linha em `resultados/diario-treinos.jsonl`. Um retreino fora do plano deve informar `--motivo "<texto>"`. Use `--saida <pasta>` para rodar um teste de fumaça sem tocar em `modelos/`, `resultados/` e no diário, e `--max-epocas <n>` para trocar o teto de 50 épocas.
+
+Na fase `exp`, o treino para sozinho: depois de 3 épocas sem melhora na perda de validação, ele restaura os pesos da melhor época. Na fase `final`, não há validação, então cada semente treina exatamente a melhor época que teve na `exp`:
+
+    npm run treinar -- --fase final --negativos <...> --arquitetura <...> --epocas-de resultados/treino-<nome>-exp.json
+
+### Por que o treino final usa épocas fixas (e o que isso significa)
+
+O treino final usa o `u1.base` inteiro, sem esconder as notas da validação. Por isso ele tem cerca de 31% mais pares em cada época. Os números abaixo foram medidos com a semente 1 e o esquema uniforme. A contagem de pares é a mesma nos dois esquemas e em todas as sementes, porque o sorteio muda quais filmes entram, mas não quantos.
+
+| Fase | Notas no treino | Pares de treino | Positivos | Sorteados (4 por positivo) | Observados (nota 1–3) | Passos de gradiente por época (lote 256) |
+|---|---|---|---|---|---|---|
+| `exp` | 61.012 | 195.847 | 33.709 | 134.836 | 27.302 | 766 |
+| `final` | 80.000 | 256.555 | 44.139 | 176.556 | 35.860 | 1.003 (+31%) |
+
+Repetir na fase final o mesmo número de épocas da `exp` dá cerca de 31% mais passos de gradiente. Ou seja, a rede final treina um pouco mais do que a rede escolhida na validação. A alternativa seria fixar o número de passos, mas aí a rede veria cada exemplo menos vezes. O plano fixa as épocas e registra `passosDeGradiente` em cada `treino-*.json`, para que a diferença fique visível.
+
 ## Ambiente
 
 - Node: v22.23.3 (`.nvmrc` = 22, `engines` >=22 <23)
