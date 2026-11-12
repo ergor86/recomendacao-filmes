@@ -4,8 +4,11 @@
 // 1. Junta as entradas das pré-condições SEM tocar no u1.test: configuracao-final.json, existência de
 //    avaliacao-final.json, artefatos/regua-final.json, hash da régua no banco, cabeçalho de
 //    artefatos/candidatos-final.json e metadados dos 6 modelos finais; chama verificarPreCondicoes.
-// 2. Confere a régua-final contra os dados (contexto final SEM o teste).
-// 3. Só então lê o u1.test (criarContexto com incluirTeste: true) e avalia os usuários com relevantes:
+// 2. Ainda SEM o teste (contexto final sem incluirTeste): confere a régua-final contra os dados, os
+//    candidatos de todos os usuários do u1.base, carrega os 6 modelos finais e calcula TODOS os top 10
+//    (todos os usuários do u1.base, 3 sementes). Qualquer falha aqui deixa o u1.test intocado.
+// 3. Só então lê o u1.test (criarContexto com incluirTeste: true); depois disso, só métricas, nos
+//    usuários com relevantes:
 //    Exp. 1 popularidade (10 primeiros populares não vistos); Exp. 2 só vetores (10 primeiros vizinhos,
 //    sem os usuários sem curtidas, + recall dos candidatos); Exp. 3 híbrido sem rede (recall da união,
 //    orçamento efetivo, contribuição exclusiva das fontes); Exp. 4 híbrido + rede; Exp. 5 populares + rede
@@ -91,27 +94,121 @@ if (configuracao.sementeBootstrap !== 2026) throw new Error(`${ARQ_CONFIGURACAO}
 const regra = regraNZero(N);
 const regua = reguaFinal;
 
-// ---- 2. Régua-final contra os dados, ainda sem o teste ---------------------------------------
+// ---- 2. Tudo o que não depende do teste, ANTES de lê-lo -------------------------------------
+// Régua, candidatos, os 6 modelos e todos os top 10 de todos os usuários do u1.base. Se algo falhar
+// aqui, o u1.test continua intocado; depois da leitura só restam as métricas.
 
-{
-  const { regua: reguaSemTeste } = criarContexto({ fase: 'final', dirDados });
-  if (reguaSemTeste.hash !== regua.hash) {
-    throw new Error(`${ARQ_REGUA} difere da régua calculada do u1.base: rode npm run carregar-filmes -- --fase final`);
-  }
+const { dataset, treino, regua: reguaSemTeste } = criarContexto({ fase: 'final', dirDados });
+if (reguaSemTeste.hash !== regua.hash) {
+  throw new Error(`${ARQ_REGUA} difere da régua calculada do u1.base: rode npm run carregar-filmes -- --fase final`);
 }
 const candidatos = lerCandidatos(ARQ_CANDIDATOS, regua); // confere sha256 do conteúdo e hash da régua
-
-// ---- 3. Único ponto em que o u1.test é lido ------------------------------------------------
-
-console.log('== Avaliação final no u1.test (uso único) ==');
-const { dataset, treino, alvos, regua: reguaCalculada } = criarContexto({ fase: 'final', dirDados, incluirTeste: true });
-if (reguaCalculada.hash !== regua.hash) throw new Error('a régua mudou ao incluir o teste: confira criarContexto (vazamento?)');
 
 const filmesPorId = new Map(dataset.filmes.map((x) => [x.id, x]));
 const usuariosPorId = new Map(dataset.usuarios.map((x) => [x.id, x]));
 const historico = historicoDoTreino(treino, filmesPorId);
 const ranking = rankingPopularidade(regua.contagens);
 const catalogo = dataset.filmes.map((x) => x.id);
+const todos = [...historico.keys()].sort((a, b) => a - b); // todos os usuários do u1.base
+console.log('== Avaliação final no u1.test (uso único) ==');
+console.log(`régua-final ${regua.hash.slice(0, 12)}…; candidatos ${candidatosFinal.sha256.slice(0, 12)}…; (K, N) = (${K}, ${N}); `
+  + `${todos.length} usuários no u1.base`);
+if (regra.aplicada) console.log('N = 0 venceu a grade: aplicando a regra decidida antes (spec §9.2).');
+
+const vistosDe = new Map();
+const entradas = new Map();
+for (const u of todos) {
+  const entrada = candidatos.get(u);
+  if (!entrada) throw new Error(`usuário ${u} sem candidatos em ${ARQ_CANDIDATOS}: rode npm run gerar-candidatos -- --fase final`);
+  if (!usuariosPorId.has(u)) throw new Error(`usuário ${u} do treino não existe no dataset`);
+  entradas.set(u, entrada);
+  vistosDe.set(u, new Set(historico.get(u).notas.keys()));
+}
+
+// Listas de candidatos de cada experimento, por usuário (iguais para todas as sementes).
+const listasExp4 = new Map(todos.map((u) => [u, candidatosDe(entradas.get(u), K, N)]));
+const idsExp4 = new Map([...listasExp4].map(([u, l]) => [u, l.ids]));
+const idsExp5 = new Map(todos.map((u) => [u, popularesMesmoOrcamento(ranking, vistosDe.get(u), idsExp4.get(u).length)]));
+const idsExp6 = new Map(todos.map((u) => [u, todosNaoVistos(catalogo, vistosDe.get(u))]));
+for (const u of todos) {
+  const { populares, vizinhos } = entradas.get(u);
+  const naoVistos = new Set(idsExp6.get(u));
+  for (const id of [...idsExp4.get(u), ...idsExp5.get(u), ...populares.slice(0, 10), ...vizinhos]) {
+    if (!naoVistos.has(id)) throw new Error(`candidato ${id} do usuário ${u} já foi visto no treino: rode npm run gerar-candidatos -- --fase final`);
+  }
+  if (populares.length < 10) throw new Error(`usuário ${u} com menos de 10 populares em ${ARQ_CANDIDATOS}: rode npm run gerar-candidatos -- --fase final`);
+  // Exp. 2: quem tem vizinhos precisa de 10 para o top 10; quem não tem (sem curtidas) fica fora e é contado.
+  if (vizinhos.length > 0 && vizinhos.length < 10) {
+    throw new Error(`usuário ${u} com só ${vizinhos.length} vizinhos (o top 10 do Exp. 2 exige 10): rode npm run gerar-candidatos -- --fase final`);
+  }
+}
+const listasExp5IguaisExp4 = todos.every((u) => listasIguais(idsExp4.get(u), idsExp5.get(u)));
+if (regra.exp5IdenticoAoExp4 && !listasExp5IguaisExp4) {
+  throw new Error('N = 0, mas os candidatos do Exp. 5 diferem dos do Exp. 4: confira o ranking da régua-final e os populares do arquivo');
+}
+// Com N = 0 nenhum candidato vem da fonte vetorial: a contribuição exclusiva é zero por construção.
+if (regra.contribuicaoVetorialPorConstrucao && todos.some((u) => [...listasExp4.get(u).fonte.values()].some((x) => x !== 'pop'))) {
+  throw new Error('N = 0, mas há candidatos de fonte vetorial no Exp. 4: confira candidatosDe');
+}
+
+/**
+ * Carrega o modelo final de uma semente, confere o que ele declara e pontua a lista de cada usuário do
+ * u1.base; `aoPontuar(u, scores)` recebe os scores de um usuário por vez (não guardamos todos na memória).
+ */
+async function pontuarSemente(nome, semente, semPop, listaPorUsuario, aoPontuar) {
+  const dir = `modelos/${nome}-final-s${semente}`;
+  const { modelo, metadados } = await carregarModelo(dir, regua); // falha se faltar arquivo ou a régua divergir
+  try {
+    if (metadados.nome !== nome || metadados.semente !== semente || metadados.fase !== 'final'
+      || metadados.sha256Candidatos !== candidatosFinal.sha256 || Boolean(metadados.semPop) !== semPop) {
+      throw new Error(`${dir} não confere (nome, semente, fase, candidatos ou semPop): rode npm run treinar -- --fase final ... para esse modelo`);
+    }
+    for (const u of todos) {
+      const s = pontuarCandidatos({
+        modelo, regua, semPop, usuario: usuariosPorId.get(u),
+        curtidos: historico.get(u).curtidos, candidatos: listaPorUsuario.get(u), filmesPorId,
+      });
+      for (const [id, v] of s) {
+        if (!Number.isFinite(v)) throw new Error(`score não finito (${v}) do filme ${id} para o usuário ${u} em ${dir}`);
+      }
+      aoPontuar(u, s);
+    }
+  } finally {
+    modelo.dispose();
+  }
+}
+
+// Top 10 por semente de cada experimento com rede, para todos os usuários do u1.base.
+const top10PorSemente = [];
+let top10Exp5IgualExp4 = true;
+for (const semente of SEMENTES) {
+  const t = { semente, exp4: new Map(), exp5: new Map(), exp6: new Map(), exp7: new Map() };
+  // Modelo: pontua uma vez todos os não vistos (superconjunto dos candidatos do Exp. 4 e do Exp. 5),
+  // para os três experimentos usarem exatamente os mesmos scores.
+  await pontuarSemente(configuracao.modelo, semente, false, idsExp6, (u, s) => {
+    t.exp4.set(u, top10DoSubconjunto(s, idsExp4.get(u)));
+    t.exp5.set(u, top10DoSubconjunto(s, idsExp5.get(u)));
+    t.exp6.set(u, top10DoSubconjunto(s, idsExp6.get(u)));
+  });
+  // Controle: só os candidatos do Exp. 4.
+  await pontuarSemente(configuracao.controle, semente, true, idsExp4, (u, s) => t.exp7.set(u, top10DoSubconjunto(s, idsExp4.get(u))));
+  if (!todos.every((u) => listasIguais(t.exp4.get(u), t.exp5.get(u)))) top10Exp5IgualExp4 = false;
+  top10PorSemente.push(t);
+  console.log(`  semente ${semente}: top 10 dos Exp. 4–7 calculados para ${todos.length} usuários`);
+}
+if (regra.exp5IdenticoAoExp4 && !top10Exp5IgualExp4) {
+  throw new Error('N = 0, mas o top 10 do Exp. 5 difere do Exp. 4 em alguma semente: confira o ranking e os scores');
+}
+const top10Exp1 = new Map(todos.map((u) => [u, entradas.get(u).populares.slice(0, 10)]));
+const top10Exp2 = new Map(todos.filter((u) => entradas.get(u).vizinhos.length > 0).map((u) => [u, entradas.get(u).vizinhos.slice(0, 10)]));
+const candidatosExp2 = new Map([...top10Exp2.keys()].map((u) => [u, entradas.get(u).vizinhos.slice(0, regra.nRecallExp2)]));
+
+// ---- 3. Único ponto em que o u1.test é lido; daqui em diante, só métricas ---------------------
+
+const { alvos, treino: treinoComTeste, regua: reguaCalculada } = criarContexto({ fase: 'final', dirDados, incluirTeste: true });
+if (reguaCalculada.hash !== regua.hash || treinoComTeste.length !== treino.length) {
+  throw new Error('a régua ou o treino mudaram ao incluir o teste: confira criarContexto (vazamento?)');
+}
 
 // Usuários avaliados: os do u1.test com pelo menos um relevante, em ordem crescente de id.
 const relevantesBrutos = relevantesPorUsuario(alvos);
@@ -119,54 +216,22 @@ const usuarios = [...relevantesBrutos.keys()].sort((a, b) => a - b);
 const relevantes = new Map(usuarios.map((u) => [u, relevantesBrutos.get(u)]));
 const usuariosDoTeste = new Set(alvos.map((a) => a.usuario));
 const semRelevantes = [...usuariosDoTeste].filter((u) => !relevantes.has(u)).sort((a, b) => a - b);
-console.log(`régua-final ${regua.hash.slice(0, 12)}…; candidatos ${candidatosFinal.sha256.slice(0, 12)}…; (K, N) = (${K}, ${N})`);
+const foraDoTreino = usuarios.filter((u) => !historico.has(u));
+if (foraDoTreino.length > 0) throw new Error(`usuários do teste sem histórico no u1.base (${foraDoTreino.join(', ')}): sem candidatos nem perfil`);
 console.log(`usuários do teste: ${usuariosDoTeste.size}; avaliados (com relevantes): ${usuarios.length}; sem relevantes: ${semRelevantes.join(', ') || '-'}`);
-if (regra.aplicada) console.log('N = 0 venceu a grade: aplicando a regra decidida antes (spec §9.2).');
-
-const vistosDe = new Map();
-const entradas = new Map();
-for (const u of usuarios) {
-  const entrada = candidatos.get(u);
-  if (!entrada) throw new Error(`usuário ${u} sem candidatos em ${ARQ_CANDIDATOS}: rode npm run gerar-candidatos -- --fase final`);
-  if (!usuariosPorId.has(u)) throw new Error(`usuário ${u} do teste não existe no dataset`);
-  entradas.set(u, entrada);
-  vistosDe.set(u, new Set(historico.get(u)?.notas.keys() ?? []));
-}
-
-// Listas de candidatos de cada experimento, por usuário (iguais para todas as sementes).
-const listasExp4 = new Map(usuarios.map((u) => [u, candidatosDe(entradas.get(u), K, N)]));
-const idsExp4 = new Map([...listasExp4].map(([u, l]) => [u, l.ids]));
-const idsExp5 = new Map(usuarios.map((u) => [u, popularesMesmoOrcamento(ranking, vistosDe.get(u), idsExp4.get(u).length)]));
-const idsExp6 = new Map(usuarios.map((u) => [u, todosNaoVistos(catalogo, vistosDe.get(u))]));
-for (const u of usuarios) {
-  const naoVistos = new Set(idsExp6.get(u));
-  for (const id of [...idsExp4.get(u), ...idsExp5.get(u)]) {
-    if (!naoVistos.has(id)) throw new Error(`candidato ${id} do usuário ${u} já foi visto no treino: regere ${ARQ_CANDIDATOS}`);
-  }
-}
-const listasExp5IguaisExp4 = usuarios.every((u) => listasIguais(idsExp4.get(u), idsExp5.get(u)));
-if (regra.exp5IdenticoAoExp4 && !listasExp5IguaisExp4) {
-  throw new Error('N = 0, mas os candidatos do Exp. 5 diferem dos do Exp. 4: confira o ranking da régua-final e os populares do arquivo');
-}
 
 // ---- Exp. 1: popularidade --------------------------------------------------------------------
 
-const top10Exp1 = new Map(usuarios.map((u) => [u, entradas.get(u).populares.slice(0, 10)]));
 const exp1 = resumirSemRede(avaliarSistema(top10Exp1, relevantes, regua.contagens));
 console.log(`\nExp. 1 popularidade: NDCG ${f(exp1.ndcg)}`);
 
 // ---- Exp. 2: só vetores ----------------------------------------------------------------------
 
-const comVizinhos = usuarios.filter((u) => entradas.get(u).vizinhos.length > 0);
-const exp2Excluidos = usuarios.filter((u) => entradas.get(u).vizinhos.length === 0);
+const comVizinhos = usuarios.filter((u) => top10Exp2.has(u));
+const exp2Excluidos = usuarios.filter((u) => !top10Exp2.has(u));
 const relevantesExp2 = new Map(comVizinhos.map((u) => [u, relevantes.get(u)]));
-for (const u of comVizinhos) {
-  if (entradas.get(u).vizinhos.length < 10) {
-    throw new Error(`usuário ${u} com só ${entradas.get(u).vizinhos.length} vizinhos (o top 10 exige 10): regere ${ARQ_CANDIDATOS}`);
-  }
-}
-const exp2Top10 = resumirSemRede(avaliarSistema(new Map(comVizinhos.map((u) => [u, entradas.get(u).vizinhos.slice(0, 10)])), relevantesExp2, regua.contagens));
-const exp2Recall = recallDosCandidatos(new Map(comVizinhos.map((u) => [u, entradas.get(u).vizinhos.slice(0, regra.nRecallExp2)])), relevantesExp2);
+const exp2Top10 = resumirSemRede(avaliarSistema(top10Exp2, relevantesExp2, regua.contagens));
+const exp2Recall = recallDosCandidatos(candidatosExp2, relevantesExp2);
 console.log(`Exp. 2 só vetores: NDCG ${f(exp2Top10.ndcg)} (${comVizinhos.length} usuários; ${exp2Excluidos.length} sem curtidas fora); `
   + `recall dos ${regra.nRecallExp2} vizinhos ${f(exp2Recall.media)}`);
 
@@ -174,75 +239,27 @@ console.log(`Exp. 2 só vetores: NDCG ${f(exp2Top10.ndcg)} (${comVizinhos.length
 
 const exp3Recall = recallDosCandidatos(idsExp4, relevantes);
 const exp3Contribuicoes = contribuicoesDasFontes(acertosComFonte(listasExp4, relevantes));
-if (regra.contribuicaoVetorialPorConstrucao && exp3Contribuicoes.vet !== 0) {
-  throw new Error(`N = 0, mas a contribuição exclusiva vetorial dos candidatos é ${exp3Contribuicoes.vet}: confira candidatosDe`);
-}
 const orcamentoEfetivo = media(usuarios.map((u) => idsExp4.get(u).length));
 console.log(`Exp. 3 híbrido sem rede: recall da união ${f(exp3Recall.media)}; orçamento efetivo ${f(orcamentoEfetivo, 1)}; `
   + `exclusiva vet ${f(exp3Contribuicoes.vet)}, pop ${f(exp3Contribuicoes.pop)}`);
 
 // ---- Exp. 4, 5, 6 (modelo) e 7 (controle), por semente -----------------------------------------
 
-/** Carrega o modelo final de uma semente, confere o que ele declara e pontua as listas pedidas. */
-async function pontuarSemente(nome, semente, semPop, listaPorUsuario) {
-  const dir = `modelos/${nome}-final-s${semente}`;
-  const { modelo, metadados } = await carregarModelo(dir, regua);
-  try {
-    if (metadados.fase !== 'final' || metadados.sha256Candidatos !== candidatosFinal.sha256 || Boolean(metadados.semPop) !== semPop) {
-      throw new Error(`${dir} mudou depois das pré-condições (fase, candidatos ou semPop): confira a pasta de modelos`);
-    }
-    const scores = new Map();
-    for (const u of usuarios) {
-      const s = pontuarCandidatos({
-        modelo, regua, semPop, usuario: usuariosPorId.get(u),
-        curtidos: historico.get(u)?.curtidos ?? [], candidatos: listaPorUsuario.get(u), filmesPorId,
-      });
-      for (const [id, v] of s) {
-        if (!Number.isFinite(v)) throw new Error(`score não finito (${v}) do filme ${id} para o usuário ${u} em ${dir}`);
-      }
-      scores.set(u, s);
-    }
-    return scores;
-  } finally {
-    modelo.dispose();
-  }
-}
-
-/** Top 10 de cada usuário entre os ids do experimento, a partir dos scores da semente. */
-const top10De = (scores, idsPorUsuario) => new Map(usuarios.map((u) => [u, top10DoSubconjunto(scores.get(u), idsPorUsuario.get(u))]));
-
 const porSemente = { exp4: [], exp5: [], exp6: [], exp7: [] };
 const contribuicaoTop10Exp4 = [];
-let top10Exp5IgualExp4 = true;
-for (const semente of SEMENTES) {
-  // Modelo: pontua uma vez todos os não vistos (superconjunto dos candidatos do Exp. 4 e do Exp. 5),
-  // para os três experimentos usarem exatamente os mesmos scores.
-  const scores = await pontuarSemente(configuracao.modelo, semente, false, idsExp6);
-  const t4 = top10De(scores, idsExp4);
-  const t5 = top10De(scores, idsExp5);
-  const t6 = top10De(scores, idsExp6);
-  if (!usuarios.every((u) => listasIguais(t4.get(u), t5.get(u)))) top10Exp5IgualExp4 = false;
-  porSemente.exp4.push({ semente, resultado: avaliarSistema(t4, relevantes, regua.contagens) });
-  porSemente.exp5.push({ semente, resultado: avaliarSistema(t5, relevantes, regua.contagens) });
-  porSemente.exp6.push({ semente, resultado: avaliarSistema(t6, relevantes, regua.contagens) });
+for (const t of top10PorSemente) {
+  for (const e of ['exp4', 'exp5', 'exp6', 'exp7']) {
+    porSemente[e].push({ semente: t.semente, resultado: avaliarSistema(t[e], relevantes, regua.contagens) });
+  }
   // Contribuição exclusiva no top 10 do Exp. 4 (fração dos acertos vinda só dos vetores, spec §9.2).
   contribuicaoTop10Exp4.push({
-    semente,
+    semente: t.semente,
     ...contribuicoesDasFontes(usuarios.map((u) => ({
-      acertos: t4.get(u).filter((id) => relevantes.get(u).has(id)), fonte: listasExp4.get(u).fonte,
+      acertos: t.exp4.get(u).filter((id) => relevantes.get(u).has(id)), fonte: listasExp4.get(u).fonte,
     }))),
   });
-  // Controle: só os candidatos do Exp. 4.
-  const scoresControle = await pontuarSemente(configuracao.controle, semente, true, idsExp4);
-  porSemente.exp7.push({ semente, resultado: avaliarSistema(top10De(scoresControle, idsExp4), relevantes, regua.contagens) });
-  console.log(`  semente ${semente}: Exp. 4 ${f(porSemente.exp4.at(-1).resultado.ndcg)}, Exp. 5 ${f(porSemente.exp5.at(-1).resultado.ndcg)}, `
+  console.log(`  semente ${t.semente}: Exp. 4 ${f(porSemente.exp4.at(-1).resultado.ndcg)}, Exp. 5 ${f(porSemente.exp5.at(-1).resultado.ndcg)}, `
     + `Exp. 6 ${f(porSemente.exp6.at(-1).resultado.ndcg)}, Exp. 7 ${f(porSemente.exp7.at(-1).resultado.ndcg)}`);
-}
-if (regra.exp5IdenticoAoExp4 && !top10Exp5IgualExp4) {
-  throw new Error('N = 0, mas o top 10 do Exp. 5 difere do Exp. 4 em alguma semente: confira o ranking e os scores');
-}
-if (regra.contribuicaoVetorialPorConstrucao && contribuicaoTop10Exp4.some((c) => c.vet !== 0)) {
-  throw new Error('N = 0, mas há acertos vetoriais no top 10 do Exp. 4: confira candidatosDe');
 }
 
 const exp4 = resumirComRede(porSemente.exp4);
@@ -274,7 +291,6 @@ const diferencasDescritivas = {
   exp6: diferencaDescritiva(exp6.porUsuario, exp4.porUsuario),
   exp7: diferencaDescritiva(exp7.porUsuario, exp4.porUsuario),
 };
-if (regra.exp5IdenticoAoExp4 && diferencasDescritivas.exp5.ndcg !== 0) throw new Error('N = 0, mas Exp. 5 − Exp. 4 ≠ 0');
 
 const curtidosPorUsuario = new Map(usuarios.map((u) => [u, (historico.get(u)?.curtidos ?? []).map((x) => x.id)]));
 const { valores, semCurtidas } = valoresMainstream(usuarios, curtidosPorUsuario, (id) => popEscalada(regua.contagens[id] ?? 0, regua));

@@ -97,7 +97,11 @@ export function verificarPreCondicoes({ configuracao, avaliacaoExiste, reguaFina
         + `(${String(m.sha256Candidatos).slice(0, 12)}… ≠ ${candidatosFinal.sha256.slice(0, 12)}…): rode ${comando} --motivo "candidatos finais regerados"`);
     }
     const congeladas = configuracao.epocasPorSemente?.[papel]?.[String(semente)];
-    if (m.epocas !== congeladas) {
+    if (!Number.isInteger(congeladas) || congeladas < 1) {
+      throw new Error(`configuracao-final.json sem épocas válidas para ${papel} semente ${semente} (${congeladas}): `
+        + 'refaça npm run congelar -- --modelo <nome> --controle <nome>-sempop');
+    }
+    if (!Number.isInteger(m.epocas) || m.epocas !== congeladas) {
       throw new Error(`${dir} treinou ${m.epocas} épocas, mas configuracao-final.json congelou ${congeladas} para a semente ${semente}: `
         + `rode ${comando} --motivo "épocas congeladas"`);
     }

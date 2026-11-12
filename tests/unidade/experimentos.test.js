@@ -144,6 +144,16 @@ test('recusa 7: modelo final com épocas diferentes das congeladas', () => {
   assert.throws(() => verificarPreCondicoes(e), /candidatos-64-32-sempop-final-s3.*12 épocas.*16.*npm run treinar -- --fase final/s);
 });
 
+test('recusa 7: épocas ausentes não passam em silêncio (undefined === undefined)', () => {
+  const semEpocasNoModelo = valido();
+  delete semEpocasNoModelo.modelos[0].metadados.epocas;
+  assert.throws(() => verificarPreCondicoes(semEpocasNoModelo), /candidatos-64-32-final-s1.*undefined épocas/s);
+  const semEpocasCongeladas = valido();
+  semEpocasCongeladas.configuracao = { ...configuracao, epocasPorSemente: { modelo: { 1: 11, 2: 15 }, controle: configuracao.epocasPorSemente.controle } };
+  delete semEpocasCongeladas.modelos[2].metadados.epocas;
+  assert.throws(() => verificarPreCondicoes(semEpocasCongeladas), /sem épocas válidas para modelo semente 3.*npm run congelar/s);
+});
+
 test('as recusas seguem a ordem: configuração antes de tudo', () => {
   const tudoErrado = { configuracao: null, avaliacaoExiste: true, reguaFinal: null, hashBanco: null, candidatosFinal: null, modelos: [] };
   assert.throws(() => verificarPreCondicoes(tudoErrado), /configuracao-final\.json/);
@@ -284,7 +294,15 @@ test('script 13: o u1.test só é lido depois de verificarPreCondicoes, num úni
     .split('\n').filter((l) => !l.trimStart().startsWith('//')).join('\n');
   const leituras = [...codigo.matchAll(/incluirTeste:\s*true/g)];
   assert.equal(leituras.length, 1);
+  const leitura = leituras[0].index;
   const chamada = codigo.indexOf('verificarPreCondicoes({');
-  assert.ok(chamada > 0 && chamada < leituras[0].index);
+  assert.ok(chamada > 0 && chamada < leitura);
+  // Tudo o que não depende do teste vem antes da leitura: modelos, scores e todos os top 10.
+  for (const trecho of ['lerCandidatos(', 'carregarModelo(', 'pontuarCandidatos(', 'await pontuarSemente(', 'top10DoSubconjunto(',
+    'popularesMesmoOrcamento(', 'todosNaoVistos(']) {
+    const i = codigo.indexOf(trecho);
+    assert.ok(i > 0 && i < leitura, `${trecho} deveria aparecer antes de incluirTeste: true`);
+    assert.equal(codigo.indexOf(trecho, leitura), -1, `${trecho} não deveria aparecer depois de incluirTeste: true`);
+  }
   assert.ok(!/u1\.test['"]/.test(codigo)); // nenhum caminho direto para o arquivo
 });
