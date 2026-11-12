@@ -12,7 +12,7 @@ import { distribuicaoNotas, resumoPopulacao, resumoLista } from '../src/dados/es
 
 const f = (x, d = 1) => x.toFixed(d).replace('.', ',');
 const { dirDados } = carregarConfig();
-const { base, teste, filmes, usuarios, generos, ocupacoes } = carregarDataset(dirDados);
+const { base, teste, filmes, usuarios, generos, ocupacoes } = carregarDataset(dirDados, { incluirTeste: true });
 const { treinoExp, validacao } = criarDivisoes({ base, teste }, { semente: 42 });
 
 console.log('== Distribuição das notas (u.data = base + teste) ==');
