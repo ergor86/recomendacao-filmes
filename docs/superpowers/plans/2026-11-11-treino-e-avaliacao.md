@@ -44,6 +44,7 @@
   | embaralhamento por época | `100_000 · semente + época` |
   | pesos iniciais | `glorotUniform({ seed: 1000 · semente + índice da camada })` |
   | bootstrap | `2026` (registrada no JSON) |
+  | referência aleatória do R9 | `9_000_000 + usuario` |
 - **Rede (spec §7.4):** camadas `relu`, saída 1 `sigmoid`, `binaryCrossentropy`, `adam` com learning rate **0,001**, lote **256**, sementes **1, 2, 3**, `model.summary()` impresso a cada treino. Arquiteturas `128-64-32` e `64-32`. O embaralhamento é feito pelo nosso código e o `fit` roda 1 época por vez com `shuffle: false` (o `shuffle` do TF.js usa `Math.random`).
 - **Parada e melhores pesos:** paciência **3** sobre a perda nos pares de validação, teto de **50** épocas (ruling R1); pesos da melhor época **restaurados** no fim. Épocas contadas a partir de 1. No treino final, cada semente treina exatamente a melhor época dela na validação.
 - **Candidatos por fase:** `artefatos/candidatos-<fase>.json` (Task 7) é a única fonte de candidatos de treino e de avaliação. Os candidatos de um (K, N) menor são **prefixos** das listas gravadas (ruling R6). Todo leitor confere o sha256 e o hash da régua.
@@ -107,6 +108,7 @@ resultados/configuracao-final.json
 | R7 | 478 usuários de validação com relevantes. | Medido; corrigido na spec v3.2. |
 | R8 | Pasta do modelo inclui a fase (`<nome>-<fase>-s<semente>`), diferente da spec §7.5. | Evita que o treino final sobrescreva os modelos da validação. |
 | R9 | Trava de sanidade: NDCG@10 de um modelo **abaixo de 0,15 ou acima de 0,35** na validação → parar e investigar. | Uma ordem aleatória entre os populares dá cerca de 0,072; ficar abaixo da popularidade (0,233) é resultado legítimo, não bug. |
+| R11 | Época do perfil: soma das one-hots dividida pelo **nº total de curtidos** (filme sem ano conta como [0, 0, 0]), igual a `perfilUsuario` da busca e à fórmula `(soma − filme) / (n − 1)`. A referência do usuário sem curtidas usa `regua.referencias.epocaMedia` como está (dividida só pelos curtidos com ano). | A diferença entre as convenções afeta 1 curtida em 33.710 (só o usuário 422 curtiu o filme 267, medido nas duas fases). Mudar a referência mudaria o hash da régua e obrigaria a recarregar o banco. |
 | R10 | Decisão **frágil**: quando os intervalos [mín, máx] das médias por semente da melhor e da escolhida se sobrepõem. Fica registrada, não muda a regra. | O erro padrão por usuário não enxerga a variação entre sementes. |
 
 ## Review Focus
@@ -189,7 +191,7 @@ test('menos linhas que n: erro acionável', async () => {
   - `demografia(usuario, regua) → number[24]`; ocupação desconhecida: erro;
   - `popZReferencia(regua) → number` (ruling R4);
   - `resumoCurtidos(curtidos: filme[], regua) → { somaGeneros: number[19], somaEpoca: number[3], somaPop: number, n }`;
-  - `perfilRede(resumo, regua, filmeRemovido: filme | null = null) → number[23]`: média; com `filmeRemovido`, `(soma − filme) / (n − 1)`; com 0 curtidos efetivos, a referência (`generosMedia`, `epocaMedia`, `popZReferencia`);
+  - `perfilRede(resumo, regua, filmeRemovido: filme | null = null) → number[23]`: média; com `filmeRemovido`, `(soma − filme) / (n − 1)`; com 0 curtidos efetivos, a referência (`generosMedia`, `epocaMedia`, `popZReferencia`). Época pela convenção do ruling R11;
   - `popZDoPar(filmeId, avaliouNoTreinoDaRegua: boolean, regua) → number`;
   - `filmeRede(filme, popZPar) → number[23]`;
   - `montarEntrada(demo, perfil, filme, { semPop = false } = {}) → number[]` (70 ou 68 posições, ordem dos Global Constraints); confere dimensão e `Number.isFinite`.
@@ -198,6 +200,7 @@ test('menos linhas que n: erro acionável', async () => {
   - demografia em z-score e one-hots;
   - perfil sem o filme do par: com curtidos A e B, `perfilRede(resumo, regua, A)` é igual ao perfil de só B;
   - usuário sem curtidas: perfil = referência, sem NaN;
+  - ruling R11: com curtidos {sem ano, 1995}, a época do perfil é [0, 0, 0,5];
   - `popZReferencia` bate com `popZ` de uma contagem cujo `popEscalada` é `referencias.popularidadeMedia`;
   - `popZDoPar(f, true)` usa contagem − 1 e `popZDoPar(f, false)` a contagem cheia;
   - `montarEntrada` dá 70 posições; com `semPop`, 68, sem os valores das posições 46 e 69;
@@ -290,10 +293,11 @@ Regras: Global Constraints (perfil por tipo de par, exclusões, sementes da tabe
   - `projetar(porUsuario: Map<u, { ndcg, precisao, recall }>, metrica) → Map<u, number>`;
   - `mediaEntreSementes(porSemente: Map<u, number>[]) → Map<u, number>`; conjuntos de usuários diferentes → erro;
   - `escolherConfiguracao(configs: [{ nome, porUsuario: Map, porSemente: number[], simplicidade: number[] }]) → escolha` (formato dos Global Constraints): melhor = maior média; c empata com b se `media(b) − media(c) < erroPadraoPareado(diferenças por usuário)`; entre as empatadas, a menor `simplicidade` lexicográfica; `fragil` pelo ruling R10;
-  - `auc(scores: Float32Array, rotulos: Float32Array) → number` e `correlacao(a: number[], b: number[]) → number` (Pearson);
+  - `auc(scores: Float32Array, rotulos: Float32Array) → number`: estatística de Mann-Whitney com **posto médio nos empates** (é o que faz scores constantes darem 0,5); sem positivos ou sem negativos, erro acionável;
+  - `correlacao(a: number[], b: number[]) → number | null` (Pearson): `null` quando um dos vetores é constante (desvio 0), nunca NaN; o script que a usa grava `null` e imprime um aviso (scores constantes indicam rede quebrada, e a trava R9 também pega esse caso);
   - `contribuicaoExclusiva(acertos, fonte, origem = 'vet')` e `contribuicaoExclusivaAgregada(listas, origem = 'vet')` aceitam `'pop'`.
 
-- [ ] **Step 1: Escrever os testes que falham:** desempate de `top10PorScore` pelo id; `candidatosDe` com prefixos; `mediaEntreSementes`; escolha (empate escolhe a mais simples, diferença maior escolhe a melhor, desempate pelo 2º elemento, `fragil` quando as faixas se sobrepõem); `auc` = 1 para separação perfeita e 0,5 para scores constantes; contribuição exclusiva com `origem: 'pop'`; `pontuarCandidatos` com usuário sem curtidas sem NaN.
+- [ ] **Step 1: Escrever os testes que falham:** desempate de `top10PorScore` pelo id; `candidatosDe` com prefixos; `mediaEntreSementes`; escolha (empate escolhe a mais simples, diferença maior escolhe a melhor, desempate pelo 2º elemento, `fragil` quando as faixas se sobrepõem); `auc` = 1 para separação perfeita, 0,5 para scores constantes e o valor certo num caso pequeno com empates parciais calculado à mão; `correlacao` com vetor constante devolve `null`; contribuição exclusiva com `origem: 'pop'`; `pontuarCandidatos` com usuário sem curtidas sem NaN.
 - [ ] **Step 2: Rodar `npm test`.** Expected: FAIL.
 - [ ] **Step 3: Implementar.**
 - [ ] **Step 4: Rodar `npm test`.** Expected: PASS (inclusive os testes antigos de `hibrido`).
@@ -317,7 +321,8 @@ Regras: Global Constraints (perfil por tipo de par, exclusões, sementes da tabe
 - [ ] **Step 2: Rodar `npm test`.** Expected: FAIL.
 - [ ] **Step 3: Implementar** o módulo e o script (o banco precisa estar na régua da fase; a busca confere o hash).
 - [ ] **Step 4: Rodar `npm test` e `npm run gerar-candidatos -- --fase exp`.** Expected: 943 usuários; populares sempre 200; vizinhos 100, exceto o 685 com `[]`.
-- [ ] **Step 5: Commit** (o arquivo em `artefatos/` não vai para o git): `git commit -m "feat: candidatos por fase gravados com sha256"`
+- [ ] **Step 5: Conferir o número do ruling R9:** para cada usuário de validação com relevantes, embaralhar os 200 populares (semente `9_000_000 + usuario`), tomar os 10 primeiros e calcular o NDCG@10 médio com `avaliarSistema`. Gravar em `resultados/referencia-aleatoria.json` (`{ ndcg, nUsuarios, semente }`). Expected: cerca de 0,072. **Se passar de 0,10**, o limite inferior de 0,15 fica perto demais do acaso: parar e revisar o R9 antes da Task 8.
+- [ ] **Step 6: Commit** (o arquivo em `artefatos/` não vai para o git): `git commit -m "feat: candidatos por fase gravados com sha256"`
 
 ---
 
