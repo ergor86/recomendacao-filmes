@@ -1,0 +1,27 @@
+{
+  "fase": "exp",
+  "reprodutibilidade": "idêntica por carga do índice HNSW; recarregar o banco reconstrói o grafo e pode alterar levemente os números",
+  "hashRegua": "6642727a0b38b61bf5b1b9607cf89d2ded524b801f5daf1727096e3ccbfb04cd",
+  "nUsuarios": {
+    "20": 480,
+    "50": 480,
+    "100": 480
+  },
+  "fracaoMedia": {
+    "20": 0.9958333333333329,
+    "50": 0.9975833333333336,
+    "100": 0.9982291666666673
+  },
+  "parametros": {
+    "ef_search_piso": "40",
+    "iterative_scan": "strict_order",
+    "max_scan_tuples": "20000",
+    "scan_mem_multiplier": "1"
+  },
+  "regraEfSearch": "max(linhas pedidas, 40); linhas pedidas = n + 50, dobrando até 1000 em empate no limite",
+  "efSearchPorN": {
+    "20": 70,
+    "50": 100,
+    "100": 150
+  }
+}

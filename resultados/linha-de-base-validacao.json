@@ -1,0 +1,11 @@
+{
+  "fase": "exp",
+  "hashRegua": "6642727a0b38b61bf5b1b9607cf89d2ded524b801f5daf1727096e3ccbfb04cd",
+  "semente": 42,
+  "ndcg": 0.23296395124297117,
+  "precisao": 0.20209205020920504,
+  "recall": 0.12063949201967608,
+  "cobertura": 0.018430439952437573,
+  "popularidadeMediaContagem": 282.62531380753137,
+  "nUsuarios": 478
+}

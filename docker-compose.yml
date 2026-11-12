@@ -1,0 +1,16 @@
+services:
+  db:
+    # Tag confirmada com `docker pull` em 2026-11-09.
+    # Digest: pgvector/pgvector@sha256:3e8b3adfd27b5707128f60956f62a793c3c9326ea8cfaf0eab7adccb5d700b21
+    image: pgvector/pgvector:0.8.1-pg17
+    environment:
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+      POSTGRES_DB: ${PGDATABASE}
+    ports:
+      - "5433:5432"
+    volumes:
+      - dados_pg:/var/lib/postgresql/data
+
+volumes:
+  dados_pg:
