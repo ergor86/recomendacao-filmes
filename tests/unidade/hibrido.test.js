@@ -11,14 +11,14 @@ test('união sem repetição e com a fonte marcada', () => {
 });
 test('usuário sem curtidas recebe só populares e não consulta o banco', async () => {
   const poolQueFalha = { connect: () => { throw new Error('não deveria consultar'); } };
-  const r = await gerarCandidatos({ pool: poolQueFalha, regua, usuario: 685, vistos: new Set(), filmesCurtidos: [], ranking: [1, 2, 3], k: 2, n: 50 });
+  const r = await gerarCandidatos({ pool: poolQueFalha, regua, vistos: new Set(), filmesCurtidos: [], ranking: [1, 2, 3], k: 2, n: 50 });
   assert.deepEqual(r.ids, [1, 2]);
   assert.equal(r.vetorUsuario, null);
 });
 test('n = 0 não consulta o banco', async () => {
   const poolQueFalha = { connect: () => { throw new Error('não deveria consultar'); } };
   const filme = { id: 9, ano: 1995, generos: [1] };
-  const r = await gerarCandidatos({ pool: poolQueFalha, regua, usuario: 1, vistos: new Set([1]), filmesCurtidos: [filme], ranking: [1, 2, 3], k: 2, n: 0 });
+  const r = await gerarCandidatos({ pool: poolQueFalha, regua, vistos: new Set([1]), filmesCurtidos: [filme], ranking: [1, 2, 3], k: 2, n: 0 });
   assert.deepEqual(r.ids, [2, 3]);
 });
 test('contribuição exclusiva conta só acertos vindos da fonte vetorial', () => {

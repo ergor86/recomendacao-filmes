@@ -7,7 +7,7 @@
 // - Segura: recusa rodar se o hash da régua gravado no banco não for o da régua em uso.
 // - Completa: pede N + 50 linhas; se houver empate exatamente no corte, dobra o pedido até 1000.
 
-import { citar, lerHashCarregado } from './carga.js';
+import { citar, lerEsquemaEHash, lerHashCarregado } from './carga.js';
 import { validarVetor } from '../features/codificacao.js';
 
 const N_MAXIMO = 100; // maior N aceito por consulta
@@ -58,18 +58,19 @@ export async function buscarVizinhos(pool, { vetor, excluir, n, regua, modo = 'h
   configurarModo(modo);
   validarVetor(vetor, regua.dimensoes.busca);
 
-  const hashBanco = await lerHashCarregado(pool);
-  if (hashBanco === null) throw new Error(MSG_SEM_FILMES);
-  if (hashBanco !== regua.hash) {
-    throw new Error(`régua do banco difere: rode npm run carregar-filmes -- --fase ${regua.fase ?? '<fase>'}`);
-  }
-
   const client = await pool.connect();
   let descartar; // erro → a conexão é descartada em vez de devolvida ao pool
   try {
-    await client.query('BEGIN');
-    const { rows: [{ s }] } = await client.query('SELECT current_schema() AS s');
-    const tabela = `${citar(s)}.filmes`;
+    // A conferência do hash fica dentro da transação, e REPEATABLE READ faz todas as consultas dela
+    // verem o mesmo retrato do banco. Se outra carga terminar no meio, a busca falha em vez de usar
+    // vetores de uma régua com o hash de outra.
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
+    const { esquema, hash: hashBanco } = await lerEsquemaEHash(client);
+    if (hashBanco === null) throw new Error(MSG_SEM_FILMES);
+    if (hashBanco !== regua.hash) {
+      throw new Error(`régua do banco difere: rode npm run carregar-filmes -- --fase ${regua.fase ?? '<fase>'}`);
+    }
+    const tabela = `${citar(esquema)}.filmes`;
     const sql = `SELECT id, embedding <=> $1::vector AS distancia FROM ${tabela}
                  WHERE id <> ALL($2::int[]) ORDER BY embedding <=> $1::vector LIMIT $3`;
     const params = [JSON.stringify(vetor), excluir];
@@ -137,8 +138,9 @@ export async function planoDaBusca(pool, modo) {
 
 /**
  * Lê os parâmetros do HNSW como a busca os configura, para registro em resultados/.
- * iterative_scan sai como a busca usa (strict_order); ef_search sai como o piso (40),
- * já que cada busca usa max(linhas pedidas, 40).
+ * iterative_scan sai como a busca usa (strict_order). O ef_search sai como ef_search_piso (40):
+ * não é o valor usado em cada busca, que é max(linhas pedidas, 40); o script 05 grava esse
+ * valor efetivo em efSearchPorN.
  */
 export async function parametrosHnsw(pool) {
   const client = await pool.connect();
@@ -148,7 +150,7 @@ export async function parametrosHnsw(pool) {
     await client.query("SELECT set_config('hnsw.ef_search', $1, true)", [String(EF_MINIMO)]);
     await client.query('SET LOCAL hnsw.iterative_scan = strict_order');
     const { rows } = await client.query(
-      `SELECT current_setting('hnsw.ef_search') AS ef_search,
+      `SELECT current_setting('hnsw.ef_search') AS ef_search_piso,
               current_setting('hnsw.iterative_scan') AS iterative_scan,
               current_setting('hnsw.max_scan_tuples') AS max_scan_tuples,
               current_setting('hnsw.scan_mem_multiplier') AS scan_mem_multiplier`,

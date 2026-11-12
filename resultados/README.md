@@ -84,7 +84,7 @@ O índice HNSW acha vizinhos rápido, mas de forma aproximada. Este arquivo mede
 |---|---|---|
 | `fracaoMedia` | 0,9958 / 0,9976 / 0,9982 | Para N = 20 / 50 / 100: dos N vizinhos da busca exata, a fração que o HNSW também devolveu, em média por usuário. Acima de 0,99 é considerado seguro. |
 | `nUsuarios` | 480 | Usuários de validação com perfil (pelo menos uma curtida no treino). São 480, e não 478, porque aqui não é preciso ter relevantes escondidos. |
-| `parametros.ef_search` | 40 | Piso do ef_search, ou seja, de quantos candidatos o HNSW explora por consulta. |
+| `parametros.ef_search_piso` | 40 | Piso do ef_search, ou seja, de quantos candidatos o HNSW explora por consulta. **Não** é o valor usado nas buscas; esse está em `efSearchPorN`. |
 | `efSearchPorN` | 70 / 100 / 150 | ef_search efetivamente usado para cada N. É N + 50 linhas pedidas, com mínimo de 40. |
 | `regraEfSearch` | | A regra acima, por extenso. |
 | `parametros.iterative_scan` | strict_order | Se o filtro "já vistos" remover linhas demais, o índice continua buscando, mantendo a ordem por distância. |

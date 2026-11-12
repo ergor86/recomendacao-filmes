@@ -13,7 +13,7 @@
     "100": 0.9982291666666673
   },
   "parametros": {
-    "ef_search": "40",
+    "ef_search_piso": "40",
     "iterative_scan": "strict_order",
     "max_scan_tuples": "20000",
     "scan_mem_multiplier": "1"

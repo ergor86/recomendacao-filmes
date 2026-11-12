@@ -97,7 +97,7 @@ export function vetorBuscaUsuario(perfil, regua) {
  */
 export function vetorBuscaUsuarioNovo(indicesGenerosFavoritos, regua) {
   const generos = new Array(regua.generos.length).fill(0);
-  for (const i of indicesGenerosFavoritos) generos[i] = 1 / Math.sqrt(indicesGenerosFavoritos.length);
+  for (const i of indicesGenerosFavoritos) generos[i] = 1; // montar() normaliza o bloco: cada favorito vira 1/√k
   return montar(generos, regua.referencias.epocaMedia, regua.referencias.popularidadeMedia, regua);
 }
 

@@ -29,8 +29,9 @@ const vetores = dataset.filmes.map((f) => {
 const pool = criarPool(configPg);
 try {
   await verificarConexao(pool);
-  salvarRegua(regua, `artefatos/regua-${fase}.json`);
   await carregarFilmes(pool, dataset.filmes, vetores, regua);
+  // Só depois da carga confirmada: se ela falhar, o arquivo continua igual ao banco.
+  salvarRegua(regua, `artefatos/regua-${fase}.json`);
   console.log(`${dataset.filmes.length} filmes carregados`);
   console.log(`hash da régua (${fase}): ${regua.hash}`);
 } catch (erro) {

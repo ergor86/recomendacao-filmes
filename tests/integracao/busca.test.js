@@ -84,7 +84,7 @@ test('EXPLAIN confirma índice no modo hnsw e seq scan no modo exata', async () 
 });
 test('parametrosHnsw devolve os quatro parâmetros', async () => {
   const p = await parametrosHnsw(pool);
-  assert.deepEqual(Object.keys(p), ['ef_search', 'iterative_scan', 'max_scan_tuples', 'scan_mem_multiplier']);
+  assert.deepEqual(Object.keys(p), ['ef_search_piso', 'iterative_scan', 'max_scan_tuples', 'scan_mem_multiplier']);
 });
 
 test('sem tabelas: lerHashCarregado devolve null e buscarVizinhos manda carregar os filmes', async () => {

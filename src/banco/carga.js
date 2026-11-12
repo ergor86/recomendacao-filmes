@@ -24,6 +24,11 @@ export async function carregarFilmes(pool, filmes, vetores, regua) {
   let descartar; // erro → a conexão é descartada em vez de devolvida ao pool
   try {
     await client.query('BEGIN');
+    // Garante a extensão pgvector (o tipo vector) num banco novo, sem depender do script 01.
+    // SCHEMA public: num schema de teste, ela seria apagada junto com o schema.
+    await client.query('CREATE EXTENSION IF NOT EXISTS vector SCHEMA public').catch((erro) => {
+      throw new Error(`não consegui criar a extensão pgvector (${erro.message}): rode npm run ambiente ou confira a imagem no docker-compose.yml`);
+    });
     const { rows: [{ s: esquema }] } = await client.query('SELECT current_schema() AS s');
     const q = citar(esquema);
     await client.query(`DROP TABLE IF EXISTS ${q}.filmes`);
@@ -59,16 +64,24 @@ export async function carregarFilmes(pool, filmes, vetores, regua) {
 }
 
 /**
- * Lê o hash da régua gravado na última carga, no schema atual.
- * Devolve null se a tabela metadados não existir (banco ainda não carregado).
+ * Lê o schema atual e o hash da régua gravado na última carga nesse schema.
+ * hash = null se a tabela metadados não existir (banco ainda não carregado).
+ * @param executor um pool ou uma conexão (client); dentro de uma transação, use a conexão dela
+ * @returns { esquema, hash }
  */
-export async function lerHashCarregado(pool) {
-  const { rows: [{ s }] } = await pool.query('SELECT current_schema() AS s');
+export async function lerEsquemaEHash(executor) {
+  const { rows: [{ s, existe }] } = await executor.query(
+    "SELECT current_schema() AS s, to_regclass(quote_ident(current_schema()) || '.metadados') IS NOT NULL AS existe",
+  );
   if (s === null) {
     throw new Error('nenhum schema válido no search_path; confira PGOPTIONS/search_path do banco e se o schema public existe');
   }
-  const { rows: [{ existe }] } = await pool.query('SELECT to_regclass($1) IS NOT NULL AS existe', [`${citar(s)}.metadados`]);
-  if (!existe) return null;
-  const { rows } = await pool.query(`SELECT valor FROM ${citar(s)}.metadados WHERE chave = 'hash_regua'`);
-  return rows[0]?.valor ?? null;
+  if (!existe) return { esquema: s, hash: null };
+  const { rows } = await executor.query(`SELECT valor FROM ${citar(s)}.metadados WHERE chave = 'hash_regua'`);
+  return { esquema: s, hash: rows[0]?.valor ?? null };
+}
+
+/** Só o hash da régua gravado na última carga (null se o banco ainda não foi carregado). */
+export async function lerHashCarregado(executor) {
+  return (await lerEsquemaEHash(executor)).hash;
 }

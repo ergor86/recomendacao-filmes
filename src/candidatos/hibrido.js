@@ -3,7 +3,7 @@
 
 import { popularesNaoVistos } from './populares.js';
 import { buscarVizinhos } from '../banco/busca.js';
-import { perfilUsuario, vetorBuscaUsuario, validarVetor } from '../features/codificacao.js';
+import { perfilUsuario, vetorBuscaUsuario } from '../features/codificacao.js';
 
 /**
  * Une as duas listas sem repetição: populares primeiro, depois os vizinhos novos.
@@ -33,14 +33,13 @@ export function unirCandidatos(populares, vizinhos) {
  * do perfil dele (excluindo os vistos), unidos sem repetição.
  * Sem curtidas (ou com n = 0) não há perfil: volta só com os populares e vetorUsuario = null.
  */
-export async function gerarCandidatos({ pool, regua, usuario, vistos, filmesCurtidos, ranking, k, n }) {
+export async function gerarCandidatos({ pool, regua, vistos, filmesCurtidos, ranking, k, n }) {
   const populares = popularesNaoVistos(ranking, vistos, k);
   const perfil = n === 0 ? null : perfilUsuario(filmesCurtidos, regua);
   if (perfil === null) {
     return { ...unirCandidatos(populares, []), vetorUsuario: null };
   }
   const vetorUsuario = vetorBuscaUsuario(perfil, regua);
-  validarVetor(vetorUsuario, regua.dimensoes.busca);
   const excluir = [...vistos].sort((a, b) => a - b);
   const vizinhos = await buscarVizinhos(pool, { vetor: vetorUsuario, excluir, n, regua });
   return { ...unirCandidatos(populares, vizinhos.map((v) => v.id)), vetorUsuario };

@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import { carregarConfig } from '../src/config.js';
 import { criarContexto } from '../src/contexto.js';
 import { carregarRegua } from '../src/features/regua.js';
-import { perfilUsuario, vetorBuscaUsuario, validarVetor } from '../src/features/codificacao.js';
+import { perfilUsuario, vetorBuscaUsuario } from '../src/features/codificacao.js';
 import { vistosPorUsuario } from '../src/candidatos/populares.js';
 import { criarPool, verificarConexao } from '../src/banco/conexao.js';
 import { lerHashCarregado } from '../src/banco/carga.js';
@@ -45,8 +45,8 @@ try {
   if (hashBanco !== regua.hash) throw new Error(`régua do banco difere: rode npm run carregar-filmes -- --fase ${regua.fase}`);
   const planoHnsw = await planoDaBusca(pool, 'hnsw');
   const planoExata = await planoDaBusca(pool, 'exata');
-  if (!/Index Scan/.test(planoHnsw) || !/Seq Scan/.test(planoExata)) {
-    throw new Error(`EXPLAIN inesperado: braço hnsw sem Index Scan ou braço exato sem Seq Scan\n${planoHnsw}\n${planoExata}`);
+  if (!/Index Scan using filmes_embedding_idx/.test(planoHnsw) || !/Seq Scan/.test(planoExata)) {
+    throw new Error(`EXPLAIN inesperado: braço hnsw sem Index Scan no índice HNSW (filmes_embedding_idx) ou braço exato sem Seq Scan\n${planoHnsw}\n${planoExata}`);
   }
 
   const soma = Object.fromEntries(NS.map((n) => [n, 0]));
@@ -56,7 +56,6 @@ try {
     const perfil = perfilUsuario(curtidas.get(u) ?? [], regua);
     if (!perfil) continue;
     const vetor = vetorBuscaUsuario(perfil, regua);
-    validarVetor(vetor, regua.dimensoes.busca);
     const excluir = [...(vistos.get(u) ?? [])].sort((x, y) => x - y);
     nUsuarios++;
     for (const n of NS) {

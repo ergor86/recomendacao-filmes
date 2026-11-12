@@ -64,7 +64,7 @@ try {
     // (ef_search 70/100/150), uma consulta separada com N pequeno pode diferir marginalmente.
     // O mesmo vale, exatamente, para os populares: K = 200 e prefixos 50/100/150/200.
     const { ids: vizinhos, vetorUsuario } = await gerarCandidatos({
-      pool, regua, usuario: u, vistos: vistosU, filmesCurtidos: curtidas.get(u) ?? [], ranking, k: 0, n: 100,
+      pool, regua, vistos: vistosU, filmesCurtidos: curtidas.get(u) ?? [], ranking, k: 0, n: 100,
     });
     const temVetor = vetorUsuario !== null;
     const pops = popularesNaoVistos(ranking, vistosU, Math.max(...KS));
