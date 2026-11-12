@@ -8,6 +8,8 @@
 // Grava modelos/<nome>-<fase>-s<semente>/ e resultados/treino-<nome>-<fase>.json (a cada semente, para que
 // uma falha preserve o que já terminou) e acrescenta uma linha a resultados/diario-treinos.jsonl.
 // --saida <pasta> troca modelos/ e resultados/ por <pasta>/modelos e <pasta>/resultados e não escreve no diário.
+// Retreino (nome e fase já presentes no diário) sem --motivo é recusado antes de qualquer trabalho pesado;
+// na primeira execução o motivo padrão é "planejado".
 // Não usa o banco e não lê u1.test (criarContexto sem incluirTeste).
 
 import 'dotenv/config';
@@ -21,6 +23,7 @@ import { paresDeTreino, paresDeValidacao } from '../src/features/pares.js';
 import { lerCandidatos } from '../src/candidatos/arquivo.js';
 import { ARQUITETURAS, criarRede, treinar, prever, salvarModelo } from '../src/modelo/rede.js';
 import { auc } from '../src/avaliacao/diagnosticos.js';
+import { motivoDoTreino } from '../src/treino/diario.js';
 
 const SEMENTES = [1, 2, 3];
 const TAMANHO_LOTE = 256;
@@ -33,7 +36,7 @@ function lerArgumentos(argv) {
   const uso = 'uso: npm run treinar -- --fase exp|final --negativos uniforme|candidatos --arquitetura 128-64-32|64-32 '
     + '[--sem-pop] [--epocas-de <arquivo>] [--max-epocas <n>] [--saida <pasta>] [--motivo <texto>]';
   const comValor = ['--fase', '--negativos', '--arquitetura', '--epocas-de', '--max-epocas', '--saida', '--motivo'];
-  const a = { semPop: false, motivo: 'planejado', maxEpocas: TETO_EPOCAS, epocasDe: null, saida: null };
+  const a = { semPop: false, motivo: null, maxEpocas: TETO_EPOCAS, epocasDe: null, saida: null };
   for (let i = 0; i < argv.length; i++) {
     const nome = argv[i];
     if (nome === '--sem-pop') { a.semPop = true; continue; }
@@ -103,6 +106,14 @@ const { fase, negativos, arquitetura, semPop } = args;
 const nome = `${negativos}-${arquitetura}${semPop ? '-sempop' : ''}`;
 const dirModelos = args.saida ? path.join(args.saida, 'modelos') : 'modelos';
 const dirResultados = args.saida ? path.join(args.saida, 'resultados') : 'resultados';
+const arquivoDiario = path.join(dirResultados, 'diario-treinos.jsonl');
+// Antes de qualquer trabalho pesado: retreino (mesmo nome e fase já no diário) exige --motivo.
+// Com --saida não há diário nem checagem.
+const motivo = args.saida
+  ? (args.motivo ?? 'planejado')
+  : motivoDoTreino(fs.existsSync(arquivoDiario) ? fs.readFileSync(arquivoDiario, 'utf8') : '', {
+    nome, fase, motivoInformado: args.motivo,
+  });
 const epocasFinais = fase === 'final' ? lerEpocasDaExp(args, nome) : null;
 
 const { dirDados } = carregarConfig();
@@ -191,9 +202,9 @@ for (const semente of SEMENTES) {
 
 if (!args.saida) {
   const linha = {
-    data: new Date().toISOString(), argumentos: process.argv.slice(2), motivo: args.motivo, nome, fase,
+    data: new Date().toISOString(), argumentos: process.argv.slice(2), motivo, nome, fase,
     sha256Pares: Object.fromEntries(saida.sementes.map((s) => [String(s.semente), s.sha256Pares])),
   };
-  fs.appendFileSync(path.join(dirResultados, 'diario-treinos.jsonl'), JSON.stringify(linha) + '\n');
+  fs.appendFileSync(arquivoDiario, JSON.stringify(linha) + '\n');
 }
 console.log(`\ngravado: ${arquivoSaida}`);
