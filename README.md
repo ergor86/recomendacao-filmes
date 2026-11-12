@@ -74,7 +74,7 @@ Não rode `npm run carregar-filmes -- --fase final` antes dos passos 10 a 12: el
 
     npm run test:integracao   # precisa do banco; cria e remove os schemas teste_integracao e teste_busca (e teste_busca_vazio), sem tocar em public.filmes
 
-Resultados versionados em `resultados/`: `verificacao-hnsw.json`, `linha-de-base-validacao.json`, `candidatos-validacao.json`.
+Resultados versionados em `resultados/`: `verificacao-hnsw.json`, `linha-de-base-validacao.json`, `candidatos-validacao.json` e, a partir do Plano 2, os arquivos de treino, comparação, grade, configuração final e `avaliacao-final.json`.
 
 ### Reprodutibilidade do HNSW
 
@@ -103,6 +103,33 @@ O treino final usa o `u1.base` inteiro, sem esconder as notas da validação. Po
 | `final` | 80.000 | 256.555 | 44.139 | 176.556 | 35.860 | 1.003 (+31%) |
 
 Repetir na fase final o mesmo número de épocas da `exp` dá cerca de 31% mais passos de gradiente. Ou seja, a rede final treina um pouco mais do que a rede escolhida na validação. A alternativa seria fixar o número de passos, mas aí a rede veria cada exemplo menos vezes. O plano fixa as épocas e registra `passosDeGradiente` em cada `treino-*.json`, para que a diferença fique visível.
+
+## Avaliação final no `u1.test` (feita uma única vez, em 2026-11-12)
+
+A configuração foi congelada em `resultados/configuracao-final.json` antes de qualquer contato com o teste: negativos dos candidatos, arquitetura 64→32, K = 150 populares e N = 0 vizinhos. O modelo é `candidatos-64-32` e o controle sem popularidade é `candidatos-64-32-sempop`. A sequência rodada foi esta:
+
+    npm run carregar-filmes -- --fase final      # régua-final (hash b994e671…) e recarga do banco
+    npm run gerar-candidatos -- --fase final     # 943 usuários; populares 200/200; vizinhos 0/100 (1 usuário sem vizinhos)
+    npm run treinar -- --fase final --negativos candidatos --arquitetura 64-32 --epocas-de resultados/treino-candidatos-64-32-exp.json
+    npm run treinar -- --fase final --negativos candidatos --arquitetura 64-32 --sem-pop --epocas-de resultados/treino-candidatos-64-32-sempop-exp.json
+    npm run avaliacao-final                      # uma vez; grava resultados/avaliacao-final.json e se recusa a sobrescrevê-lo
+
+Cada semente treinou exatamente a melhor época que teve na validação: o modelo treinou 11, 15 e 15 épocas, e o controle 15, 15 e 16. O script 13 rodou uma única vez, sem erro, e não foi preciso rodá-lo de novo. Depois disso, o banco fica carregado com a régua da fase `final`: para voltar a rodar os scripts da fase `exp` (passos 10 a 12), rode antes `npm run carregar-filmes`.
+
+### Resultado principal
+
+São 456 usuários avaliados: os 459 do `u1.test` menos 446, 459 e 460, que não têm nenhum relevante.
+
+| | NDCG@10 |
+|---|---|
+| Exp. 4: híbrido + rede (média das 3 sementes) | **0,3526** |
+| Exp. 1: popularidade | 0,2451 |
+| Diferença média por usuário (Exp. 4 − Exp. 1) | **+0,1076** |
+| Intervalo de confiança de 95% (bootstrap pareado, 5.000 reamostragens, semente 2026) | [0,0907; 0,1250] |
+
+O intervalo não inclui o zero, então **a hipótese principal é suportada**: no `u1.test`, o híbrido com rede superou a popularidade em NDCG@10. A tabela dos 7 experimentos, a análise mainstream × nicho e as limitações estão em [`resultados/README.md`](resultados/README.md#avaliacao-finaljson).
+
+**Atenção:** a busca vetorial **não** entrou no sistema escolhido. Na grade da validação, N = 0 (nenhum vizinho) teve o maior NDCG, e o sistema avaliado usa só os 150 populares. O ganho vem da rede reordenando os populares, e não dos vetores (detalhes em `resultados/README.md`).
 
 ## Ambiente
 
