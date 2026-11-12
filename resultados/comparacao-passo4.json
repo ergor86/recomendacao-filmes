@@ -1,0 +1,85 @@
+{
+  "passo": 4,
+  "k": 150,
+  "n": 0,
+  "modelos": [
+    {
+      "nome": "candidatos-64-32",
+      "ndcg": 0.32624805670250323,
+      "precisao": 0.27887029288702897,
+      "recall": 0.1481750023264646,
+      "porSemente": [
+        {
+          "semente": 1,
+          "ndcg": 0.3208312236926387,
+          "precisao": 0.2740585774058573,
+          "recall": 0.14722583034172002,
+          "cobertura": 0.08680142687277051,
+          "popularidadeMediaContagem": 218.1734309623431
+        },
+        {
+          "semente": 2,
+          "ndcg": 0.3329662201914012,
+          "precisao": 0.2820083682008365,
+          "recall": 0.15179607275097187,
+          "cobertura": 0.09215219976218787,
+          "popularidadeMediaContagem": 212.68451882845187
+        },
+        {
+          "semente": 3,
+          "ndcg": 0.3249467262234705,
+          "precisao": 0.2805439330543931,
+          "recall": 0.145503103886702,
+          "cobertura": 0.08739595719381689,
+          "popularidadeMediaContagem": 219.82071129707114
+        }
+      ],
+      "diagnosticos": {
+        "aucValidacao": 0.7756123937484766,
+        "correlacaoScorePopularidade": 0.4264288389386102
+      }
+    },
+    {
+      "nome": "candidatos-64-32-sempop",
+      "ndcg": 0.3001219855876177,
+      "precisao": 0.2529288702928869,
+      "recall": 0.1372331205442096,
+      "porSemente": [
+        {
+          "semente": 1,
+          "ndcg": 0.2981623345606085,
+          "precisao": 0.2489539748953973,
+          "recall": 0.13466330287678313,
+          "cobertura": 0.1028537455410226,
+          "popularidadeMediaContagem": 191.20083682008368
+        },
+        {
+          "semente": 2,
+          "ndcg": 0.30485769170834304,
+          "precisao": 0.2533472803347277,
+          "recall": 0.13851538211758796,
+          "cobertura": 0.09690844233055886,
+          "popularidadeMediaContagem": 189.94560669456067
+        },
+        {
+          "semente": 3,
+          "ndcg": 0.2973459304939028,
+          "precisao": 0.25648535564853536,
+          "recall": 0.13852067663825812,
+          "cobertura": 0.09869203329369798,
+          "popularidadeMediaContagem": 191.95230125523014
+        }
+      ],
+      "diagnosticos": {
+        "aucValidacao": 0.7200930757236489,
+        "correlacaoScorePopularidade": 0.21960168692684942
+      }
+    }
+  ],
+  "escolha": null,
+  "controle": {
+    "modelo": "candidatos-64-32-sempop",
+    "diferencaMedia": 0.02612607111488552,
+    "erroPadrao": 0.005081279092780221
+  }
+}

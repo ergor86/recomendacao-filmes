@@ -47,6 +47,9 @@ function lerArgumentos(argv) {
   if (a.modelos.length !== 2 || a.modelos[0] === a.modelos[1]) {
     throw new Error(`--modelos deve ter exatamente 2 nomes diferentes, separados por vírgula\n${uso}`);
   }
+  if (a.passo === 4 && a.modelos[1] !== `${a.modelos[0]}-sempop`) {
+    throw new Error(`no passo 4 o segundo modelo deve ser o controle do primeiro: --modelos ${a.modelos[0]},${a.modelos[0]}-sempop\n${uso}`);
+  }
   return a;
 }
 
@@ -56,7 +59,9 @@ function kNDoPasso(passo) {
   const arq = 'resultados/grade-validacao.json';
   if (!fs.existsSync(arq)) throw new Error(`${arq} ausente: o passo 4 exige a grade de (K, N) do passo 3; rode-a antes`);
   const kn = JSON.parse(fs.readFileSync(arq, 'utf8')).escolhidaKN;
-  if (!Number.isInteger(kn?.k) || !Number.isInteger(kn?.n)) throw new Error(`${arq} sem escolhidaKN válida; refaça o passo 3`);
+  if (![50, 100, 150, 200].includes(kn?.k) || ![0, 20, 50, 100].includes(kn?.n)) {
+    throw new Error(`${arq} sem escolhidaKN válida (k ∈ {50, 100, 150, 200}, n ∈ {0, 20, 50, 100}); refaça o passo 3`);
+  }
   return { k: kn.k, n: kn.n };
 }
 

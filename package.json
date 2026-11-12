@@ -19,7 +19,9 @@
     "candidatos": "node scripts/07-candidatos.js",
     "gerar-candidatos": "node scripts/08-gerar-candidatos.js",
     "treinar": "node scripts/09-treinar.js",
-    "comparar": "node scripts/10-comparar.js"
+    "comparar": "node scripts/10-comparar.js",
+    "grade": "node scripts/11-grade.js",
+    "congelar": "node scripts/12-congelar.js"
   },
   "dependencies": {
     "@tensorflow/tfjs-node": "^4.22.0",
