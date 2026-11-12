@@ -239,7 +239,7 @@ São comparadas duas formas de sortear:
 - **Treino:** consulta só o que o treino conhece. Medido nos dados: excluir também as notas escondidas inflaria o NDCG da validação em 0,009 a 0,014.
 - **Falsos negativos:** um filme escondido pode, ocasionalmente, ser sorteado como negativo no treino. Isso é o mesmo que acontece com os filmes do `u1.test` no treino final, então as duas fases ficam coerentes.
 - **Pares de validação:** o rótulo nunca pode contradizer uma nota conhecida.
-- Semente fixa e registrada em todos os sorteios.
+- Toda semente é determinada e registrada: nenhum sorteio usa aleatoriedade sem semente.
 
 ### 7.3 Pares de validação e parada automática
 
@@ -262,7 +262,7 @@ São comparadas duas formas de sortear:
 - Camadas ocultas `relu`, saída de 1 neurônio `sigmoid`, perda `binaryCrossentropy`.
 - `adam` com learning rate 0,001 explícito.
 - Lote de 256.
-- **Sementes:** 3 por configuração (1, 2, 3). A semente controla os pesos iniciais e o embaralhamento.
+- **Sementes:** 3 por configuração (1, 2, 3). A semente controla os pesos iniciais, o embaralhamento e, desde a v3.2, o sorteio dos negativos (§7.2).
 - `model.summary()` impresso a cada treino.
 
 ### 7.5 Artefatos
@@ -411,11 +411,11 @@ COMMIT;   -- client.release() em finally
 - **Usuário novo:** 1/√3 nos gêneros.
 - **Régua:** salvar e carregar produz vetores idênticos. O hash muda quando a régua muda.
 - **Vazamento:**
-  - perfil sem o filme do par nos positivos e perfil completo nos negativos;
+  - perfil sem o filme do par nos positivos, o mesmo perfil do positivo nos 4 sorteados vinculados a ele e perfil completo nos negativos observados e nos pares de validação (v3.2);
   - popularidade descontada para **todo** filme avaliado pelo usuário;
   - par descartado quando o usuário tem só 1 curtido.
 - **Popularidade nos pares:** subtrai 1 só quando a nota está no treino da régua. Nada é subtraído para notas da validação ou do teste.
-- **Negativos:** as três regras de exclusão da seção 7.2, sorteio com reposição e quantidade = 4 × positivos usáveis.
+- **Negativos:** as regras de exclusão da seção 7.2, mais a da §7.3 v3.2 (nos pares de validação, nada sorteado para o usuário no treino da mesma semente); sorteio com reposição e quantidade = 4 × positivos usáveis.
 - **Desempates:** a busca com empate no corte de N devolve sempre os mesmos ids. A popularidade é ordenada por (contagem, id).
 - **Melhores pesos:** num treino sintético em que o erro de validação piora depois de uma época conhecida, os pesos restaurados são **idênticos** aos guardados nessa época, e não aos da última.
 - **Desempate na busca:** quando o empate do limite não cabe nas N + 50 linhas, a consulta é ampliada; se ainda não couber, o código para com erro.
@@ -474,8 +474,8 @@ COMMIT;   -- client.release() em finally
 | 4. Banco | carga transacional com hash; busca; verificação do HNSW | N linhas; perda ≈ 0 |
 | 5. Linha de base e métricas | popularidade; NDCG/P/R@10; cobertura; bootstrap | P@10 da popularidade ≈ 0,21 na validação |
 | 6. Candidatos | populares não vistos, vetores, união, orçamento efetivo | recall por fonte; contribuição exclusiva |
-| 7. Treino | pares com vazamento corrigido; passos 1, 2 e 4 da seção 9.1 | curvas de erro; NDCG@10 por semente |
-| 8. Grade e congelamento | passo 3; `configuracao-final.json` | arquivo gravado antes do teste |
+| 7. Treino | pares com vazamento corrigido; passos 1 e 2 da seção 9.1 | curvas de erro; NDCG@10 por semente |
+| 8. Grade, controle e congelamento | passo 3; passo 4 na configuração escolhida; `configuracao-final.json` | arquivo gravado antes do teste |
 | 9. Avaliação final | régua-final, recarga, 6 retreinos, os 7 experimentos, bootstrap, análise por grupo | tabela final + intervalos |
 | 10. (Opcional) API e interface | `src/api/` + front | cadastro → top 10 |
 

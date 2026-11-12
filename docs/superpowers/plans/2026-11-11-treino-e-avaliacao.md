@@ -14,7 +14,7 @@
 
 - **Raiz:** `C:\dev\recomendacao-filmes`, branch `treino` criada a partir da `main`.
 - **Dados:** o MovieLens nunca vai para o git nem para os testes. Os testes usam dados sintéticos criados no próprio teste. `modelos/` e `artefatos/` ficam fora do git; `resultados/` é versionada.
-- **Regra do teste único:** o arquivo `u1.test` só é **lido** pelo script 13, depois das pré-condições, com `incluirTeste: true`. Nenhum outro script de treino ou avaliação o carrega (o script 03, de EDA, continua lendo só para contar). Nenhuma task roda o script 13 sem autorização explícita do usuário (Task 12).
+- **Regra do teste único:** o arquivo `u1.test` só é **lido** pelo script 13, depois das pré-condições, com `incluirTeste: true`. Nenhum outro script de treino ou avaliação o carrega (o script 03, de EDA, continua lendo para estatísticas descritivas, sem nenhuma métrica de recomendação). Nenhuma task roda o script 13 sem autorização explícita do usuário (Task 12).
 - **Entrada da rede (spec §6):** 70 posições, nesta ordem:
   - 0–23 demografia: idade z-score da régua (0), gênero M, F (1–2), ocupação one-hot na ordem de `regua.ocupacoes` (3–23);
   - 24–46 perfil: média dos gêneros curtidos (24–42), média da época (43–45), popularidade média z-score (46);
@@ -68,19 +68,22 @@ modelos/<nome>-<fase>-s<semente>/   model.json · weights.bin · regua.json · m
 resultados/treino-<nome>-<fase>.json
   { nome, fase, negativos, arquitetura, semPop, hashRegua, sha256Candidatos,
     sementes: [{ semente, melhorEpoca, epocasTreinadas, atingiuTeto, segundos, sha256Pares,
+                 passosDeGradiente, aucTreino, aucValidacao,
                  historico: [{ epoca, perda, perdaValidacao }],
                  resumoPares: { treino: {...}, validacao: {...} | null } }] }
 
-resultados/diario-treinos.jsonl     uma linha por execução do script 09: { data, argumentos, nome, fase, sha256Pares por semente }
+resultados/diario-treinos.jsonl     uma linha por execução do script 09: { data, argumentos, motivo, nome, fase, sha256Pares por semente }
 
 resultados/comparacao-passo<1|2|4>.json
   { passo, k, n, modelos: [{ nome, ndcg, precisao, recall,
       porSemente: [{ semente, ndcg, precisao, recall, cobertura, popularidadeMediaContagem }],
       diagnosticos: { aucValidacao, correlacaoScorePopularidade } }],
-    escolha: { escolhida, melhor, fragil, tabela } | null }
+    escolha: { escolhida, melhor, fragil, tabela } | null,
+    controle: { modelo, diferencaMedia, erroPadrao } | null }   (só no passo 4)
 
 resultados/grade-validacao.json
-  { modelo, linhas: [{ k, n, ndcg, porSemente: [ndcg], orcamentoEfetivo }], escolha,
+  { modelo, linhas: [{ nome: "k<K>-n<N>", k, n, ndcg, porSemente: [ndcg], orcamentoEfetivo }],
+    escolha, escolhidaKN: { k, n },
     gruposValidacao: { escala, mediana, tamanhos, ndcgPorGrupo },
     descritivaPerdedorPasso1: { modelo, linhas } }
 
@@ -126,7 +129,7 @@ resultados/configuracao-final.json
 
 O caminho "empate no corte → pedir o dobro → teto de 1000" nunca rodou com dados reais.
 
-- [ ] **Step 1: Ampliar o `poolFalso`** para registrar `{ sql, params }` e chamar `responder(sql, params)`. Os testes existentes continuam passando.
+- [ ] **Step 1: Ampliar o `poolFalso`**: `consultas` continua guardando só as strings de SQL (os testes existentes comparam strings); um novo array `registro` guarda `{ sql, params }`; `responder` passa a receber `(sql, params)`. Os testes existentes continuam passando.
 - [ ] **Step 2: Escrever os testes.** Na consulta de busca (`sql` com `embedding <=>`), o `LIMIT` pedido é `params[2]`; guardar cada um em `limitesPedidos`. O `responder` devolve `min(LIMIT, total)` linhas.
 
 ```js
@@ -154,7 +157,7 @@ test('menos linhas que n: erro acionável', async () => {
 ### Task 2: Contexto sem o `u1.test`
 
 **Files:**
-- Modify: `src/dados/carregar.js`, `src/contexto.js`, `scripts/03-eda.js`
+- Modify: `src/dados/carregar.js`, `src/contexto.js`, `scripts/03-eda.js`, `tests/unidade/leitura.test.js` (o teste de `carregarDataset` que confere `r.teste.length` passa a usar `incluirTeste: true`, e um novo caso confere `teste: null` sem a opção)
 - Create: `tests/unidade/contexto.test.js`
 
 **Interfaces:**
@@ -163,7 +166,7 @@ test('menos linhas que n: erro acionável', async () => {
   - `criarContexto({ fase, dirDados, incluirTeste = false })`: na fase `final` sem `incluirTeste`, `alvos` é `null`; na fase `exp`, `alvos` é a validação (não depende do teste);
   - `criarDivisoes` aceita `teste: null` e o devolve como está.
 
-- [ ] **Step 1: Escrever os testes que falham**, com uma pasta temporária sintética (`fs.mkdtempSync`) contendo `u1.base`, `u.item`, `u.user`, `u.genre`, `u.occupation` e **sem** `u1.test`:
+- [ ] **Step 1: Escrever os testes que falham**, com uma pasta temporária sintética (`fs.mkdtempSync(path.join(os.tmpdir(), 'ml-'))`, passada como `dirDados`) contendo `u1.base`, `u.item`, `u.user`, `u.genre`, `u.occupation` e **sem** `u1.test`:
   - `criarContexto({ fase: 'exp' })` funciona e `alvos` é a validação;
   - `criarContexto({ fase: 'final' })` funciona e `alvos` é `null`;
   - `criarContexto({ fase: 'final', incluirTeste: true })` lança o erro de arquivo ausente.
@@ -224,6 +227,7 @@ Regras: Global Constraints (perfil por tipo de par, exclusões, sementes da tabe
 
 - [ ] **Step 1: Escrever os testes que falham** com um histórico sintético:
   - usuário com 1 curtido: par positivo descartado (`resumo.descartados`);
+  - o perfil do positivo (fatia 24–46 de `x`) é igual a `perfilRede(resumo, regua, filme)` e **diferente** do perfil completo;
   - sorteados = 4 × positivos usáveis, por usuário, e **cada um dos 4 tem perfil idêntico ao do seu positivo** (comparar as fatias 24–46 de `x`);
   - negativo observado tem perfil completo e popularidade com desconto; positivo também tem desconto; sorteado não tem;
   - nenhum sorteado de treino é filme avaliado no treino;
@@ -279,7 +283,7 @@ Regras: Global Constraints (perfil por tipo de par, exclusões, sementes da tabe
 
 **Interfaces:**
 - Consumes: Tasks 3 e 5; `erroPadraoPareado`; `unirCandidatos`.
-- Produces:
+- Produces (em `src/modelo/ranqueador.js`: `candidatosDe`, `pontuarCandidatos`, `top10PorScore`; em `src/avaliacao/escolha.js`: `projetar`, `mediaEntreSementes`, `escolherConfiguracao`; em `src/avaliacao/diagnosticos.js`: `auc`, `correlacao`):
   - `candidatosDe(entrada: { populares, vizinhos }, k, n) → { ids, fonte }` = `unirCandidatos(populares.slice(0, k), vizinhos.slice(0, n))` (ruling R6);
   - `pontuarCandidatos({ modelo, regua, semPop, usuario, curtidos, candidatos: number[], filmesPorId }) → Map<id, score>`: perfil completo, sem desconto; um `prever` por usuário;
   - `top10PorScore(scores: Map) → number[]`, por (score decrescente, id crescente);
@@ -326,9 +330,9 @@ Regras: Global Constraints (perfil por tipo de par, exclusões, sementes da tabe
 **Interfaces:**
 - Consumes: Tasks 2–5 e 7.
 - Produces: `npm run treinar -- --fase exp|final --negativos uniforme|candidatos --arquitetura 128-64-32|64-32 [--sem-pop] [--epocas-de <arquivo>] [--max-epocas <n>] [--saida <pasta>]`.
-  - Fase `exp`: para cada semente 1, 2, 3, monta os pares de treino e de validação daquela semente, treina com parada automática e grava o modelo e `treino-<nome>-exp.json` (formatos dos Global Constraints). Calcula na melhor época a `perdaValidacaoMelhor`.
+  - Fase `exp`: para cada semente 1, 2, 3, monta os pares de treino e de validação daquela semente, treina com parada automática e grava o modelo e `treino-<nome>-exp.json` (formatos dos Global Constraints). Com os pesos restaurados, calcula `perdaValidacaoMelhor`, `aucTreino` e `aucValidacao` (função `auc` da Task 6) e `passosDeGradiente` = ⌈pares / 256⌉ × épocas treinadas.
   - Fase `final`: exige `--epocas-de resultados/treino-<nome>-exp.json`; `criarContexto` **sem** `incluirTeste`; sem pares de validação; cada semente treina a sua `melhorEpoca`.
-  - `--saida` troca as pastas de `modelos/` e `resultados/` (para fumaça); `--max-epocas` substitui o teto.
+  - `--saida` troca as pastas de `modelos/` e `resultados/` (para fumaça); `--max-epocas` substitui o teto; `--motivo <texto>` vai para o diário (padrão `planejado`; um retreino fora do plano exige motivo).
   - Acrescenta uma linha a `resultados/diario-treinos.jsonl` (exceto com `--saida`).
 
 - [ ] **Step 1: Implementar o script**, com mensagens acionáveis para régua ausente, candidatos ausentes ou de outra régua e `--epocas-de` ausente na fase final.
@@ -338,7 +342,8 @@ Regras: Global Constraints (perfil por tipo de par, exclusões, sementes da tabe
   - `npm run treinar -- --fase exp --negativos candidatos --arquitetura 128-64-32`
 
   Expected: cerca de 196 mil pares de treino e 61 mil de validação por semente; `sha256Pares` diferente entre sementes; cerca de 4 s por época; nenhum `atingiuTeto` (se houver, registrar e avisar).
-- [ ] **Step 4: Commit** do script, `package.json`, README, `treino-*-exp.json` e diário: `git commit -m "feat: script de treino e treinos do passo 1 (negativos)"`
+- [ ] **Step 4: README:** registrar pares e passos de gradiente por época das fases `exp` e `final` (cerca de 31% mais na final), como explicação do treino final com épocas fixas.
+- [ ] **Step 5: Commit** do script, `package.json`, README, `treino-*-exp.json` e diário: `git commit -m "feat: script de treino e treinos do passo 1 (negativos)"`
 
 ---
 
@@ -351,8 +356,9 @@ Regras: Global Constraints (perfil por tipo de par, exclusões, sementes da tabe
 **Interfaces:**
 - Consumes: Tasks 6–8, `avaliarSistema`, `relevantesPorUsuario`.
 - Produces: `npm run comparar -- --passo 1|2|4 --modelos <nome>,<nome>`.
-  - Passos 1 e 2 usam K = 200, N = 100. O passo 4 lê K e N de `resultados/grade-validacao.json` (erro se não existir).
-  - Por modelo e semente: `top10PorScore` → `avaliarSistema`; por modelo: médias entre sementes, `porSemente` e diagnósticos (AUC nos pares de validação da semente 1; correlação entre score e `popZ` do filme nos candidatos).
+  - Passos 1 e 2 usam K = 200, N = 100. O passo 4 lê `escolhidaKN` de `resultados/grade-validacao.json` (erro se não existir) e grava o campo `controle`.
+  - Antes de avaliar, confere que o `sha256Candidatos` do `metadados.json` de cada modelo é o do `artefatos/candidatos-exp.json` atual.
+  - Por modelo e semente: `top10PorScore` → `avaliarSistema`; por modelo: médias entre sementes, `porSemente` e diagnósticos (`aucValidacao` lido de `treino-<nome>-exp.json`, média das sementes; correlação entre score e `popZ` do filme nos candidatos).
   - Passos 1 e 2: `escolherConfiguracao` com simplicidade `[0]` para `uniforme` / `64-32` e `[1]` para o outro braço. Passo 4: `escolha: null` e, para o controle, diferença média e erro padrão em relação ao modelo.
   - **Trava R9** para cada modelo.
   - Grava `resultados/comparacao-passo<passo>.json`.
@@ -395,7 +401,7 @@ Regras: Global Constraints (perfil por tipo de par, exclusões, sementes da tabe
 - Produces:
   - `popularesMesmoOrcamento(ranking, vistos, tamanho) → number[]` (Exp. 5: `tamanho` = nº de candidatos únicos do Exp. 4 **daquele usuário**);
   - `todosNaoVistos(catalogo, vistos) → number[]` (Exp. 6);
-  - `verificarPreCondicoes({ configuracao, avaliacaoExiste, reguaFinal, hashBanco, candidatosFinal, modelos }) → void`, com uma mensagem acionável para cada uma das 6 falhas: sem `configuracao-final.json`; avaliação já existe; sem `artefatos/regua-final.json` (`rode npm run carregar-filmes -- --fase final`); banco em outra régua; candidatos finais ausentes ou de outra régua; modelo final ausente ou de outra régua;
+  - `verificarPreCondicoes({ configuracao, avaliacaoExiste, reguaFinal, hashBanco, candidatosFinal, modelos }) → void`, com `candidatosFinal = { hashRegua, sha256 } | null` e `modelos = [{ nome, semente, metadados | null }]` (os 6 modelos finais esperados pela configuração). Uma mensagem acionável para cada uma das 7 falhas: sem `configuracao-final.json`; avaliação já existe; sem `artefatos/regua-final.json` (`rode npm run carregar-filmes -- --fase final`); banco em outra régua; candidatos finais ausentes ou de outra régua; modelo final ausente, de outra régua ou com `sha256Candidatos` diferente do arquivo final; modelo final com `epocas` diferente de `configuracao.epocasPorSemente`;
   - `npm run avaliacao-final`: chama `verificarPreCondicoes` **antes** de `criarContexto({ fase: 'final', incluirTeste: true })`. Nos usuários do `u1.test` com relevantes:
     - os 7 experimentos da spec §9.2, com os candidatos por prefixo (ruling R6) nos Exp. 3, 4, 5 e 7;
     - **bootstrap pareado** (5000, semente 2026) de Exp. 4 − Exp. 1 com a média das sementes, e também por semente, como sensibilidade descritiva;
@@ -405,7 +411,7 @@ Regras: Global Constraints (perfil por tipo de par, exclusões, sementes da tabe
     - Exp. 2 exclui usuários sem curtidas e informa quantos; se N = 0 venceu, aplicar a regra da spec §9.2.
   - Grava `resultados/avaliacao-final.json` **uma vez**.
 
-- [ ] **Step 1: Escrever os testes que falham:** `popularesMesmoOrcamento` devolve exatamente `tamanho` não vistos, igual ao nº de candidatos do Exp. 4 do mesmo usuário num caso sintético; `todosNaoVistos`; cada uma das 6 recusas de `verificarPreCondicoes`.
+- [ ] **Step 1: Escrever os testes que falham:** `popularesMesmoOrcamento` devolve exatamente `tamanho` não vistos, igual ao nº de candidatos do Exp. 4 do mesmo usuário num caso sintético; `todosNaoVistos`; cada uma das 7 recusas de `verificarPreCondicoes`.
 - [ ] **Step 2: Rodar `npm test`.** Expected: FAIL.
 - [ ] **Step 3: Implementar** o módulo e o script.
 - [ ] **Step 4: Rodar `npm test`.** Expected: PASS. **Não rodar o script 13.**
@@ -423,7 +429,9 @@ Regras: Global Constraints (perfil por tipo de par, exclusões, sementes da tabe
 
 - [ ] **Step 1: Resumo para o usuário:** configuração congelada, decisões marcadas como frágeis, números da validação e o que será rodado.
 - [ ] **Step 2: Régua-final, banco e candidatos:** `npm run carregar-filmes -- --fase final` e `npm run gerar-candidatos -- --fase final`.
-- [ ] **Step 3: Seis retreinos:** `npm run treinar -- --fase final ... --epocas-de resultados/treino-<nome>-exp.json` para o modelo e para o controle.
+- [ ] **Step 3: Seis retreinos** (valores de `configuracao-final.json`):
+  - `npm run treinar -- --fase final --negativos <negativos> --arquitetura <arquitetura> --epocas-de resultados/treino-<modelo>-exp.json`
+  - `npm run treinar -- --fase final --negativos <negativos> --arquitetura <arquitetura> --sem-pop --epocas-de resultados/treino-<controle>-exp.json`
 - [ ] **Step 4: `npm run avaliacao-final`**, uma vez. Se falhar por erro de código **antes** de gravar `avaliacao-final.json`, corrigir e rodar de novo é permitido; registrar no README.
 - [ ] **Step 5: Documentar** no README e em `resultados/README.md`: tabela dos 7 experimentos, intervalo da hipótese principal, mainstream × nicho e limitações (spec §15).
 - [ ] **Step 6: Commit:** `git commit -m "feat: avaliação final no u1.test"`
