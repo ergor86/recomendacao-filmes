@@ -1,0 +1,25 @@
+{
+  "negativos": "candidatos",
+  "arquitetura": "64-32",
+  "k": 150,
+  "n": 0,
+  "modelo": "candidatos-64-32",
+  "controle": "candidatos-64-32-sempop",
+  "epocasPorSemente": {
+    "modelo": {
+      "1": 11,
+      "2": 15,
+      "3": 15
+    },
+    "controle": {
+      "1": 15,
+      "2": 15,
+      "3": 16
+    }
+  },
+  "seed_api": 1,
+  "escalaMainstream": "media de popEscalada dos curtidos no treino",
+  "sementeBootstrap": 2026,
+  "hashReguaExp": "6642727a0b38b61bf5b1b9607cf89d2ded524b801f5daf1727096e3ccbfb04cd",
+  "data": "2026-11-12T02:26:45.241Z"
+}

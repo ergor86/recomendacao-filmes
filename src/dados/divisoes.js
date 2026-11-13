@@ -14,7 +14,7 @@ import { criarAleatorio, embaralhar } from '../util/aleatorio.js';
  *  - treinoExp: u1.base sem as notas escondidas (treino da fase de experimentos)
  *  - validacao: as notas escondidas (o gabarito da validação)
  *  - treinoFinal: u1.base inteiro (treino da fase final)
- *  - teste: u1.test (o gabarito da avaliação final)
+ *  - teste: u1.test (o gabarito da avaliação final); null se o teste não foi carregado
  */
 export function criarDivisoes(
   { base, teste },

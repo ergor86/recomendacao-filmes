@@ -1,0 +1,101 @@
+{
+  "passo": 1,
+  "k": 200,
+  "n": 100,
+  "modelos": [
+    {
+      "nome": "uniforme-128-64-32",
+      "ndcg": 0.29223783248997104,
+      "precisao": 0.2536262203626218,
+      "recall": 0.12925227350646593,
+      "porSemente": [
+        {
+          "semente": 1,
+          "ndcg": 0.2992469588707151,
+          "precisao": 0.2577405857740583,
+          "recall": 0.13125594474793956,
+          "cobertura": 0.09453032104637336,
+          "popularidadeMediaContagem": 207.09225941422594
+        },
+        {
+          "semente": 2,
+          "ndcg": 0.2885733102892019,
+          "precisao": 0.2533472803347277,
+          "recall": 0.12865033580993152,
+          "cobertura": 0.0980975029726516,
+          "popularidadeMediaContagem": 204.70146443514645
+        },
+        {
+          "semente": 3,
+          "ndcg": 0.28889322830999664,
+          "precisao": 0.24979079497907905,
+          "recall": 0.12785053996152676,
+          "cobertura": 0.10047562425683709,
+          "popularidadeMediaContagem": 201.11066945606694
+        }
+      ],
+      "diagnosticos": {
+        "aucValidacao": 0.8703711556777236,
+        "correlacaoScorePopularidade": 0.5960626970787513
+      }
+    },
+    {
+      "nome": "candidatos-128-64-32",
+      "ndcg": 0.3151015579771651,
+      "precisao": 0.2706415620641563,
+      "recall": 0.14743994843699948,
+      "porSemente": [
+        {
+          "semente": 1,
+          "ndcg": 0.30881918217040755,
+          "precisao": 0.26359832635983244,
+          "recall": 0.140608095875344,
+          "cobertura": 0.17360285374554102,
+          "popularidadeMediaContagem": 200.89539748953976
+        },
+        {
+          "semente": 2,
+          "ndcg": 0.3169273864029473,
+          "precisao": 0.2746861924686191,
+          "recall": 0.1509802177417347,
+          "cobertura": 0.15933412604042807,
+          "popularidadeMediaContagem": 201.94058577405858
+        },
+        {
+          "semente": 3,
+          "ndcg": 0.31955810535814044,
+          "precisao": 0.2736401673640167,
+          "recall": 0.15073153169391987,
+          "cobertura": 0.1694411414982164,
+          "popularidadeMediaContagem": 204.85251046025104
+        }
+      ],
+      "diagnosticos": {
+        "aucValidacao": 0.7764168630531852,
+        "correlacaoScorePopularidade": 0.4232113223427031
+      }
+    }
+  ],
+  "escolha": {
+    "escolhida": "candidatos-128-64-32",
+    "melhor": "candidatos-128-64-32",
+    "fragil": false,
+    "tabela": [
+      {
+        "nome": "uniforme-128-64-32",
+        "media": 0.29223783248997104,
+        "diferenca": 0.022863725487194064,
+        "erroPadrao": 0.0040327056596849795,
+        "empata": false
+      },
+      {
+        "nome": "candidatos-128-64-32",
+        "media": 0.3151015579771651,
+        "diferenca": 0,
+        "erroPadrao": 0,
+        "empata": true
+      }
+    ]
+  },
+  "controle": null
+}

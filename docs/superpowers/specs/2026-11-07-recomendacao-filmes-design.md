@@ -1,6 +1,7 @@
 # Design: Recomendação de Filmes com Banco Vetorial
 
 - **Data:** 2026-11-07 (versão 3.1: revisões externas da v2 e da v3, validadas com testes nos dados)
+- **Versão 3.2 (2026-11-11):** revisão adversarial do Plano 2, com medições nos dados. Muda o perfil dos negativos sorteados (§6, §7.2), os sorteios por semente (§7.2), os negativos da validação (§7.3), a escala do mainstream × nicho (§9.4) e a contagem de usuários de validação (§9.3). As rejeições estão na §16
 - **Status:** **congelada**. Qualquer mudança daqui em diante precisa de nova versão e justificativa
 - **Ponto de partida:** [docs/contexto-projeto.md](../../contexto-projeto.md)
 
@@ -186,7 +187,9 @@ Na fórmula, ‖G‖² e ‖E‖² valem 1 (bloco normalizado) ou 0 (bloco zerad
 - **Sem pesos:** os pesos da busca não entram na rede.
 - **Perfil nos pares:** o perfil depende do tipo de par.
   - **Positivos:** perfil **sem o filme do par**.
-  - **Negativos:** perfil **completo**, igual à situação real de recomendação.
+  - **Negativos sorteados (v3.2):** o **mesmo perfil do positivo** ao qual estão vinculados (blocos de 4 por positivo usável, §7.2). Assim positivos e sorteados de um bloco têm perfis idênticos, e a rede não consegue usar "perfil completo" como atalho para "negativo". Medido: o perfil sem o filme do par fica a 0,063 do completo, contra cerca de 0,26 entre usuários diferentes, uma diferença que a rede conseguiria separar.
+  - **Negativos observados (notas 1–3):** perfil **completo**. O filme não é curtido, então tirá-lo não muda o perfil. O atalho que resta nesses pares fica registrado como limitação (§15).
+  - **Pares de validação e inferência:** perfil **completo** em todos, porque nenhum desses filmes está no treino.
 - **Popularidade do filme num par (sequência obrigatória, igual no treino, na validação e na inferência):**
   1. Pegar a contagem de notas do filme na régua em uso.
   2. Subtrair 1 **somente se** a nota do usuário para aquele filme faz parte do treino que gerou essa régua:
@@ -216,7 +219,8 @@ Na fórmula, ‖G‖² e ‖E‖² valem 1 (bloco normalizado) ou 0 (bloco zerad
 ### 7.2 Negativos sorteados
 
 Proporção: **4 sorteados por positivo usável** (depois de descartar os pares de usuários com só 1 curtido), além dos observados.
-- **Forma do sorteio:** por usuário, sorteiam-se 4 × (positivos usáveis) negativos, **com reposição**, de forma independente e com semente fixa. Como a rede avalia um par de cada vez, vincular negativos a positivos específicos não tem efeito: só as quantidades importam.
+- **Forma do sorteio (v3.2):** para cada positivo usável, sorteiam-se **4 negativos vinculados a ele**, **com reposição**, que recebem o perfil desse positivo (§6). A versão 3.1 dizia que o vínculo não tinha efeito; isso só vale para as quantidades, não para o perfil (§16).
+- **Sementes dos sorteios (v3.2):** o sorteio de treino **varia com a semente da rede** (1, 2, 3), em espaços de semente separados dos usados nas divisões, porque o resultado mede o procedimento de treino e o sorteio faz parte dele. O modelo escolhido e o controle da mesma semente usam os mesmos negativos.
 - **Por que com reposição:** o conjunto de candidatos tem cerca de 280 filmes, e **70 usuários no treino-exp (133 no treino final) precisariam de mais negativos do que isso**. Um usuário precisaria de mais que o catálogo não visto até no sorteio uniforme. Quem tem muitas curtidas repete negativos difíceis, e isso fica documentado.
 
 São comparadas duas formas de sortear:
@@ -235,7 +239,7 @@ São comparadas duas formas de sortear:
 - **Treino:** consulta só o que o treino conhece. Medido nos dados: excluir também as notas escondidas inflaria o NDCG da validação em 0,009 a 0,014.
 - **Falsos negativos:** um filme escondido pode, ocasionalmente, ser sorteado como negativo no treino. Isso é o mesmo que acontece com os filmes do `u1.test` no treino final, então as duas fases ficam coerentes.
 - **Pares de validação:** o rótulo nunca pode contradizer uma nota conhecida.
-- Semente fixa em todos os sorteios.
+- Toda semente é determinada e registrada: nenhum sorteio usa aleatoriedade sem semente.
 
 ### 7.3 Pares de validação e parada automática
 
@@ -243,7 +247,8 @@ São comparadas duas formas de sortear:
   - notas escondidas 4–5 são **positivos**;
   - notas escondidas 1–3 são **negativos observados** (exemplos, não apenas filmes a excluir);
   - os negativos adicionais seguem o **mesmo esquema** (uniforme ou dos candidatos) e a mesma proporção do treino daquele modelo, com outra semente;
-  - nunca é sorteado um filme que o usuário avaliou no treino-exp ou na validação.
+  - nunca é sorteado um filme que o usuário avaliou no treino-exp ou na validação;
+  - **(v3.2)** nem um filme sorteado como negativo para aquele usuário **no treino da mesma semente**. Sem isso, no esquema dos candidatos os pares de validação repetiriam pares de treino (um candidato já tinha sido sorteado no treino em 27,7% das vezes, contra 7,7% no uniforme), e a perda de validação premiaria a memorização. Se não sobrar candidato elegível, o sorteio vem do catálogo, e a quantidade é registrada. A regra só consulta o treino, então não contradiz a §16.
 - **Parada automática:** sobre o erro nos pares de validação **amostrados**, com paciência de 3. É uma aproximação: o critério de escolha continua sendo o NDCG@10.
 - **Melhores pesos:** o `earlyStopping` do TF.js **não** restaura os melhores pesos. Sem cuidado, o modelo seria avaliado 3 épocas depois do melhor ponto. Regras por fase:
   - **Validação:** um *callback* guarda uma cópia dos pesos a cada melhora do erro de validação e **restaura essa cópia ao final do treino**. O NDCG é medido com os pesos restaurados da melhor época.
@@ -257,7 +262,7 @@ São comparadas duas formas de sortear:
 - Camadas ocultas `relu`, saída de 1 neurônio `sigmoid`, perda `binaryCrossentropy`.
 - `adam` com learning rate 0,001 explícito.
 - Lote de 256.
-- **Sementes:** 3 por configuração (1, 2, 3). A semente controla os pesos iniciais e o embaralhamento.
+- **Sementes:** 3 por configuração (1, 2, 3). A semente controla os pesos iniciais, o embaralhamento e, desde a v3.2, o sorteio dos negativos (§7.2).
 - `model.summary()` impresso a cada treino.
 
 ### 7.5 Artefatos
@@ -376,7 +381,7 @@ COMMIT;   -- client.release() em finally
   - NDCG@10 = DCG / IDCG, com **ganho binário**, DCG = Σ rel_i / log₂(i + 1) nas posições 1..10, e IDCG calculado sobre min(|R|, 10) acertos nas primeiras posições.
   - Todo usuário tem pelo menos 50 candidatos (K ≥ 50 populares não vistos), então o top 10 sempre tem 10 filmes (verificado).
 - **Ordenação reprodutível:** popularidade por (contagem decrescente, id crescente); scores da rede e distâncias por (valor, id crescente). Entre os 200 mais populares só há cerca de 106 contagens distintas, e sem desempate o K-ésimo filme mudaria entre execuções para 181 a 358 usuários.
-- **Usuários sem relevantes:** ficam fora de **todas** as métricas, inclusive a precision. As contagens são calculadas pelo código, nunca fixadas. Valores esperados: 480 na validação (o usuário 685 não tem relevantes) e 456 no teste (446, 459 e 460 não têm relevantes).
+- **Usuários sem relevantes:** ficam fora de **todas** as métricas, inclusive a precision. As contagens são calculadas pelo código, nunca fixadas. Valores medidos: 478 na validação (685, 797 e 814 não têm relevantes; v3.2) e 456 no teste (446, 459 e 460 não têm relevantes).
 - **Métricas:** NDCG@10 (principal), precision@10 e recall@10.
   - **Nos experimentos com rede:** o valor de cada usuário é a média das 3 sementes.
   - **Variação entre sementes:** reportada à parte (mínimo e máximo).
@@ -390,6 +395,7 @@ COMMIT;   -- client.release() em finally
 - **Intervalo de confiança:** *bootstrap* pareado percentil de 95%, com **5.000** reamostragens dos usuários e semente fixa (registrada em `resultados/`).
 - **Mainstream × nicho:**
   - **Classificação:** pela popularidade média dos filmes curtidos, calculada **só com o treino** de cada usuário.
+  - **Escala (v3.2):** média de `popEscalada` (log, mín/máx da régua do conjunto, [0, 1]) dos filmes curtidos, a mesma da EDA. Fixada por escrito em `configuracao-final.json` antes do teste e calculada também na validação. Medido: trocar a escala muda 54 dos 478 usuários de grupo.
   - **Corte:** a **mediana de cada conjunto avaliado**, na escala da régua desse conjunto, calculada entre os usuários que entram nas métricas. A mediana da validação não é congelada para o teste, porque as réguas têm escalas diferentes. Quem cair exatamente na mediana vai para "mainstream".
   - **Interpretação:** os grupos são **relativos a cada conjunto**: usuários mais mainstream ou mais de nicho **que os seus pares naquele conjunto**. Não são categorias com um limiar absoluto igual na validação e no teste.
   - **Usuários sem curtidas:** ficam fora do corte, e a contagem é informada.
@@ -405,11 +411,11 @@ COMMIT;   -- client.release() em finally
 - **Usuário novo:** 1/√3 nos gêneros.
 - **Régua:** salvar e carregar produz vetores idênticos. O hash muda quando a régua muda.
 - **Vazamento:**
-  - perfil sem o filme do par nos positivos e perfil completo nos negativos;
+  - perfil sem o filme do par nos positivos, o mesmo perfil do positivo nos 4 sorteados vinculados a ele e perfil completo nos negativos observados e nos pares de validação (v3.2);
   - popularidade descontada para **todo** filme avaliado pelo usuário;
   - par descartado quando o usuário tem só 1 curtido.
 - **Popularidade nos pares:** subtrai 1 só quando a nota está no treino da régua. Nada é subtraído para notas da validação ou do teste.
-- **Negativos:** as três regras de exclusão da seção 7.2, sorteio com reposição e quantidade = 4 × positivos usáveis.
+- **Negativos:** as regras de exclusão da seção 7.2, mais a da §7.3 v3.2 (nos pares de validação, nada sorteado para o usuário no treino da mesma semente); sorteio com reposição e quantidade = 4 × positivos usáveis.
 - **Desempates:** a busca com empate no corte de N devolve sempre os mesmos ids. A popularidade é ordenada por (contagem, id).
 - **Melhores pesos:** num treino sintético em que o erro de validação piora depois de uma época conhecida, os pesos restaurados são **idênticos** aos guardados nessa época, e não aos da última.
 - **Desempate na busca:** quando o empate do limite não cabe nas N + 50 linhas, a consulta é ampliada; se ainda não couber, o código para com erro.
@@ -468,8 +474,8 @@ COMMIT;   -- client.release() em finally
 | 4. Banco | carga transacional com hash; busca; verificação do HNSW | N linhas; perda ≈ 0 |
 | 5. Linha de base e métricas | popularidade; NDCG/P/R@10; cobertura; bootstrap | P@10 da popularidade ≈ 0,21 na validação |
 | 6. Candidatos | populares não vistos, vetores, união, orçamento efetivo | recall por fonte; contribuição exclusiva |
-| 7. Treino | pares com vazamento corrigido; passos 1, 2 e 4 da seção 9.1 | curvas de erro; NDCG@10 por semente |
-| 8. Grade e congelamento | passo 3; `configuracao-final.json` | arquivo gravado antes do teste |
+| 7. Treino | pares com vazamento corrigido; passos 1 e 2 da seção 9.1 | curvas de erro; NDCG@10 por semente |
+| 8. Grade, controle e congelamento | passo 3; passo 4 na configuração escolhida; `configuracao-final.json` | arquivo gravado antes do teste |
 | 9. Avaliação final | régua-final, recarga, 6 retreinos, os 7 experimentos, bootstrap, análise por grupo | tabela final + intervalos |
 | 10. (Opcional) API e interface | `src/api/` + front | cadastro → top 10 |
 
@@ -483,6 +489,8 @@ COMMIT;   -- client.release() em finally
 - **Falsos negativos:** os negativos sorteados (principalmente os dos candidatos) podem incluir filmes de que o usuário gostaria.
 - **Parada automática aproximada:** usa o erro em pares amostrados, não o NDCG.
 - **Só 3 sementes:** a variação entre sementes é estimada com poucas repetições.
+- **Perfil dos negativos observados (v3.2):** continuam com o perfil completo, enquanto positivos e sorteados usam o perfil sem o filme do positivo. A rede ainda pode usar essa diferença como atalho nos cerca de 27 mil pares observados.
+- **Falsos negativos concentrados:** no treino final, os usuários do teste têm um pouco mais de falsos negativos nos candidatos (29,6%) que os de validação (27,7%), então a validação subestima levemente esse efeito.
 
 **Melhorias futuras:**
 - **Vetores aprendidos (duas torres)** como fonte vetorial, comparados com os feitos à mão.
@@ -505,3 +513,6 @@ COMMIT;   -- client.release() em finally
 | Negativos sem reposição | rejeitada | inviável: 70 usuários (133 no treino final) precisariam de mais negativos do que os ~280 candidatos |
 | Recorrer à busca exata quando o HNSW devolve menos de N | rejeitada | nunca acontece na prática (≥ 997 elegíveis), e uma alternativa silenciosa mudaria os candidatos e contaminaria a verificação do HNSW |
 | Desempate pelo id dentro do SQL | rejeitada | faz o pgvector abandonar o índice HNSW. O desempate é feito no código |
+| Negativos sorteados iguais para as 3 sementes da rede (v3.2) | substituída | o sorteio faz parte do procedimento medido; com um sorteio só, o passo 1 (que compara esquemas de sorteio) dependeria da sorte de um único sorteio |
+| Perfil completo também nos negativos sorteados (v3.1) | substituída na v3.2 | cria um atalho: o perfil sem o filme do par fica a 0,063 do completo, contra 0,26 entre usuários, e a rede aprenderia "perfil completo = negativo" e um sinal invertido no gênero do filme |
+| Treino final com a mediana das melhores épocas das 3 sementes (v3.2) | rejeitada por ora | seria menos ruidoso, mas a regra de cada semente com a própria época já está decidida e não há medição mostrando ganho; fica como melhoria futura |

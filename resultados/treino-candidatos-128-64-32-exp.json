@@ -1,0 +1,264 @@
+{
+  "nome": "candidatos-128-64-32",
+  "fase": "exp",
+  "negativos": "candidatos",
+  "arquitetura": "128-64-32",
+  "semPop": false,
+  "hashRegua": "6642727a0b38b61bf5b1b9607cf89d2ded524b801f5daf1727096e3ccbfb04cd",
+  "sha256Candidatos": "37eb47ade96005b7b3cb14a22582530e23474a567972a574a186212edf5d7d7a",
+  "sementes": [
+    {
+      "semente": 1,
+      "melhorEpoca": 7,
+      "epocasTreinadas": 10,
+      "atingiuTeto": false,
+      "segundos": 51.704,
+      "sha256Pares": "308ce8851a70c0c6e9091c32fb293b5ec3a122da93b2f352d1e4c70305930565",
+      "passosDeGradiente": 7660,
+      "aucTreino": 0.771555907208263,
+      "aucValidacao": 0.7744719675002003,
+      "historico": [
+        {
+          "epoca": 1,
+          "perda": 0.4258185029029846,
+          "perdaValidacao": 0.4069077670574188
+        },
+        {
+          "epoca": 2,
+          "perda": 0.4098784625530243,
+          "perdaValidacao": 0.3965507745742798
+        },
+        {
+          "epoca": 3,
+          "perda": 0.40346118807792664,
+          "perdaValidacao": 0.3924928605556488
+        },
+        {
+          "epoca": 4,
+          "perda": 0.39963725209236145,
+          "perdaValidacao": 0.39031970500946045
+        },
+        {
+          "epoca": 5,
+          "perda": 0.3958412706851959,
+          "perdaValidacao": 0.39854323863983154
+        },
+        {
+          "epoca": 6,
+          "perda": 0.3935459852218628,
+          "perdaValidacao": 0.3870305120944977
+        },
+        {
+          "epoca": 7,
+          "perda": 0.39098796248435974,
+          "perdaValidacao": 0.3853437304496765
+        },
+        {
+          "epoca": 8,
+          "perda": 0.3891679048538208,
+          "perdaValidacao": 0.3879999816417694
+        },
+        {
+          "epoca": 9,
+          "perda": 0.3872663676738739,
+          "perdaValidacao": 0.3899497389793396
+        },
+        {
+          "epoca": 10,
+          "perda": 0.3853687644004822,
+          "perdaValidacao": 0.3854439854621887
+        }
+      ],
+      "resumoPares": {
+        "treino": {
+          "n": 195847,
+          "positivos": 33709,
+          "descartados": 1,
+          "observados": 27302,
+          "sorteados": 134836,
+          "recorreuAoCatalogo": 0
+        },
+        "validacao": {
+          "n": 60708,
+          "positivos": 10430,
+          "descartados": 0,
+          "observados": 8558,
+          "sorteados": 41720,
+          "recorreuAoCatalogo": 0
+        }
+      }
+    },
+    {
+      "semente": 2,
+      "melhorEpoca": 8,
+      "epocasTreinadas": 11,
+      "atingiuTeto": false,
+      "segundos": 48.857,
+      "sha256Pares": "d5118fb96ccb04c0f868514a192131f7b22e4f7298b20c76137369446ee48c20",
+      "passosDeGradiente": 8426,
+      "aucTreino": 0.7803757963665561,
+      "aucValidacao": 0.7772448656228799,
+      "historico": [
+        {
+          "epoca": 1,
+          "perda": 0.42757362127304077,
+          "perdaValidacao": 0.4035145044326782
+        },
+        {
+          "epoca": 2,
+          "perda": 0.40802833437919617,
+          "perdaValidacao": 0.3933779299259186
+        },
+        {
+          "epoca": 3,
+          "perda": 0.40217843651771545,
+          "perdaValidacao": 0.39095407724380493
+        },
+        {
+          "epoca": 4,
+          "perda": 0.3980841040611267,
+          "perdaValidacao": 0.3897448182106018
+        },
+        {
+          "epoca": 5,
+          "perda": 0.39543280005455017,
+          "perdaValidacao": 0.3881596326828003
+        },
+        {
+          "epoca": 6,
+          "perda": 0.39228156208992004,
+          "perdaValidacao": 0.38752835988998413
+        },
+        {
+          "epoca": 7,
+          "perda": 0.39026376605033875,
+          "perdaValidacao": 0.38407883048057556
+        },
+        {
+          "epoca": 8,
+          "perda": 0.38824066519737244,
+          "perdaValidacao": 0.3838951587677002
+        },
+        {
+          "epoca": 9,
+          "perda": 0.3867461383342743,
+          "perdaValidacao": 0.38404449820518494
+        },
+        {
+          "epoca": 10,
+          "perda": 0.38447070121765137,
+          "perdaValidacao": 0.3855453133583069
+        },
+        {
+          "epoca": 11,
+          "perda": 0.38245248794555664,
+          "perdaValidacao": 0.38423189520835876
+        }
+      ],
+      "resumoPares": {
+        "treino": {
+          "n": 195847,
+          "positivos": 33709,
+          "descartados": 1,
+          "observados": 27302,
+          "sorteados": 134836,
+          "recorreuAoCatalogo": 0
+        },
+        "validacao": {
+          "n": 60708,
+          "positivos": 10430,
+          "descartados": 0,
+          "observados": 8558,
+          "sorteados": 41720,
+          "recorreuAoCatalogo": 0
+        }
+      }
+    },
+    {
+      "semente": 3,
+      "melhorEpoca": 8,
+      "epocasTreinadas": 11,
+      "atingiuTeto": false,
+      "segundos": 46.375,
+      "sha256Pares": "6a6eef56976a06844acb4ca0609d12547951c2e6398ea06bd05b98a6f3690751",
+      "passosDeGradiente": 8426,
+      "aucTreino": 0.7780957811693938,
+      "aucValidacao": 0.7775337560364756,
+      "historico": [
+        {
+          "epoca": 1,
+          "perda": 0.4257674813270569,
+          "perdaValidacao": 0.405526340007782
+        },
+        {
+          "epoca": 2,
+          "perda": 0.40998369455337524,
+          "perdaValidacao": 0.39634203910827637
+        },
+        {
+          "epoca": 3,
+          "perda": 0.4040757417678833,
+          "perdaValidacao": 0.3919522762298584
+        },
+        {
+          "epoca": 4,
+          "perda": 0.3997381627559662,
+          "perdaValidacao": 0.3894229233264923
+        },
+        {
+          "epoca": 5,
+          "perda": 0.39661386609077454,
+          "perdaValidacao": 0.3929232656955719
+        },
+        {
+          "epoca": 6,
+          "perda": 0.3935427665710449,
+          "perdaValidacao": 0.3880012333393097
+        },
+        {
+          "epoca": 7,
+          "perda": 0.39154109358787537,
+          "perdaValidacao": 0.38725927472114563
+        },
+        {
+          "epoca": 8,
+          "perda": 0.38904595375061035,
+          "perdaValidacao": 0.38472267985343933
+        },
+        {
+          "epoca": 9,
+          "perda": 0.38679954409599304,
+          "perdaValidacao": 0.387954980134964
+        },
+        {
+          "epoca": 10,
+          "perda": 0.3855111300945282,
+          "perdaValidacao": 0.38518470525741577
+        },
+        {
+          "epoca": 11,
+          "perda": 0.38299015164375305,
+          "perdaValidacao": 0.38849830627441406
+        }
+      ],
+      "resumoPares": {
+        "treino": {
+          "n": 195847,
+          "positivos": 33709,
+          "descartados": 1,
+          "observados": 27302,
+          "sorteados": 134836,
+          "recorreuAoCatalogo": 0
+        },
+        "validacao": {
+          "n": 60708,
+          "positivos": 10430,
+          "descartados": 0,
+          "observados": 8558,
+          "sorteados": 41720,
+          "recorreuAoCatalogo": 0
+        }
+      }
+    }
+  ]
+}

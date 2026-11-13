@@ -47,7 +47,18 @@ test('carregarDataset junta tudo', () => {
   fs.writeFileSync(path.join(d, 'u.user'), '1|24|M|admin|1\n');
   fs.writeFileSync(path.join(d, 'u.genre'), 'g|0\n');
   fs.writeFileSync(path.join(d, 'u.occupation'), 'admin\n');
-  const r = carregarDataset(d);
+  const r = carregarDataset(d, { incluirTeste: true });
   assert.deepEqual([r.base.length, r.teste.length, r.filmes.length, r.usuarios.length, r.generos, r.ocupacoes],
     [1, 2, 1, 1, ['g'], ['admin']]);
+});
+
+test('carregarDataset sem incluirTeste não lê u1.test e devolve teste: null', () => {
+  const d = path.join(dir, 'ds-sem-teste');
+  fs.mkdirSync(d);
+  fs.writeFileSync(path.join(d, 'u1.base'), '1\t2\t5\t10\n');
+  fs.writeFileSync(path.join(d, 'u.item'), '1|A|01-Jan-1990||u|' + Array(19).fill(0).join('|') + '\n');
+  fs.writeFileSync(path.join(d, 'u.user'), '1|24|M|admin|1\n');
+  fs.writeFileSync(path.join(d, 'u.genre'), 'g|0\n');
+  fs.writeFileSync(path.join(d, 'u.occupation'), 'admin\n');
+  assert.equal(carregarDataset(d).teste, null);
 });
