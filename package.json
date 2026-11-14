@@ -23,7 +23,8 @@
     "grade": "node scripts/11-grade.js",
     "congelar": "node scripts/12-congelar.js",
     "avaliacao-final": "node scripts/13-avaliacao-final.js",
-    "divisoes-v2": "node scripts/14-divisoes-v2.js"
+    "divisoes-v2": "node scripts/14-divisoes-v2.js",
+    "mde-v2": "node scripts/15-mde-v2.js"
   },
   "dependencies": {
     "@tensorflow/tfjs-node": "^4.22.0",
