@@ -31,7 +31,8 @@
     "fidelidade-v2": "node scripts/19-fidelidade-v2.js",
     "grade-v2": "node scripts/20-grade-v2.js",
     "congelar-v2": "node scripts/21-congelar-v2.js",
-    "etapa1-v2": "node scripts/22-etapa1-v2.js"
+    "etapa1-v2": "node scripts/22-etapa1-v2.js",
+    "etapa2-v2": "node scripts/23-etapa2-v2.js"
   },
   "dependencies": {
     "@tensorflow/tfjs-node": "^4.22.0",
