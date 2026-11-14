@@ -7,8 +7,9 @@ import assert from 'node:assert/strict';
 import {
   sobreposicao, listasIdenticas, conferirPrecisao, tetoImpacto, top10Identicos,
   medidas12, medida3, resumoMedida4, entradaReferencia,
-  lerArgumentosFidelidade, kNDoSistema, resolverSistemasMedida4, mesclarMedida4,
+  lerArgumentosFidelidade, kNDoSistema, resolverSistemasMedida4, mesclarMedida4, conferirExataUsuario,
 } from '../../src/avaliacao/fidelidade.js';
+import { construirFC, perfilFC, rankingReferencia, escore64De, vetorDeBusca } from '../../src/fc/referencia.js';
 
 const mapa = (obj) => new Map(Object.entries(obj).map(([k, v]) => [Number(k), v]));
 
@@ -180,4 +181,43 @@ test('mesclarMedida4: acrescenta sistemas sem apagar os outros; candidatos difer
   assert.deepEqual(comPulado.medida4, { S1: { x: 1 } }); // o resultado de S1 não é apagado
   assert.deepEqual(comPulado.medida4Pulados, { S1: 'sem rede' });
   assert.throws(() => mesclarMedida4(existente, {}, { sha256Candidatos: 'zzz', v2Escolhida: 'S3' }), /candidatos/);
+});
+
+// FC pequena para conferirExataUsuario: usuário 1 curte o filme 1; os filmes 2, 3 e 4 dividem fãs com ele.
+const treinoFC = [
+  { usuario: 1, filme: 1, nota: 5 }, { usuario: 2, filme: 1, nota: 5 }, { usuario: 3, filme: 1, nota: 4 },
+  { usuario: 2, filme: 2, nota: 5 }, { usuario: 3, filme: 3, nota: 5 }, { usuario: 2, filme: 4, nota: 4 },
+  { usuario: 3, filme: 4, nota: 4 }, { usuario: 4, filme: 3, nota: 5 },
+];
+const fcP = construirFC(treinoFC, 4);
+const perfilP = perfilFC(fcP, [1]);
+const refP = rankingReferencia(fcP, perfilP, new Set([1]), 300);
+
+test('conferirExataUsuario: exata = referência passa; ordem trocada além de τ é erro', () => {
+  const ids = refP.map((x) => x.id);
+  assert.ok(ids.length >= 2 && refP[0].escore64 - refP[1].escore64 > 1e-3);
+  const ok = conferirExataUsuario({ fc: fcP, perfil: perfilP, referencia: refP, exata: ids, m: 300 });
+  assert.deepEqual(ok, { ok: true, divergenciasPrecisao: 0, erros: [] });
+  const ruim = conferirExataUsuario({ fc: fcP, perfil: perfilP, referencia: refP, exata: [...ids].reverse(), m: 300 });
+  assert.equal(ruim.ok, false);
+  assert.match(ruim.erros[0], /troca de ordem/);
+});
+
+test('conferirExataUsuario: filme da exata fora da referência usa o escore64 do perfil e a regra da posição m', () => {
+  // m = 1: a referência fica com o 1º; a exata devolve o 2º no lugar dele.
+  const ref1 = refP.slice(0, 1);
+  const outro = refP[1].id;
+  const c = conferirExataUsuario({ fc: fcP, perfil: perfilP, referencia: ref1, exata: [outro], m: 1 });
+  // A saída do 1º e a entrada do outro só são de precisão se os escores estiverem a menos de τ: aqui não estão.
+  assert.equal(c.ok, false);
+  assert.ok(Math.abs(escore64De(fcP, perfilP, outro) - refP[0].escore64) > 1e-5);
+  // Com τ enorme, as duas divergências passam a ser de precisão.
+  const largo = conferirExataUsuario({ fc: fcP, perfil: perfilP, referencia: ref1, exata: [outro], m: 1, tau: 1 });
+  assert.deepEqual(largo, { ok: true, divergenciasPrecisao: 2, erros: [] });
+});
+
+test('vetorDeBusca: p / ‖p‖ como array comum, de norma 1', () => {
+  const v = vetorDeBusca(Float64Array.from([3, 0, 4]));
+  assert.ok(Array.isArray(v));
+  assert.deepEqual(v, [0.6, 0, 0.8]);
 });

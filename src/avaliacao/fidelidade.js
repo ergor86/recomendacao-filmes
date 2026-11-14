@@ -10,6 +10,7 @@
 import { ndcgEm10 } from './metricas.js';
 import { recallDosCandidatos } from './experimentos.js';
 import { bootstrapPareado } from './estatistica.js';
+import { escore64De } from '../fc/referencia.js';
 
 export const TAU = 1e-5; // tolerância sobre escores float64 (§5.3)
 const BOOTSTRAP = { reamostragens: 5000, semente: 2026 };
@@ -77,6 +78,20 @@ export function conferirPrecisao({ exata, referencia, escore64, escoreM, tau = T
     }
   }
   return { ok: erros.length === 0, divergenciasPrecisao, erros };
+}
+
+/**
+ * Conferência busca exata = referência de um usuário (§5.3): monta o escore64 de todo id das duas
+ * listas (os da exata fora da referência pelo cosseno float64 do perfil) e o escore da posição m da
+ * referência (null se ela tem menos de m filmes: só vale a regra do corte), e chama conferirPrecisao.
+ * @param referencia Array<{ id, escore64 }> (rankingReferencia com o mesmo m); @param exata ids da busca exata
+ * @returns o resultado de conferirPrecisao
+ */
+export function conferirExataUsuario({ fc, perfil, referencia, exata, m, tau = TAU }) {
+  const escore64 = new Map(referencia.map((x) => [x.id, x.escore64]));
+  for (const id of exata) if (!escore64.has(id)) escore64.set(id, escore64De(fc, perfil, id));
+  const escoreM = referencia.length >= m ? referencia[m - 1].escore64 : null;
+  return conferirPrecisao({ exata, referencia: referencia.map((x) => x.id), escore64, escoreM, tau });
 }
 
 /** Teto do impacto da aproximação sobre o NDCG médio: min(1, nDiferentes / nt). */

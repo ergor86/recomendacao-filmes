@@ -8,14 +8,15 @@
 import crypto from 'node:crypto';
 import { jsonEstavel } from '../util/json-estavel.js';
 import { hashAvaliacoes } from '../util/hash-avaliacoes.js';
-import { construirFC, perfilFC, rankingReferencia, escore64De, hashVetoresFC } from '../fc/referencia.js';
+import { construirFC, perfilFC, rankingReferencia, hashVetoresFC, vetorDeBusca } from '../fc/referencia.js';
 import { vistosPorUsuario } from '../candidatos/populares.js';
 import {
   gerarCandidatosV2, montarArquivoCandidatosV2, listaDaConfiguracao, fc150DeTodos, sha256FC150, relatorioDeficit,
 } from '../candidatos/v2.js';
 import {
-  TAU, conferirPrecisao, medidas12, tetoImpacto, top10Identicos, entradaReferencia, kNDoSistema,
+  TAU, conferirExataUsuario, medidas12, tetoImpacto, top10Identicos, entradaReferencia, kNDoSistema,
 } from './fidelidade.js';
+import { top10DoSubconjunto } from './experimentos.js';
 import { nomeSistema, top10S0, top10S1, conferirFC150, posicoesDoPreenchimento } from './sistemas-v2.js';
 
 export const FASE = 'v2-final';
@@ -101,19 +102,13 @@ export function conferirHashesSchema({ esquema, hashRegua, hashTreino }, congela
   }
 }
 
-// Os 10 ids de maior score; empates pelo id crescente (mesma regra de top10PorScore da rede).
+// Top 10 dos candidatos pelo score da rede (top10DoSubconjunto: empates pelo id crescente), exigindo
+// antes um Map com um score finito para cada candidato e nada além deles.
 function top10DosScores(scores, ids, quem) {
   if (!(scores instanceof Map) || scores.size !== ids.length || ids.some((id) => !Number.isFinite(scores.get(id)))) {
     throw new Error(`${quem}: pontuar tem de devolver um Map com um score finito para cada um dos ${ids.length} candidatos`);
   }
-  if (scores.size < 10) throw new Error(`${quem}: só ${scores.size} candidatos, mas a avaliação exige 10`);
-  return [...scores].sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, 10).map(([id]) => id);
-}
-
-// Vetor de busca p/‖p‖ (mesma conta de gerarCandidatosV2) e vistos ordenados para o excluir.
-function vetorDeBusca(perfil) {
-  const norma = Math.sqrt(perfil.reduce((s, x) => s + x * x, 0));
-  return Array.from(perfil, (x) => x / norma);
+  return top10DoSubconjunto(scores, ids);
 }
 
 /**
@@ -145,10 +140,7 @@ async function fidelidadeDaBusca({ fc, vistosPorU, candidatos, buscar }) {
     const { lista, empateNaoResolvido } = await buscar('exata', vetorDeBusca(perfil), excluir, M);
     if (empateNaoResolvido) empatesExata++;
     const exata = lista.map((x) => x.id);
-    const escore64 = new Map(ref.map((x) => [x.id, x.escore64]));
-    for (const id of exata) if (!escore64.has(id)) escore64.set(id, escore64De(fc, perfil, id));
-    const escoreM = ref.length >= M ? ref[M - 1].escore64 : null; // lista curta: só vale a regra do corte
-    const c = conferirPrecisao({ exata, referencia: refIds, escore64, escoreM, tau: TAU });
+    const c = conferirExataUsuario({ fc, perfil, referencia: ref, exata, m: M, tau: TAU });
     if (!c.ok) throw new Error(`busca exata difere da referência no usuário ${u} além da precisão (τ = ${TAU}): ${c.erros.slice(0, 5).join('; ')}`);
     divergenciasPrecisao += c.divergenciasPrecisao;
     if (c.divergenciasPrecisao > 0) usuariosComDivergencia++;
@@ -228,6 +220,10 @@ export async function executarEtapa1({
   // (2) Hashes atuais × congelados, e a lista de sistemas (falha antes de tocar no banco).
   const fc = conferirHashes({ congelamento, hashesAtuais, ctx });
   if (!Number.isInteger(nt) || nt < 1) throw new Error(`nt inválido (${nt}): use teste2.avaliaveis de resultados/divisoes-v2.json`);
+  if (!Number.isInteger(congelamento.mde?.nt)) throw new Error('congelamento sem mde.nt: não dá para conferir o nt do Passo 0');
+  if (nt !== congelamento.mde.nt) {
+    throw new Error(`nt atual (${nt}) diferente do congelado (${congelamento.mde.nt}): o Passo 0 mudou depois do congelamento`);
+  }
   if (!/^[0-9a-f]{64}$/.test(sha256Configuracao ?? '')) throw new Error(`sha256Configuracao inválido: ${sha256Configuracao}`);
   const sistemas = sistemasAvaliados(congelamento);
   const v2 = sistemas.find((s) => s.nome === congelamento.v2);
@@ -258,7 +254,6 @@ export async function executarEtapa1({
 
   // FC150 única: o mesmo Map alimenta S1, o treino de S3 e a pontuação de S3.
   const fc150 = fc150DeTodos(candidatos);
-  const fc150Teste2 = new Map(USUARIOS_TESTE2.map((u) => [u, fc150.get(u)]));
   const listaDe = (k, n) => (k === 0 && n === 150
     ? fc150
     : new Map([...candidatos].map(([u, e]) => [u, listaDaConfiguracao(e, k, n).ids])));
@@ -344,7 +339,7 @@ export async function executarEtapa1({
     };
   }
   const sha256Candidatos = arquivoCandidatos.sha256;
-  const shaFC150 = sha256FC150(fc150Teste2);
+  const shaFC150 = sha256FC150(fc150); // todos os usuários do treino: a mesma FC150 de S1 e do treino de S3
   const fidelidade = {
     fase: FASE,
     M,
@@ -397,7 +392,7 @@ export async function executarEtapa1({
   const texto = jsonEstavel(previsoes);
   await gravarPrevisoes(texto);
 
-  // (8) Hashes: previsões, congelamento e FC150 dos usuários 1–462.
+  // (8) Hashes: previsões, congelamento e FC150 de todos os usuários.
   const hashes = { sha256: sha256(texto), sha256Configuracao, sha256FC150: shaFC150 };
   await gravarHashes(hashes);
   return hashes;

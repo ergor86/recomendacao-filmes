@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { carregarConfig } from '../src/config.js';
 import { criarContexto } from '../src/contexto.js';
-import { construirFC, perfilFC, rankingReferencia, escore64De } from '../src/fc/referencia.js';
+import { construirFC, perfilFC, rankingReferencia, vetorDeBusca } from '../src/fc/referencia.js';
 import { criarPool, verificarConexao } from '../src/banco/conexao.js';
 import { buscarColaborativos, planoDaBuscaFC } from '../src/banco/busca-fc.js';
 import { hashAvaliacoes } from '../src/util/hash-avaliacoes.js';
@@ -26,7 +26,7 @@ import { historicoDoTreino } from '../src/features/entrada.js';
 import { carregarModelo } from '../src/modelo/rede.js';
 import { pontuarCandidatos, top10PorScore } from '../src/modelo/ranqueador.js';
 import {
-  TAU, conferirPrecisao, medidas12, medida3, resumoMedida4, entradaReferencia,
+  TAU, conferirExataUsuario, medidas12, medida3, resumoMedida4, entradaReferencia,
   lerArgumentosFidelidade, resolverSistemasMedida4, mesclarMedida4,
 } from '../src/avaliacao/fidelidade.js';
 
@@ -155,18 +155,14 @@ async function rodarCompleto() {
     let feitos = 0;
     for (const [u, perfil] of perfis) {
       const vistos = vistosPorU.get(u) ?? new Set();
-      const norma = Math.sqrt(perfil.reduce((s, x) => s + x * x, 0));
-      const vetor = Array.from(perfil, (x) => x / norma);
+      const vetor = vetorDeBusca(perfil);
       const excluir = [...vistos].sort((a, b) => a - b);
       const { lista, empateNaoResolvido } = await buscarColaborativos(pool, { vetor, excluir, m: M, hashes, modo: 'exata' });
       if (empateNaoResolvido) empatesExata++;
       const exata = lista.map((x) => x.id);
       const ref = referencia.get(u);
       const refIds = ref.map((x) => x.id);
-      const escore64 = new Map(ref.map((x) => [x.id, x.escore64]));
-      for (const id of exata) if (!escore64.has(id)) escore64.set(id, escore64De(fc, perfil, id));
-      const escoreM = ref.length >= M ? ref[M - 1].escore64 : null; // lista curta: só vale a regra do corte
-      const c = conferirPrecisao({ exata, referencia: refIds, escore64, escoreM, tau: TAU });
+      const c = conferirExataUsuario({ fc, perfil, referencia: ref, exata, m: M, tau: TAU });
       if (!c.ok) throw new Error(`busca exata difere da referência no usuário ${u} além da precisão (τ = ${TAU}): ${c.erros.slice(0, 5).join('; ')}`);
       divergenciasPrecisao += c.divergenciasPrecisao;
       if (c.divergenciasPrecisao > 0) usuariosComDivergencia++;

@@ -78,7 +78,8 @@ function congelamentoCom(v2) {
 
 // Busca sintética: cosseno exato entre o vetor e o vetor FC de cada filme, escore oficial > 0, ordem
 // (escore desc, id asc). No modo 'hnsw', os usuários de `perder` perdem o primeiro filme da lista.
-function bancoFalso({ perder = new Set() } = {}) {
+// No modo 'exata', os usuários de `inverter` recebem a lista invertida (erro além da precisão).
+function bancoFalso({ perder = new Set(), inverter = new Set() } = {}) {
   return (modo, vetor, excluir, m) => {
     const fora = new Set(excluir);
     const itens = [];
@@ -92,7 +93,8 @@ function bancoFalso({ perder = new Set() } = {}) {
     itens.sort((a, b) => b.escore - a.escore || a.id - b.id);
     // Identifica o usuário pelo vetor: os vistos (excluir) são únicos por usuário no treino sintético.
     const u = usuarioDe(excluir);
-    const lista = modo === 'hnsw' && perder.has(u) ? itens.slice(1, m + 1) : itens.slice(0, m);
+    let lista = modo === 'hnsw' && perder.has(u) ? itens.slice(1, m + 1) : itens.slice(0, m);
+    if (modo === 'exata' && inverter.has(u)) lista = [...lista].reverse();
     return { lista, empateNaoResolvido: false };
   };
 }
@@ -111,17 +113,17 @@ function pontuarFalso(_nome, semente, usuario, ids) {
 // Monta as dependências com espiões que registram a ordem das chamadas.
 function deps({ congelamento = congelamentoCom('S3'), hashesAtuais = { ...HASHES, sha256Grade: SHA_GRADE },
   conferir = () => {}, schema = { esquema: 'v2_final', hashRegua: HASHES.regua, hashTreino: HASHES.treino },
-  perder } = {}) {
+  perder, inverter, nt = 445, sha256Configuracao = SHA_CONFIG } = {}) {
   const ordem = [];
   const contagem = { buscar: 0, treinar: 0, pontuar: 0, gravarPrevisoes: 0 };
   const gravado = {};
-  const buscarBanco = bancoFalso({ perder });
+  const buscarBanco = bancoFalso({ perder, inverter });
   const marcar = (nome) => { if (ordem.at(-1) !== nome) ordem.push(nome); };
   return {
     ordem, contagem, gravado,
     args: {
       conferir: () => { marcar('conferir'); return conferir(); },
-      ctx, congelamento, hashesAtuais, nt: 445, sha256Configuracao: SHA_CONFIG,
+      ctx, congelamento, hashesAtuais, nt, sha256Configuracao,
       lerHashesSchema: async () => { marcar('lerHashesSchema'); return schema; },
       buscar: async (...a) => { contagem.buscar++; marcar('buscar'); return buscarBanco(...a); },
       treinar: async (nome, cand, epocas) => {
@@ -211,8 +213,9 @@ test('caminho feliz: ordem, previsões, sha256 e FC150 única', async () => {
   assert.equal(cand.fase, 'v2-final');
   assert.equal(cand.M, 300);
   assert.equal(Object.keys(cand.porUsuario).length, N_USUARIOS); // todos os usuários do treino
-  const fc150 = new Map();
-  for (let u = 1; u <= 462; u++) fc150.set(u, listaDaConfiguracao(cand.porUsuario[String(u)], 0, 150).ids);
+  // sha256 da FC150 de TODOS os usuários do treino (a mesma lista de S1 e do treino de S3).
+  const fc150 = new Map(Object.entries(cand.porUsuario).map(([u, e]) => [Number(u), listaDaConfiguracao(e, 0, 150).ids]));
+  assert.equal(fc150.size, N_USUARIOS);
   assert.equal(r.sha256FC150, sha256FC150(fc150));
   assert.deepEqual(d.gravado.hashes, r);
 
@@ -279,6 +282,32 @@ test('sistema congelado com nome e (k, n) incoerentes: rejeita antes de buscar',
   const d = deps({ congelamento: c });
   await assert.rejects(executarEtapa1(d.args), /S3/);
   assert.equal(d.contagem.buscar, 0);
+});
+
+test('nt diferente do congelado, mde.nt ausente, nt inválido ou sha256Configuracao inválido: rejeita antes de buscar', async () => {
+  const semMde = congelamentoCom('S3');
+  delete semMde.mde;
+  for (const [opcoes, re] of [
+    [{ nt: 444 }, /nt atual \(444\) diferente do congelado \(445\)/],
+    [{ congelamento: semMde }, /congelamento sem mde\.nt/],
+    [{ nt: 0 }, /nt inválido/],
+    [{ nt: null }, /nt inválido/],
+    [{ sha256Configuracao: 'abc' }, /sha256Configuracao inválido/],
+  ]) {
+    const d = deps(opcoes);
+    await assert.rejects(executarEtapa1(d.args), re);
+    assert.equal(d.contagem.buscar, 0);
+    assert.equal(d.contagem.treinar, 0);
+  }
+});
+
+test('busca exata diferente da referência além de τ: rejeita sem treinar nem gravar previsões', async () => {
+  const d = deps({ inverter: new Set([2]) });
+  await assert.rejects(executarEtapa1(d.args), /busca exata difere da referência no usuário 2 além da precisão/);
+  assert.equal(d.contagem.treinar, 0);
+  assert.equal(d.contagem.pontuar, 0);
+  assert.equal(d.contagem.gravarPrevisoes, 0);
+  assert.equal(d.gravado.relatorios, undefined);
 });
 
 test('estático: src/avaliacao/etapa1.js não importa src/banco nem src/modelo', () => {

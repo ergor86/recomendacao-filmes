@@ -57,6 +57,12 @@ export function perfilFC(fc, curtidos) {
   return algum ? p : null;
 }
 
+/** Vetor de busca do usuário: p / ‖p‖ como array comum (o formato que a busca no banco recebe). */
+export function vetorDeBusca(perfil) {
+  const norma = Math.sqrt(perfil.reduce((s, x) => s + x * x, 0));
+  return Array.from(perfil, (x) => x / norma);
+}
+
 /** Escore oficial: arredonda a 6 casas, meio para cima (sem arredondamento bancário). */
 export function escoreOficial(x) {
   return Math.round(x * 1e6) / 1e6;

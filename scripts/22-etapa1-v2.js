@@ -52,10 +52,7 @@ async function principal() {
   const conferir = () => conferirCongelamento({ commitCodigo: congelamento.commitCodigo });
 
   if (!fs.existsSync(ARQ_DIVISOES)) throw new Error(`${ARQ_DIVISOES} ausente: rode npm run divisoes-v2`);
-  const nt = JSON.parse(fs.readFileSync(ARQ_DIVISOES, 'utf8')).teste2?.avaliaveis;
-  if (congelamento.mde?.nt !== undefined && congelamento.mde.nt !== nt) {
-    throw new Error(`nt de ${ARQ_DIVISOES} (${nt}) diferente do congelado (${congelamento.mde.nt}): o Passo 0 mudou depois do congelamento`);
-  }
+  const nt = JSON.parse(fs.readFileSync(ARQ_DIVISOES, 'utf8')).teste2?.avaliaveis; // conferido com mde.nt na etapa 1
 
   const { pg: configPg, dirDados } = carregarConfig();
   const ctx = criarContexto({ fase: FASE, dirDados });

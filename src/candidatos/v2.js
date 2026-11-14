@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import { jsonEstavel } from '../util/json-estavel.js';
 import { rankingPopularidade, popularesNaoVistos, vistosPorUsuario } from './populares.js';
 import { comporLista } from './composicao.js';
-import { perfilFC, elegiveisReferencia } from '../fc/referencia.js';
+import { perfilFC, elegiveisReferencia, vetorDeBusca } from '../fc/referencia.js';
 
 const N_POPULARES = 600; // populares não vistos guardados por usuário
 const N_POPULARES_ELEGIVEIS = 150; // E ∩ primeiros 150 populares
@@ -38,8 +38,7 @@ export async function gerarCandidatosV2({ buscar, fc, treino, contagens, usuario
       // Sem curtidas: não há perfil, logo não há busca.
       entrada = { colab: [], populares, nElegiveis: 0, elegiveisEntrePopulares: [], empateNaoResolvido: false };
     } else {
-      const norma = Math.sqrt(perfil.reduce((s, x) => s + x * x, 0));
-      const vetor = Array.from(perfil, (x) => x / norma);
+      const vetor = vetorDeBusca(perfil);
       const excluir = [...vistos].sort((a, b) => a - b);
       const { lista, empateNaoResolvido } = await buscar(vetor, excluir, M);
       const elegiveis = elegiveisReferencia(fc, perfil, vistos);
