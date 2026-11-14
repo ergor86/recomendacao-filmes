@@ -9,6 +9,7 @@ import path from 'node:path';
 import { criarContexto } from '../../src/contexto.js';
 import {
   construirFC, vetorFilme, perfilFC, escoreOficial, rankingReferencia, elegiveisReferencia, hashVetoresFC,
+  escore64De,
 } from '../../src/fc/referencia.js';
 
 // 5 usuários x 6 filmes; f6 sem curtidas. Nota 5 = curtida, nota 2 = não curtida.
@@ -111,4 +112,20 @@ test('hashVetoresFC não muda quando uma nota do teste-2 muda (v2-exp)', () => {
     gravar(notas);
   }
   assert.match(antes, /^[0-9a-f]{64}$/);
+});
+
+test('escore64De: cosseno com p/‖p‖ igual ao escore64 do ranking; 0 para filme sem vetor', () => {
+  const p = perfilFC(fc, [1, 2, 3]);
+  const r = rankingReferencia(fc, p, new Set(), 10);
+  assert.ok(r.length > 0);
+  for (const { id, escore64 } of r) assert.equal(escore64De(fc, p, id), escore64);
+  const v4 = vetorFilme(fc, 4);
+  assert.ok(Math.abs(escore64De(fc, p, 4) - dot(Array.from(p), v4) / norma(Array.from(p))) < 1e-12);
+  assert.equal(escore64De(fc, p, 6), 0); // f6 sem curtidas
+  assert.equal(escore64De(fc, p, 999), 0); // filme fora da FC
+  // filme cortado pela referência (escore oficial 0) ainda tem escore64 > 0
+  const mao = { nUsuarios: 2, fasPorFilme: new Map([[10, [2]], [11, [1]]]), curtidosPorUsuario: new Map() };
+  const q = Float64Array.from([1, 4e-7]);
+  assert.ok(rankingReferencia(mao, q, new Set(), 10).every((x) => x.id !== 10));
+  assert.ok(escore64De(mao, q, 10) > 0 && escore64De(mao, q, 10) < 5e-7);
 });

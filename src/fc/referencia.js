@@ -96,6 +96,21 @@ export function rankingReferencia(fc, perfil, vistos, m) {
   return itens.slice(0, m);
 }
 
+/**
+ * Cosseno em float64 entre p/‖p‖ e v_j, sem arredondar e sem corte (mesma conta do escore64 do
+ * ranking). Serve à conferência de precisão (§5.3) para filmes que o banco devolve e a referência
+ * corta. Filme sem vetor (sem curtidas ou fora da FC), ou perfil zero, vale 0.
+ */
+export function escore64De(fc, perfil, filme) {
+  const fas = fc.fasPorFilme.get(filme);
+  if (!fas || fas.length === 0) return 0;
+  const norma = normaPerfil(perfil);
+  if (norma === 0) return 0;
+  let soma = 0;
+  for (const u of fas) soma += perfil[u - 1];
+  return soma / Math.sqrt(fas.length) / norma;
+}
+
 /** Conjunto dos filmes não vistos com escore oficial > 0. */
 export function elegiveisReferencia(fc, perfil, vistos) {
   return new Set(pontuar(fc, perfil, vistos).map((x) => x.id));
