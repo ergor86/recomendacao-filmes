@@ -29,7 +29,8 @@
     "candidatos-v2": "node scripts/17-candidatos-v2.js",
     "portao-v2": "node scripts/18-portao-v2.js",
     "fidelidade-v2": "node scripts/19-fidelidade-v2.js",
-    "grade-v2": "node scripts/20-grade-v2.js"
+    "grade-v2": "node scripts/20-grade-v2.js",
+    "congelar-v2": "node scripts/21-congelar-v2.js"
   },
   "dependencies": {
     "@tensorflow/tfjs-node": "^4.22.0",
