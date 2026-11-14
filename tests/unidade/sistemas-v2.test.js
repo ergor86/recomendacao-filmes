@@ -8,7 +8,7 @@ import { escolherConfiguracao } from '../../src/avaliacao/escolha.js';
 import {
   configuracoesDaGrade, nomeSistema, simplicidadeV2, top10S1, top10S0, lerArgumentosGrade,
   conferirFC150, posicoesDoPreenchimento, diferencaDescritiva, contribuicoesV2, mdeDescritivoV2,
-  pedidosMedida4, ARQ_GRADE_OFICIAL, FRASE_OTIMISTA,
+  pedidosMedida4, dentroDe, ARQ_GRADE_OFICIAL, FRASE_OTIMISTA,
 } from '../../src/avaliacao/sistemas-v2.js';
 
 const perto = (a, b, tol = 1e-9) => Math.abs(a - b) < tol;
@@ -186,4 +186,29 @@ test('pedidosMedida4: S3 e v2 no aprovado, só v2 no reprovado; v2 sai se for S0
   assert.deepEqual(pedidosMedida4('aprovado', 'S0'), ['S3']);
   assert.deepEqual(pedidosMedida4('reprovado', 'S2'), ['v2']);
   assert.deepEqual(pedidosMedida4('reprovado', 'S1'), []);
+});
+
+test('lerArgumentosGrade recusa qualquer arquivo em resultados/ e qualquer pasta em modelos/', () => {
+  const ok = ['--dir-modelos', 'tmp/m'];
+  for (const saida of ['resultados/mde-v2.json', 'resultados/portao-fc-v2-exp.json', 'resultados/sub/x.json', 'resultados']) {
+    assert.throws(() => lerArgumentosGrade(['--saida', saida, ...ok]), /fora de resultados/, saida);
+  }
+  for (const dir of ['modelos/sub', 'modelos/v2-150-0-v2-exp-s1']) {
+    assert.throws(() => lerArgumentosGrade(['--saida', 'tmp/g.json', '--dir-modelos', dir]), /fora de modelos/, dir);
+  }
+  // Nomes que só começam igual não estão dentro.
+  assert.equal(lerArgumentosGrade(['--saida', 'resultados-tmp/g.json', '--dir-modelos', 'modelos-tmp']).verificacao, true);
+});
+
+test('dentroDe: variantes de maiúsculas contam no Windows', () => {
+  assert.equal(dentroDe('resultados', 'Resultados/grade-v2-exp.json', 'win32'), true);
+  assert.equal(dentroDe('resultados', 'RESULTADOS/Grade-V2-Exp.json', 'win32'), true);
+  assert.equal(dentroDe('modelos', 'Modelos', 'win32'), true);
+  assert.equal(dentroDe('modelos', 'MODELOS/x', 'win32'), true);
+  assert.equal(dentroDe('modelos', 'modelos2', 'win32'), false);
+  assert.equal(dentroDe('modelos', '../modelos', 'win32'), false);
+  if (process.platform === 'win32') {
+    assert.throws(() => lerArgumentosGrade(['--saida', 'Resultados/grade-v2-exp.json', '--dir-modelos', 'tmp/m']), /fora de resultados/);
+    assert.throws(() => lerArgumentosGrade(['--saida', 'tmp/g.json', '--dir-modelos', 'Modelos']), /fora de modelos/);
+  }
 });

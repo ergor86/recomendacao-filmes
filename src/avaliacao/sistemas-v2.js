@@ -78,9 +78,19 @@ function lerCelula(texto) {
 }
 
 /**
+ * Diz se `alvo` é a pasta `base` ou está dentro dela (caminhos resolvidos a partir do diretório atual).
+ * No Windows a comparação ignora maiúsculas, como o NTFS.
+ */
+export function dentroDe(base, alvo, plataforma = process.platform) {
+  const norm = (p) => (plataforma === 'win32' ? path.resolve(p).toLowerCase() : path.resolve(p));
+  const rel = path.relative(norm(base), norm(alvo));
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
+/**
  * Argumentos do script 20. Oficial (sem opções de verificação): grava resultados/grade-v2-exp.json e
  * modelos em modelos/. Opções de verificação (--somente k-n,..., --max-epocas n, --saida arq,
- * --dir-modelos dir): exigem --saida fora do arquivo oficial e --dir-modelos fora de modelos/.
+ * --dir-modelos dir): exigem --saida fora de resultados/ e --dir-modelos fora de modelos/.
  * --cortar-orcamento-variavel é do modo oficial (decidido antes de rodar, §12).
  */
 export function lerArgumentosGrade(argv) {
@@ -105,11 +115,11 @@ export function lerArgumentosGrade(argv) {
     else throw new Error(`opção desconhecida: ${opcao} (use --cortar-orcamento-variavel, --somente, --max-epocas, --saida, --dir-modelos)`);
   }
   if (!verificacao) return { ...a, saida: ARQ_GRADE_OFICIAL, dirModelos: 'modelos', verificacao };
-  if (!a.saida || path.resolve(a.saida) === path.resolve(ARQ_GRADE_OFICIAL)) {
-    throw new Error(`${AVISO_VERIFICACAO}: informe --saida com um arquivo diferente de ${ARQ_GRADE_OFICIAL}`);
+  if (!a.saida || dentroDe('resultados', a.saida)) {
+    throw new Error(`${AVISO_VERIFICACAO}: informe --saida com um arquivo fora de resultados/ (lá ficam os resultados oficiais, como ${ARQ_GRADE_OFICIAL})`);
   }
-  if (!a.dirModelos || path.resolve(a.dirModelos) === path.resolve('modelos')) {
-    throw new Error(`${AVISO_VERIFICACAO}: informe --dir-modelos com uma pasta diferente de modelos/`);
+  if (!a.dirModelos || dentroDe('modelos', a.dirModelos)) {
+    throw new Error(`${AVISO_VERIFICACAO}: informe --dir-modelos com uma pasta fora de modelos/`);
   }
   return { ...a, verificacao };
 }

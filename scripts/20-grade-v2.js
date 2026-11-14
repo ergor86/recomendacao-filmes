@@ -41,10 +41,11 @@ const ARQ_DIVISOES = 'resultados/divisoes-v2.json';
 const media = (v) => v.reduce((s, x) => s + x, 0) / v.length;
 const ids10 = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
 
-// Diz se o arquivo está versionado no git.
+// Diz se o arquivo está versionado no git e sem alterações em relação ao HEAD.
 function estaCommitado(arq) {
   try {
     execFileSync('git', ['ls-files', '--error-unmatch', arq], { stdio: 'ignore' });
+    execFileSync('git', ['diff', '--quiet', 'HEAD', '--', arq], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
@@ -84,7 +85,7 @@ async function principal() {
   if (args.verificacao) console.log(`== ${AVISO_VERIFICACAO} ==`);
 
   for (const arq of [ARQ_MDE, ARQ_DIVISOES]) {
-    if (!estaCommitado(arq)) throw new Error(`${arq} não está commitado: o MDE e o Passo 0 têm de ser commitados antes da grade (rode npm run divisoes-v2 / mde-v2 e commite)`);
+    if (!estaCommitado(arq)) throw new Error(`${arq} não está commitado ou foi alterado depois do commit: o MDE e o Passo 0 têm de ser commitados antes da grade (rode npm run divisoes-v2 / mde-v2 e commite)`);
   }
   if (!fs.existsSync(ARQ_PORTAO)) throw new Error(`${ARQ_PORTAO} ausente: rode npm run portao-v2 antes da grade`);
   const { cenario } = JSON.parse(fs.readFileSync(ARQ_PORTAO, 'utf8'));
@@ -147,11 +148,16 @@ async function principal() {
     });
     resultadosTreino.set(nome, { k, n, sementes: treino.sementes });
     const porSemente = [];
-    for (const semente of SEMENTES) {
+    for (const [i, semente] of SEMENTES.entries()) {
       const dir = path.join(args.dirModelos, `v2-${k}-${n}-${FASE}-s${semente}`);
       const { modelo, metadados } = await carregarModelo(dir, ctx.regua);
       try {
         if (metadados.semPop) throw new Error(`modelo ${dir} treinado sem popularidade; a v2 usa semPop: false`);
+        const treinoSemente = treino.sementes[i];
+        if (metadados.nome !== `v2-${k}-${n}` || metadados.fase !== FASE || metadados.semente !== semente
+          || treinoSemente?.semente !== semente || metadados.sha256Pares !== treinoSemente.sha256Pares) {
+          throw new Error(`modelo ${dir} não corresponde ao treino que acabou de rodar (nome ${metadados.nome}, fase ${metadados.fase}, semente ${metadados.semente}, sha256Pares ${metadados.sha256Pares}): apague a pasta e rode a grade de novo`);
+        }
         const m = new Map();
         for (const u of avaliados) {
           const scores = pontuarCandidatos({
