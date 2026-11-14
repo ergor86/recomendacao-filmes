@@ -314,8 +314,8 @@ O MDE é o menor ganho detectável, ou seja, uma **capacidade de detecção, nã
   - `σ_d` é a média dos 20 `σ_d,r`;
   - **sem treino nem semente de rede.**
 - **Dois pares de referência:**
-  - **sistemas bem diferentes:** S0 × S1 (prévia: ~0,029);
-  - **sistemas parecidos:** S1 × "FC150 ordenada por escore × √pop" (prévia: ~0,019). Esse par é uma heurística, sem significado próprio. Definição, recuperada do código da prévia:
+  - **sistemas bem diferentes:** S0 × S1 (prévia: MDE ~0,029, com σ_d ~0,218);
+  - **sistemas parecidos:** S1 × "FC150 ordenada por escore × √pop" (prévia: MDE ~0,019, com σ_d ~0,137). Esse par é uma heurística, sem significado próprio. Definição, recuperada do código da prévia:
     - `pop[j]` = nº de notas de qualquer valor do filme j no **treino da fase** `v2-exp` (`regua.contagens`). O gabarito da validação vazaria para a própria métrica, e o teste-2 é proibido;
     - a ordenação é por `escore × √pop[j]` decrescente, com o escore **sem arredondar** e desempate pelo id crescente;
     - os filmes que completaram a FC150 ficam com escore 0 e vão para o fim, por popularidade e depois por id.
