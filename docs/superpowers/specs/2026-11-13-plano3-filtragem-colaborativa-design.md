@@ -170,7 +170,12 @@ As medidas comparam o HNSW com a **referência**. A busca exata no banco tem de 
 
 **Precisão float32 × float64.** O pgvector guarda os vetores em float32, e a referência é em float64. A diferença no escore é da ordem de 10⁻⁷ e pode mudar o escore arredondado de um filme perto de uma fronteira de arredondamento, e com isso a ordem ou a elegibilidade (escore > 0).
 - **O escore oficial é o do banco:** `round(1 − distância, 6)`, com a distância calculada pelo pgvector. A referência usa o mesmo arredondamento sobre o cosseno em float64.
-- **Conferência busca exata = referência:** passa se as duas listas forem iguais, ou se toda divergência (troca de ordem, entrada ou saída na posição m ou no corte de escore > 0) envolver só filmes cujo escore em float64 está a menos de 10⁻⁶ de uma fronteira de arredondamento (`k · 10⁻⁶ + 5 · 10⁻⁷`) ou de zero. Essas divergências são **de precisão**: são contadas e reportadas. Qualquer outra divergência é erro e para a execução.
+- **Conferência busca exata = referência,** com tolerância `τ = 10⁻⁵` sobre os escores em float64 (uma ordem de grandeza acima do erro esperado do float32 num produto de 943 posições). Ela passa se as duas listas forem iguais, ou se toda divergência for de um destes tipos:
+  - **troca de ordem** entre dois filmes cujos escores em float64 diferem menos de τ;
+  - **entrada ou saída na posição m** de um filme cujo escore em float64 difere menos de τ do escore do filme na posição m da referência;
+  - **entrada ou saída no corte de escore > 0** de um filme com escore em float64 menor que τ.
+
+  Essas divergências são **de precisão**: são contadas e reportadas. Qualquer outra divergência é erro e para a execução. (Um critério por distância a uma fronteira de arredondamento não serviria: as fronteiras ficam a cada 10⁻⁶, então todo número está a no máximo 5 · 10⁻⁷ de uma delas.)
 - **Separação das causas:** as medidas 1 e 2 são reportadas também entre o HNSW e a busca exata no banco, que usam os mesmos vetores float32. A diferença HNSW × busca exata é o efeito da **aproximação**; a diferença busca exata × referência é o efeito da **precisão**.
 
 1. a sobreposição média dos N vizinhos, por usuário;
@@ -180,7 +185,7 @@ As medidas comparam o HNSW com a **referência**. A busca exata no banco tem de 
 
 **Na validação (completa), em `resultados/fidelidade-fc-v2-exp.json`:**
 - as medidas 1–3 para N ∈ {50, 100, 150};
-- a medida 4 para **S1** e **S3**, antes da grade (tarefa 4), e para a **v2** logo depois da escolha (tarefa 6), se ela for outra configuração. Se o portão reprovar, a medida 4 vale só para S1 e para a v2. As outras configurações ficam de fora;
+- a medida 4 para **S1** antes da grade (tarefa 4), e para **S3** e a **v2** depois do treino da grade e da escolha (tarefa 6), porque as redes deles só existem a partir daí. A fidelidade é descritiva e não entra na escolha, então a ordem não afeta o protocolo. Se o portão reprovar, a medida 4 vale só para S1 e para a v2. As outras configurações ficam de fora;
 - o custo extra é só de inferência da rede sobre as listas da referência; nenhuma rede é retreinada.
 
 **No teste-2 (etapa 1, sem gabarito):**
@@ -422,7 +427,7 @@ Assim, depois do congelamento, só commits em `resultados/` são aceitos, como o
 |---|---|
 | Isolamento | nenhuma nota no treino e no teste-2 ao mesmo tempo (varrendo pares, não texto); chaves do contexto v2 exatamente as da lista branca; invariância da régua, da popularidade e dos vetores FC a uma nota fictícia no teste-2; treino e régua iguais com e sem `incluirTeste2`; a fase só devolve o gabarito com `incluirTeste2`; `incluirTeste` numa fase v2 é erro; `resumoTeste2` só devolve chaves agregadas; só os arquivos permitidos importam `carregarDataset`/`criarDivisoes` |
 | FC | `Σ cos = p · v_j`; normalização; escore oficial = cosseno arredondado, igual nas três versões; filme sem curtidas fora só da FC; usuário sem curtidas → lista FC vazia; arredondamento em 6 casas e desempate por id; filtro escore > 0 **depois** do arredondamento (um escore que arredonda para 0 fica de fora) |
-| Busca FC | `buscarColaborativos` aceita m até 300, não lança erro com lista curta, corta no primeiro escore ≤ 0, resolve empate no limite pelo escore arredondado e, com empate persistente em 1.000 linhas, devolve a lista com `empateNaoResolvido = true`; conferência exata = referência aceita só divergências de precisão perto de fronteira de arredondamento e recusa as demais |
+| Busca FC | `buscarColaborativos` aceita m até 300, não lança erro com lista curta, corta no primeiro escore ≤ 0, resolve empate no limite pelo escore arredondado e, com empate persistente em 1.000 linhas, devolve a lista com `empateNaoResolvido = true`; conferência exata = referência aceita só as divergências de precisão (troca, posição m e corte em zero com diferença em float64 < τ = 10⁻⁵) e recusa as demais |
 | Banco: modos | EXPLAIN mostra `Index Scan` no índice de `filmes_fc` no modo `'hnsw'` e `Seq Scan` no modo `'exata'` (integração) |
 | Portão | composições com `N = Math.round(p · L)`; "melhor mistura" só entre as três misturas, com empate pelo menor N; portão reprovado → só S0, S1 e S2 seguem para a escolha e o congelamento |
 | Composição | total exato K + N; uma busca M = 300 compartilhada; déficit real e de recuperação somam os completados e nunca ficam negativos; usuário sem curtidas → déficit real = N; caso `devK > elegK` registrado; com N = 0 a lista é igual à da v1; S1 e S3 com a mesma FC150 e a mesma regra para completar |
@@ -469,9 +474,9 @@ As sementes da v3.2 são:
 1. fases como descritor, contexto v2 isolado (`teste2.js`, lista branca), divisão do teste-2 e registro do Passo 0;
 2. FC em memória (referência), portão e MDE pré-registrado (com a simulação);
 3. banco: schema por fase, `filmes_fc`, carga e `buscarColaborativos`;
-4. fidelidade na validação (medidas 1–3 e medida 4 de S1 e S3);
+4. fidelidade na validação (medidas 1–3 e medida 4 de S1);
 5. candidatos com composição exata e relatório de déficit, gravados com hash;
-6. grade, escolha e medida 4 de fidelidade da v2;
+6. grade, escolha e medida 4 de fidelidade de S3 e da v2;
 7. congelamento (`conferirCongelamento()`);
 8. etapa 1;
 9. etapa 2;
@@ -541,7 +546,7 @@ O calendário original previa as tarefas 1–6 no sábado. O atraso é anterior 
 
 1. **Portão (§8.1, §8.4, §9.1, §12):** tabela com os dois cenários; com o portão reprovado, só S0, S1 e S2 seguem, inclusive no congelamento; o corte 2 só se aplica com o portão aprovado.
 2. **Teto do HNSW (§5.3):** `min(1, ·)`; impacto zero por construção se a v2 não usar a FC.
-3. **Modos da busca e precisão (§5.2, §5.3):** EXPLAIN em teste de integração; regra para divergências float32 × float64 perto de fronteiras de arredondamento; medidas 1–2 também HNSW × busca exata, para separar aproximação de precisão.
+3. **Modos da busca e precisão (§5.2, §5.3):** EXPLAIN em teste de integração; regra para divergências float32 × float64, com tolerância τ = 10⁻⁵ entre escores em float64; medidas 1–2 também HNSW × busca exata, para separar aproximação de precisão.
 4. **Empate em 1.000 linhas (§5.2):** sem erro; marca `empateNaoResolvido` e registra.
 5. **Medida 4 (§5.3):** sobre a lista final, com preenchimento pela mesma regra nas duas versões.
 6. **Composições do portão (§8.1):** `N = Math.round(p · L)`; "melhor mistura" entre (112, 38), (75, 75) e (37, 113), com empate pelo menor N.
