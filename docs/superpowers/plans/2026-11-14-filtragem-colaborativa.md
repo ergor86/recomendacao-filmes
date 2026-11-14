@@ -310,7 +310,8 @@ Nomes de sistema: `S0`, `S1`, `S2` (= 150-0), `S3` (= 0-150) e `S4-<k>-<n>` para
 
 **Files:**
 - Create: `src/avaliacao/sistemas-v2.js`, `scripts/20-grade-v2.js`; `package.json` (`"grade-v2"`)
-- Test: `tests/unidade/sistemas-v2.test.js`
+- Modify: `src/avaliacao/escolha.js:70` (empate exato)
+- Test: `tests/unidade/sistemas-v2.test.js`, `tests/unidade/escolha.test.js` (acrescentar)
 
 **Interfaces:**
 - Consumes: Tasks 5, 7, 8, 9, 10; `escolherConfiguracao`, `mediaEntreSementes`, `projetar`, `avaliarSistema`, `pontuarCandidatos`, `top10PorScore`, `bootstrapPareado`, `subamostrarRelevantes`.
@@ -328,7 +329,10 @@ Nomes de sistema: `S0`, `S1`, `S2` (= 150-0), `S3` (= 0-150) e `S4-<k>-<n>` para
   - grava `resultados/grade-v2-exp.json` com `epocasPorSistema` (melhor época por semente de cada sistema com rede). Em seguida roda a medida 4 de fidelidade: portão aprovado → `npm run fidelidade-v2 -- --fase v2-exp --medida4 S3,v2`; reprovado → `--medida4 v2`. A v2 sai da lista se for S0 (não usa a FC) ou S1 (já medida na Task 9).
 
 - [ ] **Step 1: Write the failing tests:** `configuracoesDaGrade('aprovado')` tem 15 itens e não contém (0, 0); `('reprovado')` = `[{ k: 150, n: 0 }]`; com o corte, 4 itens; ordem das chaves: num caso em que todos empatam, `escolherConfiguracao` escolhe S1; sem S1, S2; sem S1 e S2, S0; depois `S4-50-0` antes de S3. **Montagem do empate:** o empate de `escolherConfiguracao` é `diferenca < erroPadrao` (`src/avaliacao/escolha.js:70`); com valores idênticos dá `0 < 0`, falso, e só a melhor "empata". Use diferenças por usuário não nulas, com média abaixo do EP (por exemplo, ±0,1 alternados com média 0,001), e repita cada caso com a ordem de entrada invertida, para o resultado não depender de quem vem primeiro; `nomeSistema({ k: 150, n: 0 }) = 'S2'`; `top10S1([9, 3, 7, 1, 2, 4, 5, 6, 8, 10, 11])` = os 10 primeiros, na mesma ordem.
-- [ ] **Step 2: Run** → FAIL. **Step 3: Implement.** **Step 4: Run** `npm test` → PASS.
+- [ ] **Step 1b: Write the failing test of exact tie** (`tests/unidade/escolha.test.js`): dois sistemas com valores por usuário **idênticos** (S1 com simplicidade `[0]` e S2 com `[1]`; diferença 0 e EP 0) → `escolhida = 'S1'` com a entrada `[S1, S2]` **e** com `[S2, S1]`. Hoje falha na ordem `[S2, S1]`: o "melhor" é o primeiro do array, e `0 < 0` é falso, então o outro não empata.
+- [ ] **Step 2: Run** → FAIL.
+- [ ] **Step 3: Implement.** Em `escolherConfiguracao`, `empata = diferenca < erroPadrao || difs.every((d) => d === 0)`: diferenças todas nulas são empate exato; nada muda nos demais casos. Conferido: nos resultados do Plano 2 (`comparacao-passo1.json`, `comparacao-passo2.json`, `grade-validacao.json`), a única linha com diferença 0 e EP 0 é a do próprio melhor, então as escolhas da v1 não mudam. Depois, `sistemas-v2.js` e o script.
+- [ ] **Step 4: Run** `npm test` → PASS, inclusive os testes atuais de `escolha.test.js`.
 - [ ] **Step 5: Run** `npm run grade-v2` (cerca de 35 min; com o portão reprovado, poucos minutos). Se o prazo exigir, `--cortar-orcamento-variavel` é decidido **antes** de rodar (§12).
 - [ ] **Step 6: Commit** `feat: grade e escolha da v2 (grade-v2-exp.json)` com os resultados e a fidelidade atualizada.
 
