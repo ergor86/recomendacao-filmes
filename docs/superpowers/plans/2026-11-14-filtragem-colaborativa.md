@@ -17,7 +17,7 @@
 - **`u1.test` nunca é lido no Plano 3.** Nenhum script novo usa `incluirTeste`. `scripts/03-eda.js` lê o `u1.test` e **não pode ser executado**. `u.data` também não é lido.
 - **Teste-2:** usuários 1–462; das notas de cada um no `u1.base`, ordenar por filme, embaralhar com `criarAleatorio(20_000_000 + usuario)` e esconder as primeiras `Math.round(0.2 · n)`.
 - **Acesso ao teste-2 (§3.2):** fora de `src/dados/teste2.js` e `src/contexto.js`, só agregados (`resumoDivisoesV2`) no Passo 0 e no congelamento; IDs e notas só na etapa 2 (`incluirTeste2: true`). Os agregados nunca alimentam escolhas.
-- **Restrições estáticas (§3.2), em `src/` e `scripts/`:** `carregarDataset`/`criarDivisoes` só em `src/contexto.js`, `src/dados/teste2.js` e `scripts/03-eda.js`; `lerAvaliacoes` só em `src/dados/leitura.js` e `src/dados/carregar.js`; `dividirTeste2` só em `src/dados/teste2.js` e `src/contexto.js`; `teste2.js` importado só por `src/contexto.js`, `scripts/14-divisoes-v2.js` e `scripts/21-congelar-v2.js` (os dois scripts, só `resumoDivisoesV2`); `incluirTeste2` só em `src/contexto.js` e `scripts/23-etapa2-v2.js`.
+- **Restrições estáticas (§3.2), em `src/` e `scripts/`** (cada lista inclui o arquivo que define a função; busca por palavra inteira, `\bnome\b`, para `incluirTeste` não casar com `incluirTeste2`): `carregarDataset` só em `src/dados/carregar.js`, `src/contexto.js`, `src/dados/teste2.js` e `scripts/03-eda.js`; `criarDivisoes` só em `src/dados/divisoes.js`, `src/contexto.js`, `src/dados/teste2.js` e `scripts/03-eda.js`; `lerAvaliacoes` só em `src/dados/leitura.js` e `src/dados/carregar.js`; `dividirTeste2` só em `src/dados/teste2.js` e `src/contexto.js`; `teste2.js` importado só por `src/contexto.js`, `scripts/14-divisoes-v2.js` e `scripts/21-congelar-v2.js` (os dois scripts, só `resumoDivisoesV2`); `incluirTeste2` só em `src/contexto.js` e `scripts/23-etapa2-v2.js`.
 - **FC (§4):** `c_j[u] = 1` se nota ≥ 4 no treino da fase; `v_j = c_j/‖c_j‖`; perfil `p = Σ v_i` dos curtidos; **escore oficial** `round(cos(p/‖p‖, v_j), 6)` = `Math.round(x * 1e6) / 1e6`; aceito só escore oficial > 0, depois do arredondamento; ordem (escore oficial desc, id asc); filme sem curtida fora só da FC; dimensão = nº de usuários (943), posição `u − 1`.
 - **Busca FC (§5.2):** `m ≤ 300`; `pedir = m + 50`, dobrando até 1.000; `ef_search = max(pedir, 40)`; `iterative_scan = strict_order`; modo `'hnsw'` = `enable_seqscan = off`, `'exata'` = `enable_indexscan = off`; sem erro por lista curta; `empateNaoResolvido` no teto.
 - **Candidatos (§6):** M = 300 por usuário e fase, uma única busca HNSW; lista (K, N) = `P_K` + os N primeiros de `H_M \ P_K`, **na ordem de `H_M`** + preenchimento por populares não vistos, na ordem de popularidade; total exato K + N.
@@ -29,7 +29,9 @@
 - **Determinismo:** todo arquivo com hash usa `jsonEstavel`; toda ordenação desempata por id crescente.
 - **Falhar alto** com mensagem acionável (o padrão dos Planos 1 e 2): hash divergente, artefato ausente, script fora de ordem, gabarito pedido fora da etapa 2.
 - **Comentários:** cabeçalho em cada arquivo novo e comentário de finalidade em cada função, em português, como nos módulos existentes.
-- **Execução real:** as tasks rodam os scripts nos dados reais e commitam os `resultados/`. **A etapa 2 (Task 14) só roda com autorização explícita do usuário.**
+- **Execução real:** as tasks rodam os scripts nos dados reais e commitam os `resultados/`. **A etapa 2 (Task 14) fica bloqueada até um "sim" explícito do usuário, mesmo com todas as tasks anteriores concluídas.**
+- **Revisão de cada task (subagentes):** o revisor confere os contratos (Interfaces, formatos) e as decisões da spec citadas na task, não só se os testes passam. Nas Tasks 6–9 (HNSW, candidatos, portão, fidelidade), confere também a fidelidade dos resultados: ordem das listas, escala do escore e se o JSON gravado corresponde ao que a spec define.
+- **Sem mudança depois de ver a grade:** nenhuma configuração, critério de escolha ou regra de avaliação muda depois de rodar a Task 11 sem um registro em `desvios` (Task 12) e no README, com o motivo. O `--desvio` só cobre correção de bug, não troca de critério.
 
 ### Formatos de arquivo (contratos entre tasks)
 
@@ -45,10 +47,12 @@ artefatos/candidatos-v2-<fase>.json (Task 7) { fase, hashRegua, hashTreino, M: 3
   porUsuario[u] = { colab: number[] (H_M, ≤ 300, na ordem da busca), populares: number[] (600 primeiros não vistos),
                     nElegiveis, elegiveisEntrePopulares: number[] (E ∩ 150 primeiros populares),
                     empateNaoResolvido: boolean }
-resultados/portao-fc-v2-exp.json (Task 8)  { fonteFC: 'hnsw', cenario: 'aprovado'|'reprovado', composicoes, criterioA, criterioB, ... }
+resultados/portao-fc-v2-exp.json (Task 8)  { fonteFC: 'hnsw', cenario: 'aprovado'|'reprovado', composicoes, composicoesExtras: ['100-50'],
+                                             criterioA, criterioB, ... }
 resultados/grade-v2-exp.json     (Task 11) { cenario, sistemas, escolha: { escolhida, melhor, fragil, tabela },
                                              epocasPorSistema, sha256FC150, contribuicoes, mdeDescritivo, otimista: true }
 resultados/configuracao-v2.json  (Task 12) §9.1, inclusive sha256Grade, ressalva, commitCodigo
+artefatos/candidatos-v2-v2-final.json (Task 13) mesmo formato de candidatos-v2-<fase>.json
 artefatos/previsoes-v2-final.json (Task 13) { sistemas: { <nome>: { porSemente: { <s>: { <u>: number[10] } } } } }
 resultados/previsoes-v2-final.sha256.json (Task 13) { sha256, sha256Configuracao, sha256FC150 }
 resultados/avaliacao-v2.json     (Task 14) gravado com flag 'wx', com o campo ressalva
@@ -92,9 +96,9 @@ Nomes de sistema: `S0`, `S1`, `S2` (= 150-0), `S3` (= 0-150) e `S4-<k>-<n>` para
   - `v2-final` sem a opção → `alvos === null`; com `incluirTeste2: true` → `alvos` = teste-2, e `treino`/`regua.hash` iguais aos de sem a opção.
   - Nenhum par do teste-2 em `treino` de `v2-exp` nem de `v2-final`.
   - A validação de `v2-exp` é igual (por pares) à de `criarContexto({ fase: 'exp' }).alvos`.
-  - Invariância: trocar a nota de um par do teste-2 no arquivo sintético não muda `regua.hash` de `v2-exp` nem de `v2-final`.
+  - Invariância: trocar a nota de um par do teste-2 no arquivo sintético não muda `regua.hash` nem `regua.contagens` (a popularidade) de `v2-exp` nem de `v2-final`. (A invariância dos vetores FC entra na Task 3.)
   - Erros: `{ fase: 'v2-exp', incluirTeste: true }`, `{ fase: 'exp', incluirTeste2: true }` e `{ fase: 'v2-exp', incluirTeste2: true }` lançam erro.
-- [ ] **Step 3: Write the static test** (`tests/unidade/isolamento-estatico.test.js`): varre o texto de `src/**/*.js` e `scripts/*.js` e confere **todas** as restrições estáticas das Global Constraints. Para os dois scripts que importam `teste2.js`, a linha de import só pode conter `resumoDivisoesV2`. Os scripts 14, 21 e 23 ainda não existem nesta task; o teste confere "arquivos que usam X ⊆ conjunto permitido", então passa agora e protege depois.
+- [ ] **Step 3: Write the static test** (`tests/unidade/isolamento-estatico.test.js`): varre o texto de `src/**/*.js` e `scripts/*.js` e confere **todas** as restrições estáticas das Global Constraints (palavra inteira; os arquivos que definem as funções estão nas listas permitidas, então o teste passa já nesta task). Para os dois scripts que importam `teste2.js`, a linha de import só pode conter `resumoDivisoesV2`. Os scripts 14, 21 e 23 ainda não existem nesta task; o teste confere "arquivos que usam X ⊆ conjunto permitido", então passa agora e protege depois.
 - [ ] **Step 4: Run** `npm test` → os novos testes FALHAM (módulo e fases inexistentes).
 - [ ] **Step 5: Implement** `src/dados/teste2.js` (constantes `FRACAO_TESTE2 = 0.2`, `SEMENTE_TESTE2 = 20_000_000`, usuários 1–462; mesmo algoritmo de `criarDivisoes`) e as fases v2 em `src/contexto.js`. `carregarDataset` é chamado sempre sem `incluirTeste` nas fases v2.
 - [ ] **Step 6: Run** `npm test` → PASS, inclusive os 170 testes atuais.
@@ -109,7 +113,7 @@ Nomes de sistema: `S0`, `S1`, `S2` (= 150-0), `S3` (= 0-150) e `S4-<k>-<n>` para
 
 **Interfaces:**
 - Consumes: `dividirTeste2`, `hashAvaliacoes` (Task 1).
-- Produces: `resumoDivisoesV2(dirDados) → { hashes, validacao: Resumo, teste2: Resumo }` (formato no topo). Percentil pelo posto mais próximo: `ordenados[Math.ceil(p · n) − 1]`. "Disponíveis" = notas do usuário no treino da fase final correspondente (`semTeste2` para o teste-2; `treinoExp` para a validação). As estatísticas incluem **todos** os usuários do conjunto (1–462 no teste-2; 463–943 na validação), inclusive os com zero escondidas. `avaliaveis` = usuários com ≥ 1 curtida escondida.
+- Produces: `resumoDivisoesV2(dirDados) → { hashes, validacao: Resumo, teste2: Resumo }` (formato no topo). Percentis 10, 25, 75 e 90 pelo posto mais próximo: `ordenados[Math.ceil(p · n) − 1]`. Mediana clássica: o valor central, ou a média dos dois centrais com n par (a `mediana` de `src/dados/estatisticas.js`). "Disponíveis" = notas do usuário no treino da fase final correspondente (`semTeste2` para o teste-2; `treinoExp` para a validação). As estatísticas incluem **todos** os usuários do conjunto (1–462 no teste-2; 463–943 na validação), inclusive os com zero escondidas. `avaliaveis` = usuários com ≥ 1 curtida escondida.
 
 - [ ] **Step 1: Write the failing test:** com a base sintética, `resumoDivisoesV2` devolve exatamente as chaves do formato (lista branca recursiva); `JSON.stringify(resultado)` não contém nenhum array com mais de 4 elementos (nenhuma lista por usuário); `teste2.avaliaveis` confere com uma contagem manual; `Est` de `[1,2,3,4,5,6,7,8,9,10]` = `{ media: 5.5, mediana: 5.5, p10: 1, p25: 3, p75: 8, p90: 9 }`; com um usuário 1–462 de 2 notas (0 escondidas), `teste2.curtidasEscondidas.media` inclui o zero no denominador.
 - [ ] **Step 2: Run** `node --test tests/unidade/teste2.test.js` → FAIL.
@@ -137,6 +141,7 @@ Nomes de sistema: `S0`, `S1`, `S2` (= 150-0), `S3` (= 0-150) e `S4-<k>-<n>` para
   - `Σ_i cos(v_i, v_j)` = `perfil · v_j` (diferença < 1e-12) e `escore64` = `perfil · v_j / ‖perfil‖` (a escala, não só a ordem).
   - Filme sem curtidas → `vetorFilme = null` e ausente do ranking; usuário sem curtidas → `perfilFC = null`.
   - Já vistos excluídos; dois filmes com o mesmo escore oficial saem em ordem de id; `rankingReferencia(..., m = 2)` devolve 2 itens.
+  - Invariância (§3.2): `hashVetoresFC(construirFC(treino de v2-exp))` não muda quando a nota de um par do teste-2 muda no arquivo sintético (reaproveitar a pasta sintética da Task 1).
   - Fronteira do arredondamento: `escoreOficial(5e-7) === 1e-6`, `escoreOficial(4.999999e-7) === 0`, `escoreOficial(2.5e-6) === 3e-6` (meio para cima, sem arredondamento bancário); um item com `escore64 = 4e-7` (num `fc` montado à mão) fica fora do ranking.
 - [ ] **Step 2: Run** `node --test tests/unidade/fc-referencia.test.js` → FAIL.
 - [ ] **Step 3: Implement.** O escore de j é `Σ_{u ∈ fãs(j)} p[u−1] / √|fãs(j)| / ‖p‖`, iterando a lista esparsa de fãs (sem matrizes densas 1682 × 943).
@@ -162,8 +167,8 @@ Nomes de sistema: `S0`, `S1`, `S2` (= 150-0), `S3` (= 0-150) e `S4-<k>-<n>` para
   - `ids.length === k + n` em todos os casos; sem repetição.
   - `n = 0` → `ids` = `populares.slice(0, k)` (igual à v1).
   - Usuário sem curtidas (`colab = []`, `nElegiveis = 0`) com (0, 150) → 150 de preenchimento, `deficitReal = 150`, `deficitRecuperacao = 0`.
-  - `colab` com 1 item, `nElegiveis = 3`, n = 3 → `completados = 2`, `deficitReal = 0`, `deficitRecuperacao = 2`.
-  - `nElegiveis = 1`, `colab` com 2 → `devKMaiorQueElegK = true`, sem números negativos.
+  - (k = 0, n = 3), `colab` com 1 item, `nElegiveis = 3` → `completados = 2`, `deficitReal = 0`, `deficitRecuperacao = 2`.
+  - (k = 0, n = 2), `nElegiveis = 1`, `colab` com 2 → `devKMaiorQueElegK = true`, sem números negativos.
   - Propriedade: `deficitReal + deficitRecuperacao === completados` em 200 casos aleatórios (`criarAleatorio(1)`).
 - [ ] **Step 2: Run** → FAIL. **Step 3: Implement.** **Step 4: Run** → PASS.
 - [ ] **Step 5: Commit** `feat: composição exata K+N com déficit real e de recuperação`
@@ -185,7 +190,7 @@ Nomes de sistema: `S0`, `S1`, `S2` (= 150-0), `S3` (= 0-150) e `S4-<k>-<n>` para
   - `top10Heuristica(fc150: number[], escore64: Map<id, number>, pop: Record<id, number>) → number[]`: ordem por `escore64 · √pop[j]` desc, id asc; quem não tem escore (preenchimento) fica com 0 e vai para o fim, por pop desc e id asc.
 - O script lê `nt` e as médias de curtidas escondidas **de `resultados/divisoes-v2.json`** (recusa se o arquivo não estiver commitado); `q = teste2.curtidasEscondidas.media / validacao.curtidasEscondidas.media`; pares S0 × S1 e S1 × heurística, com a FC150 da referência em memória (o MDE é uma estimativa de capacidade, não decide nada); 20 repetições; grava `resultados/mde-v2.json` com `sigmaPorRepeticao`, `nPorRepeticao`, `mde`, a simulação (média, mín., máx.), `icNormalVsBootstrap` por repetição e a frase obrigatória da §8.3, incluindo "a simulação aproxima, não reproduz, o teste final".
 
-- [ ] **Step 1: Write the failing tests:** um usuário com 1 relevante e um `r` em que o sorteio dá ≥ q sai do mapa; mesma chamada → mesmo resultado; `mdeFormula(0.029, 400)` ≈ `0.004061` (±1e-6); `simularDeltaEstrela` reprodutível e menor quando as diferenças têm metade do desvio; para `difs` normais com σ = 0,03 e `nt = 400`, `δ*` fica a ±0,0005 de `mdeFormula(0.03, 400)`; `icNormal([1, 2, 3])` = `[2 − 1.96/√3, 2 + 1.96/√3]`; `top10Heuristica` com escores iguais desempata por pop.
+- [ ] **Step 1: Write the failing tests:** um usuário com 1 relevante e um `r` em que o sorteio dá ≥ q sai do mapa; mesma chamada → mesmo resultado; `mdeFormula(0.029, 400)` ≈ `0.00406229856755` (±1e-9); `simularDeltaEstrela` reprodutível e menor quando as diferenças têm metade do desvio; com 430 `difs` normais de σ = 0,03 geradas por Box-Muller sobre `criarAleatorio(7)` e `nt = 400`, `δ*` fica a ±0,0005 de `mdeFormula(desvioAmostral(difs), 400)`; `icNormal([1, 2, 3])` = `[2 − 1.96/√3, 2 + 1.96/√3]`; `top10Heuristica` com escores iguais desempata por pop.
 - [ ] **Step 2: Run** → FAIL. **Step 3: Implement.** **Step 4: Run** `npm test` → PASS; `npm run mde-v2` → grava o arquivo. Conferência: σ de S0 × S1 ≈ 0,029 e de S1 × heurística ≈ 0,019 (prévia; diferenças pequenas são esperadas).
 - [ ] **Step 5: Commit** `feat: MDE pré-registrado (mde-v2.json)` com o resultado. **Este commit tem de vir antes de qualquer treino da grade.**
 
@@ -260,7 +265,7 @@ Nomes de sistema: `S0`, `S1`, `S2` (= 150-0), `S3` (= 0-150) e `S4-<k>-<n>` para
 - O portão usa o `H_M` do **HNSW**, lido de `artefatos/candidatos-v2-v2-exp.json` (§8.1); o JSON registra `fonteFC: 'hnsw'`.
 
 - [ ] **Step 1: Write the failing tests:** `composicoesPortao(150)` = p, k, n de `[0,150,0], [0.25,112,38], [0.5,75,75], [0.75,37,113], [1,0,150]`; `composicoesPortao(50)` dá n = 0, 13, 25, 38, 50; (b) com 20 usuários retira 2; (a) em empate escolhe o menor n; `cenario` reprovado quando só (a) passa.
-- [ ] **Step 2: Run** → FAIL. **Step 3: Implement** a função e o script: para L ∈ {50, 100, 150, 200} e todas as composições, o recall por usuário (relevantes da validação); a contribuição exclusiva sobre P ∪ F (top-150 de cada fonte); a fração de usuários com ≥ 1 relevante só na parte FC de (100, 50); grava `resultados/portao-fc-v2-exp.json` com o aviso "portão já visto na prévia; não pré-registrado".
+- [ ] **Step 2: Run** → FAIL. **Step 3: Implement** a função e o script: para L ∈ {50, 100, 150, 200} e todas as composições, mais a composição extra **(100, 50)**, que o critério (b) e a fração "só FC" usam e que nenhuma fração p gera (registrada em `composicoesExtras`), o recall por usuário (relevantes da validação); o script falha alto se `recallPorComposicao` não tiver as chaves `'150-0'`, `'100-50'`, `'112-38'`, `'75-75'` e `'37-113'`; a contribuição exclusiva sobre P ∪ F (top-150 de cada fonte); a fração de usuários com ≥ 1 relevante só na parte FC de (100, 50); grava `resultados/portao-fc-v2-exp.json` com o aviso "portão já visto na prévia; não pré-registrado".
 - [ ] **Step 4: Run** `npm test` → PASS; `npm run portao-v2` → grava o arquivo.
 - [ ] **Step 5: Commit** `feat: portão da FC (portao-fc-v2-exp.json)` com o resultado.
 
@@ -320,9 +325,9 @@ Nomes de sistema: `S0`, `S1`, `S2` (= 150-0), `S3` (= 0-150) e `S4-<k>-<n>` para
   - treina cada configuração com `treinarConfiguracao` (fase `v2-exp`), avalia S0, S1 e as configurações nos usuários com relevantes da validação;
   - escolhe com `escolherConfiguracao` (entrada: `{ nome, porUsuario: média das sementes, porSemente: [médias por semente] ou [média] sem rede, simplicidade }`); marca "v2 = v1" só se a escolhida for `S2`;
   - calcula as contribuições da §8.5 (bootstrap, rotuladas descritivas, "não rodadas: portão reprovado" quando for o caso), as posições do top 10 vindas do preenchimento em S1, S3 e na v2, e o MDE descritivo de v2 × v1 e o ganho sob a mesma subamostragem (20 repetições da Task 5), com `otimista: true` e a frase "escolha e parada usam a validação; não é estimativa imparcial";
-  - grava `resultados/grade-v2-exp.json` com `epocasPorSistema` (melhor época por semente de cada sistema com rede). Em seguida roda `npm run fidelidade-v2 -- --fase v2-exp --medida4 S3,v2`.
+  - grava `resultados/grade-v2-exp.json` com `epocasPorSistema` (melhor época por semente de cada sistema com rede). Em seguida roda a medida 4 de fidelidade: portão aprovado → `npm run fidelidade-v2 -- --fase v2-exp --medida4 S3,v2`; reprovado → `--medida4 v2`. A v2 sai da lista se for S0 (não usa a FC) ou S1 (já medida na Task 9).
 
-- [ ] **Step 1: Write the failing tests:** `configuracoesDaGrade('aprovado')` tem 15 itens e não contém (0, 0); `('reprovado')` = `[{ k: 150, n: 0 }]`; com o corte, 4 itens; ordem das chaves: num caso em que todos empatam, `escolherConfiguracao` escolhe S1; sem S1, S2; sem S1 e S2, S0; depois `S4-50-0` antes de S3; `nomeSistema({ k: 150, n: 0 }) = 'S2'`; `top10S1([9, 3, 7, 1, 2, 4, 5, 6, 8, 10, 11])` = os 10 primeiros, na mesma ordem.
+- [ ] **Step 1: Write the failing tests:** `configuracoesDaGrade('aprovado')` tem 15 itens e não contém (0, 0); `('reprovado')` = `[{ k: 150, n: 0 }]`; com o corte, 4 itens; ordem das chaves: num caso em que todos empatam, `escolherConfiguracao` escolhe S1; sem S1, S2; sem S1 e S2, S0; depois `S4-50-0` antes de S3. **Montagem do empate:** o empate de `escolherConfiguracao` é `diferenca < erroPadrao` (`src/avaliacao/escolha.js:70`); com valores idênticos dá `0 < 0`, falso, e só a melhor "empata". Use diferenças por usuário não nulas, com média abaixo do EP (por exemplo, ±0,1 alternados com média 0,001), e repita cada caso com a ordem de entrada invertida, para o resultado não depender de quem vem primeiro; `nomeSistema({ k: 150, n: 0 }) = 'S2'`; `top10S1([9, 3, 7, 1, 2, 4, 5, 6, 8, 10, 11])` = os 10 primeiros, na mesma ordem.
 - [ ] **Step 2: Run** → FAIL. **Step 3: Implement.** **Step 4: Run** `npm test` → PASS.
 - [ ] **Step 5: Run** `npm run grade-v2` (cerca de 35 min; com o portão reprovado, poucos minutos). Se o prazo exigir, `--cortar-orcamento-variavel` é decidido **antes** de rodar (§12).
 - [ ] **Step 6: Commit** `feat: grade e escolha da v2 (grade-v2-exp.json)` com os resultados e a fidelidade atualizada.
@@ -334,7 +339,7 @@ Nomes de sistema: `S0`, `S1`, `S2` (= 150-0), `S3` (= 0-150) e `S4-<k>-<n>` para
 - Test: `tests/unidade/congelamento.test.js`
 
 **Interfaces:**
-- Consumes: Tasks 2, 3, 5, 11; `resumoDivisoesV2` (para o hash do teste-2).
+- Consumes: Tasks 1, 2, 3, 5, 6, 11; `criarContexto` v2-final (hashes de treino e régua), `hashVetoresFC`, `resumoDivisoesV2` (hash do teste-2); o Step 5 roda `carregar-v2` da Task 6.
 - Produces:
   - `executarGit(args) → string` (`execFileSync('git', args)`, saída sem espaços nas pontas).
   - `commitAtualLimpo({ git = executarGit }) → string`: erro se `status --porcelain` não for vazio; devolve `rev-parse HEAD`.
@@ -351,18 +356,27 @@ Nomes de sistema: `S0`, `S1`, `S2` (= 150-0), `S3` (= 0-150) e `S4-<k>-<n>` para
 ### Task 13: Etapa 1 — previsões sem gabarito
 
 **Files:**
-- Create: `scripts/22-etapa1-v2.js`; `package.json` (`"etapa1-v2"`)
-- Test: o fluxo usa só funções já testadas nas Tasks 1–12; a verificação é a execução sintética do Step 2.
+- Create: `src/avaliacao/etapa1.js`, `scripts/22-etapa1-v2.js`; `package.json` (`"etapa1-v2"`)
+- Test: `tests/unidade/etapa1.test.js`
 
 **Interfaces:**
-- Consumes: `conferirCongelamento` (Task 12), `criarContexto` v2-final sem `incluirTeste2`, `gerarCandidatosV2`, `listaDaConfiguracao`, `fc150DeTodos`, `sha256FC150`, `treinarConfiguracao` com `epocasPorSemente`, `sobreposicao`, `listasIdenticas`, `conferirPrecisao`, `tetoImpacto`, `top10Identicos`, `relatorioDeficit`, `buscarColaborativos` (modos `'hnsw'` e `'exata'`), `rankingReferencia`.
-- Produces: `artefatos/previsoes-v2-final.json` (formato no topo), `resultados/previsoes-v2-final.sha256.json` (`{ sha256, sha256Configuracao, sha256FC150 }`), `resultados/fidelidade-fc-v2-final.json`, `resultados/deficit-v2-final.json`.
+- Consumes: `conferirCongelamento`, `sha256Arquivos` (Task 12); `criarContexto` v2-final sem `incluirTeste2` (Task 1); `construirFC`, `perfilFC`, `rankingReferencia`, `hashVetoresFC` (Task 3); `lerHashesFC`, `buscarColaborativos` nos modos `'hnsw'` e `'exata'` (Task 6); `gerarCandidatosV2`, `montarArquivoCandidatosV2`, `listaDaConfiguracao`, `fc150DeTodos`, `sha256FC150`, `relatorioDeficit` (Task 7); `sobreposicao`, `listasIdenticas`, `conferirPrecisao`, `tetoImpacto`, `top10Identicos` (Task 9); `treinarConfiguracao` com `epocasPorSemente` (Task 10); `nomeSistema`, `top10S1`, `top10S0` (Task 11); `carregarModelo`, `pontuarCandidatos`, `top10PorScore` (existentes).
+- Produces:
+  - `executarEtapa1({ conferir, ctx, congelamento, hashesAtuais, lerHashesSchema, buscar, treinar, pontuar, gravarCandidatos, gravarPrevisoes, gravarHashes, gravarRelatorios }) → Promise<{ sha256, sha256Configuracao, sha256FC150 }>` em `src/avaliacao/etapa1.js`. Ele importa só módulos puros (`src/fc`, `src/candidatos`, `src/avaliacao`, `src/util`), **nunca** `src/banco` nem `src/modelo`; banco e rede chegam pelas funções injetadas (`buscar(modo, vetor, excluir, m)`, `treinar(nome, candidatosPorUsuario, epocasPorSemente)`, `pontuar(nome, semente, usuario, ids) → Map<id, score>`).
+  - O script 22 só monta as dependências reais, com `conferir = () => conferirCongelamento(...)` fixo e sem opções de pasta alternativa.
+  - Arquivos: `artefatos/candidatos-v2-v2-final.json`, `artefatos/previsoes-v2-final.json` (formato no topo), `resultados/previsoes-v2-final.sha256.json` (`{ sha256, sha256Configuracao, sha256FC150 }`), `resultados/fidelidade-fc-v2-final.json`, `resultados/deficit-v2-final.json`.
 
-- [ ] **Step 1: Implement** o script na ordem da §9.2: (1) `conferirCongelamento`; (2) contexto `v2-final` e conferência dos hashes de treino, régua e vetores FC contra o congelamento; (3) confere os hashes do schema `v2_final`; (4) retreina as redes dos sistemas congelados; (5) top 10 de todos os sistemas, sementes e usuários 1–462, com a FC150 única e as mesmas asserções de contenção da Task 11; (6) fidelidade no teste-2 sem gabarito: medidas 1 e 2 contra a referência e contra a busca exata, conferência exata = referência, fração de top 10 idêntico (HNSW × referência) em S1 e na v2 (para a v2 com rede, as mesmas redes sobre a lista da referência), teto `min(1, ·)` com `nt` do Passo 0 e a frase obrigatória; "zero por construção" se a v2 não usar a FC; contagens de déficit; (7) grava as previsões com `jsonEstavel`; (8) grava `sha256`, `sha256Configuracao` e `sha256FC150`.
-- [ ] **Step 2: Verify** com `--dir-dados <pasta sintética>` e `--saida <pasta temporária>` (as duas opções existem só para essa verificação; sem elas, o script usa os dados reais e `resultados/`): o script termina, o arquivo de previsões tem 10 ids distintos por usuário, sistema e semente, e os três sha256 gravados conferem.
-- [ ] **Step 3: Run** `npm test` → PASS. **Commit** `feat: etapa 1 da avaliação final` **antes** do congelamento: `scripts/` entra na trava do `git diff` (§9.1). Se o script mudar depois do congelamento, recongelar com `--desvio`.
-- [ ] **Step 4 (depois da Task 12, Steps 5–6): Run** `npm run etapa1-v2` → grava os arquivos.
-- [ ] **Step 5: Commit** `chore: previsões da v2 e hash antes do gabarito` com `resultados/previsoes-v2-final.sha256.json`, `fidelidade-fc-v2-final.json` e `deficit-v2-final.json`.
+- [ ] **Step 1: Write the failing tests** (`tests/unidade/etapa1.test.js`, com congelamento, contexto e banco sintéticos coerentes entre si, montados no próprio teste):
+  - `conferir` que lança → a promessa rejeita, e os espiões `buscar`, `treinar` e `gravarPrevisoes` têm 0 chamadas.
+  - `hashesAtuais.treino` diferente do congelado → rejeita antes de `buscar`; o mesmo para régua, vetores FC, `sha256Grade` (sha256 atual de `resultados/grade-v2-exp.json` diferente do congelado) e hashes do schema (`lerHashesSchema`).
+  - Caminho feliz: a ordem registrada começa por `['conferir', 'lerHashesSchema']` e termina por `[..., 'gravarPrevisoes', 'gravarHashes']`; cada lista gravada tem 10 ids distintos por usuário, sistema e semente; os três sha256 devolvidos batem com o conteúdo gravado; os top 10 de S1 e S3 estão contidos na FC150.
+  - A fidelidade sintética reporta "zero por construção" quando a v2 congelada é S0.
+  - Teste estático (no mesmo arquivo da Task 14): `src/avaliacao/etapa1.js` não importa `src/banco` nem `src/modelo`.
+- [ ] **Step 2: Run** → FAIL.
+- [ ] **Step 3: Implement** `executarEtapa1` na ordem da §9.2: (1) `conferir`; (2) hashes de treino, régua, vetores FC e `sha256Grade` contra o congelamento; (3) hashes do schema `v2_final`; (4) retreina as redes dos sistemas congelados; (5) gera e grava os candidatos `v2-final`, e calcula o top 10 de todos os sistemas, sementes e usuários 1–462, com a FC150 única e as asserções de contenção da Task 11; (6) fidelidade no teste-2 sem gabarito: medidas 1 e 2 contra a referência e contra a busca exata, conferência exata = referência, fração de top 10 idêntico (HNSW × referência) em S1 e na v2 (para a v2 com rede, as mesmas redes sobre a lista da referência), teto `min(1, ·)` com `nt` do Passo 0 e a frase obrigatória; "zero por construção" se a v2 não usar a FC; contagens de déficit; (7) grava as previsões com `jsonEstavel`; (8) grava `sha256`, `sha256Configuracao` e `sha256FC150`. Depois, o script 22.
+- [ ] **Step 4: Run** `npm test` → PASS. **Commit** `feat: etapa 1 da avaliação final` **antes** do congelamento: `src/` e `scripts/` entram na trava do `git diff` (§9.1). Se algo mudar depois do congelamento, recongelar com `--desvio`.
+- [ ] **Step 5 (depois da Task 12, Steps 5–6): Run** `npm run etapa1-v2` → grava os arquivos.
+- [ ] **Step 6: Commit** `chore: previsões da v2 e hash antes do gabarito` com `resultados/previsoes-v2-final.sha256.json`, `fidelidade-fc-v2-final.json` e `deficit-v2-final.json`.
 
 ### Task 14: Etapa 2 — leitura do gabarito
 
@@ -382,7 +396,7 @@ Nomes de sistema: `S0`, `S1`, `S2` (= 150-0), `S3` (= 0-150) e `S4-<k>-<n>` para
   - `verificarAntesDoGabarito` devolve um problema para cada caso: hash das previsões diferente, sha256 do congelamento diferente do gravado, código de avaliação alterado, `avaliacaoExiste = true`.
   - `executarEtapa2` com `verificar` devolvendo `['x']` rejeita, e um espião `lerGabarito` tem 0 chamadas; sem problemas, a ordem registrada é `['verificar', 'lerGabarito', 'avaliar', 'gravar']`.
   - `avaliarPrevisoes` com previsões sintéticas dá NDCG = 1 para um usuário com o relevante na posição 1; `suportada = false` quando o IC contém zero; o resultado tem `ressalva` igual à do congelamento.
-  - Teste estático: `scripts/23-etapa2-v2.js` e `src/avaliacao/etapa2.js` não importam `src/banco` nem `src/modelo`.
+  - Teste estático: `scripts/23-etapa2-v2.js`, `src/avaliacao/etapa2.js` e `src/avaliacao/etapa1.js` não importam `src/banco` nem `src/modelo`.
 - [ ] **Step 2: Run** → FAIL. **Step 3: Implement.** **Step 4: Run** `npm test` → PASS. Commit (`feat: etapa 2 da avaliação final`) **antes** do congelamento (Task 12, Step 5).
 - [ ] **Step 5: PARAR e pedir autorização explícita ao usuário** para rodar `npm run etapa2-v2`. Só com o "sim" dele: rodar e fazer commit de `resultados/avaliacao-v2.json` (`chore: resultado da avaliação final da v2`). Qualquer que seja o resultado, ele é reportado como saiu.
 
@@ -403,4 +417,4 @@ Nomes de sistema: `S0`, `S1`, `S2` (= 150-0), `S3` (= 0-150) e `S4-<k>-<n>` para
 | Domingo | 1–10 (código, testes e execuções na validação), 11 (grade, ~35 min de computação), 13 e 14 implementadas e testadas com dados sintéticos |
 | Domingo à noite / segunda | 12 (congelamento), 13 (etapa 1), 14 Step 5 (com autorização), 15 |
 
-Os commits do Passo 0 (Task 2) e do MDE (Task 5) têm de vir antes do primeiro treino da grade (Task 11). O portão (Task 8) roda depois da carga do banco (Task 6) e dos candidatos HNSW (Task 7), e antes da grade. As Tasks 13 e 14 são implementadas antes do congelamento, porque `scripts/` entra na trava do `git diff` (§9.1). Cortes, se o prazo exigir, na ordem da §12: fidelidade no teste-2 (Task 13, Step 1, item 6), orçamento variável (Task 11, decidido antes de rodar), mainstream × nicho (Task 14).
+Os commits do Passo 0 (Task 2) e do MDE (Task 5) têm de vir antes do primeiro treino da grade (Task 11). O portão (Task 8) roda depois da carga do banco (Task 6) e dos candidatos HNSW (Task 7), e antes da grade. As Tasks 13 e 14 são implementadas antes do congelamento, porque `scripts/` entra na trava do `git diff` (§9.1). Cortes, se o prazo exigir, na ordem da §12: fidelidade no teste-2 (Task 13, Step 3, item 6), orçamento variável (Task 11, decidido antes de rodar), mainstream × nicho (Task 14).

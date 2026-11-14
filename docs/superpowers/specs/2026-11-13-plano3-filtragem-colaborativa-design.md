@@ -74,7 +74,7 @@ As notas do teste-2 saem **antes** de qualquer cálculo. Há três níveis de ac
 **O isolamento é de API, porque o teste-2 sai de dentro do `u1.base`.** Na v1, o `u1.test` era um arquivo separado, que só era aberto com `incluirTeste`. O teste-2 não tem essa proteção física, então ela é feita no código:
 - **Módulo próprio:** a divisão mora em `src/dados/teste2.js`, que exporta:
   - `dividirTeste2(base)`, usada **só** pelo contexto;
-  - `resumoTeste2(dirDados)`, que devolve **só** hashes e estatísticas agregadas. Nenhuma das duas devolve uma lista por usuário para fora do contexto.
+  - `resumoDivisoesV2(dirDados)`, que devolve **só** hashes e estatísticas agregadas. Nenhuma das duas devolve uma lista por usuário para fora do contexto.
 - **Contexto das fases v2:** `criarContexto({ fase: 'v2-exp' | 'v2-final', dirDados, incluirTeste2 = false })` devolve **somente** `{ fase, dataset: { filmes, usuarios, generos, ocupacoes }, treino, alvos, regua }`, sem `base` nem `divisoes`.
   - Em `v2-exp`, `alvos` = validação.
   - Em `v2-final`, `alvos` = teste-2 só com `incluirTeste2: true`, usado **apenas** pela etapa 2. Sem a opção, `alvos = null`.
@@ -90,14 +90,14 @@ Verificações:
 - **Teste unitário:** nenhuma nota aparece ao mesmo tempo no treino de uma fase e no teste-2. A conferência varre os pares `(usuário, filme)` dos arrays de notas, não o texto do JSON.
 - **Teste unitário:** as chaves do objeto devolvido pelo contexto v2 são exatamente as da lista acima.
 - **Teste unitário de invariância:** acrescentar ao teste-2 uma nota fictícia não muda a régua, a popularidade nem os vetores FC. Com `incluirTeste2`, o treino e a régua continuam iguais aos de sem a opção.
-- **Teste unitário:** a saída de `resumoTeste2` só tem as chaves agregadas permitidas.
+- **Teste unitário:** a saída de `resumoDivisoesV2` só tem as chaves agregadas permitidas.
 - **Teste estático:** confere, em `src/` e `scripts/`, todas as restrições de importação e de uso da lista acima.
 - **Teste da etapa 2:** com uma conferência que acusa problema, a função que lê o gabarito não é chamada nenhuma vez; sem problema, a ordem das chamadas é conferência → leitura do gabarito.
 - **Hash:** o hash do conjunto teste-2 é gravado no registro do Passo 0 e no congelamento. A avaliação final confere os dois.
 
 ### 3.3 Passo 0: registro antes de qualquer treino
 
-Um script grava `resultados/divisoes-v2.json`, que é commitado antes da grade. O registro é **só descritivo**: tamanhos e contagens agregadas, nenhuma métrica de sistema sobre o teste-2 e nenhuma lista por usuário. Os números do teste-2 vêm de `resumoTeste2`. As estatísticas são calculadas sobre **todos os usuários do conjunto, inclusive os que têm zero curtidas escondidas**: é a população que a subamostragem do MDE imita (§8.3), porque os usuários zerados só saem depois do sorteio. Ele contém, para a validação e para o teste-2:
+Um script grava `resultados/divisoes-v2.json`, que é commitado antes da grade. O registro é **só descritivo**: tamanhos e contagens agregadas, nenhuma métrica de sistema sobre o teste-2 e nenhuma lista por usuário. Os números do teste-2 vêm de `resumoDivisoesV2`. As estatísticas são calculadas sobre **todos os usuários do conjunto, inclusive os que têm zero curtidas escondidas**: é a população que a subamostragem do MDE imita (§8.3), porque os usuários zerados só saem depois do sorteio. Ele contém, para a validação e para o teste-2:
 - notas disponíveis por usuário e notas escondidas por usuário, com média, mediana e percentis 10, 25, 75 e 90;
 - curtidas escondidas por usuário, com as mesmas estatísticas, e o nº de usuários sem nenhuma;
 - nº de usuários avaliáveis, ou seja, com pelo menos uma curtida escondida (`n_t`, no teste-2);
@@ -374,7 +374,7 @@ Todas aparecem com IC, mas **rotuladas como descritivas**. Nenhuma é apresentad
 `resultados/configuracao-v2.json` é commitado **antes** da etapa 1. Ele contém:
 - **os sistemas:** a v2 e a v1 (configuração, épocas por semente e `seed_api = 1`), mais as configurações secundárias que serão avaliadas. Entram **só os sistemas efetivamente rodados** no cenário do portão (§8.1), e o cenário fica registrado. A v2, as épocas e os sistemas são **lidos de `resultados/grade-v2-exp.json`**, nunca informados à mão, e o congelamento grava o sha256 da grade;
 - **a ressalva histórica** da §3.4, por extenso, que é copiada para o resultado final;
-- **os hashes:** do teste-2, do treino `v2-final`, da régua `v2-final` e dos vetores FC `v2-final`. Estes são calculados no congelamento, sem ler o gabarito (o hash do teste-2 vem de `resumoTeste2`);
+- **os hashes:** do teste-2, do treino `v2-final`, da régua `v2-final` e dos vetores FC `v2-final`. Estes são calculados no congelamento, sem ler o gabarito (o hash do teste-2 vem de `resumoDivisoesV2`);
 - **os resultados anteriores:** o resultado do portão, os dois MDE de referência e o MDE descritivo de v2 × v1;
 - **a comparação principal, por extenso:** "NDCG@10(v2) − NDCG@10(v1) por usuário, média das 3 sementes por usuário nos sistemas com rede, bootstrap pareado com 5.000 reamostragens e semente 2026; suportada se o IC 95% exclui zero";
 - **as regras de avaliação, como campos escritos:**
@@ -436,7 +436,7 @@ Assim, depois do congelamento, só commits em `resultados/` são aceitos, como o
 
 | Área | O que o teste garante |
 |---|---|
-| Isolamento | nenhuma nota no treino e no teste-2 ao mesmo tempo (varrendo pares, não texto); chaves do contexto v2 exatamente as da lista branca; invariância da régua, da popularidade e dos vetores FC a uma nota fictícia no teste-2; treino e régua iguais com e sem `incluirTeste2`; a fase só devolve o gabarito com `incluirTeste2`; `incluirTeste` numa fase v2 é erro; `resumoTeste2` só devolve chaves agregadas; só os arquivos permitidos importam `carregarDataset`/`criarDivisoes` |
+| Isolamento | nenhuma nota no treino e no teste-2 ao mesmo tempo (varrendo pares, não texto); chaves do contexto v2 exatamente as da lista branca; invariância da régua, da popularidade e dos vetores FC a uma nota fictícia no teste-2; treino e régua iguais com e sem `incluirTeste2`; a fase só devolve o gabarito com `incluirTeste2`; `incluirTeste` numa fase v2 é erro; `resumoDivisoesV2` só devolve chaves agregadas; só os arquivos permitidos importam `carregarDataset`/`criarDivisoes` |
 | FC | `Σ cos = p · v_j`; normalização; escore oficial = cosseno arredondado, igual nas três versões; filme sem curtidas fora só da FC; usuário sem curtidas → lista FC vazia; arredondamento em 6 casas e desempate por id; filtro escore > 0 **depois** do arredondamento (um escore que arredonda para 0 fica de fora) |
 | Busca FC | `buscarColaborativos` aceita m até 300, não lança erro com lista curta, corta no primeiro escore ≤ 0, resolve empate no limite pelo escore arredondado e, com empate persistente em 1.000 linhas, devolve a lista com `empateNaoResolvido = true`; conferência exata = referência aceita só as divergências de precisão (troca, posição m e corte em zero com diferença em float64 < τ = 10⁻⁵) e recusa as demais |
 | Banco: modos | EXPLAIN mostra `Index Scan` no índice de `filmes_fc` no modo `'hnsw'` e `Seq Scan` no modo `'exata'` (integração) |
