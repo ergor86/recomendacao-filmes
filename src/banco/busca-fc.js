@@ -31,6 +31,9 @@ const MSG_SEM_FC = 'banco sem filmes_fc carregada: rode npm run carregar-v2 -- -
 export async function buscarColaborativos(pool, { vetor, excluir, m, hashes, modo = 'hnsw' }) {
   if (!Number.isInteger(m) || m < 1) throw new Error(`m inválido: ${m}; use um inteiro entre 1 e ${M_MAXIMO}`);
   if (m > M_MAXIMO) throw new Error(`m = ${m} excede o máximo de ${M_MAXIMO}; reduza m`);
+  if (!Array.isArray(excluir) || !excluir.every(Number.isInteger)) {
+    throw new Error('excluir inválido: passe um array de ids inteiros (use [] para não excluir nenhum)');
+  }
   if (!Array.isArray(vetor) || vetor.length === 0 || !vetor.every(Number.isFinite)) {
     throw new Error('vetor inválido: use um array não vazio de números finitos');
   }

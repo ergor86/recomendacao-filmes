@@ -49,7 +49,8 @@ after(async () => {
 
 test('empate na posição m: o menor id entra e vem antes quando os dois entram', async () => {
   const q = unit([1, 0, 0, 0, 0, 0, 0, 0]);
-  await carregar([[7, q], [3, q], [10, unit([1, 1, 0, 0, 0, 0, 0, 0])]]);
+  await carregar([[7, q], [3, q], // 7 antes de 3: a ordem do heap não ajuda o desempate
+     [10, unit([1, 1, 0, 0, 0, 0, 0, 0])]]);
   for (const modo of ['hnsw', 'exata']) {
     const um = await buscarColaborativos(pool, { vetor: q, excluir: [], m: 1, hashes, modo });
     assert.deepEqual(um.lista.map((x) => x.id), [3]);

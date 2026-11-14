@@ -33,7 +33,7 @@ export async function carregarFilmesFC(pool, { vetores, dim, hashRegua, hashTrei
     const q = citar(esquema);
     await client.query(`DROP TABLE IF EXISTS ${q}.filmes_fc`);
     await client.query(`CREATE TABLE ${q}.filmes_fc (id int PRIMARY KEY, embedding vector(${dim}) NOT NULL)`);
-    const itens = [...vetores.entries()].sort((a, b) => a[0] - b[0]);
+    const itens = [...vetores.entries()]; // ordem de inserção do Map (a busca não depende dela)
     for (let i = 0; i < itens.length; i += TAMANHO_LOTE) {
       const valores = [];
       const params = [];
