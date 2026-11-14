@@ -17,12 +17,12 @@ import crypto from 'node:crypto';
 import { carregarConfig } from '../src/config.js';
 import { criarContexto } from '../src/contexto.js';
 import { hashAvaliacoes } from '../src/util/hash-avaliacoes.js';
-import { jsonEstavel } from '../src/util/json-estavel.js';
 import { construirFC, hashVetoresFC } from '../src/fc/referencia.js';
 import { relevantesPorUsuario } from '../src/avaliacao/metricas.js';
 import { ARQ_CONGELAMENTO, executarGit, conferirCongelamento } from '../src/congelamento/git.js';
 import {
   ARQ_AVALIACAO, ARQ_PREVISOES, ARQ_HASHES, verificarAntesDoGabarito, conferirGabarito, avaliarPrevisoes, executarEtapa2,
+  gravarResultado,
 } from '../src/avaliacao/etapa2.js';
 
 const FASE = 'v2-final';
@@ -57,6 +57,16 @@ async function principal() {
   const avaliacaoExiste = fs.existsSync(ARQ_AVALIACAO) || executarGit(['log', '--format=%H', '--', ARQ_AVALIACAO]) !== '';
   const sha256Previsoes = textoPrevisoes ? sha256(textoPrevisoes) : null;
   const sha256Configuracao = sha256(bytesCongelamento);
+  // Previsões lidas uma vez: o mesmo conteúdo é validado antes do gabarito e avaliado depois.
+  let previsoes = null;
+  let erroPrevisoes = null;
+  if (textoPrevisoes) {
+    try {
+      previsoes = JSON.parse(textoPrevisoes.toString('utf8'));
+    } catch (erro) {
+      erroPrevisoes = `${ARQ_PREVISOES} ilegível (${erro.message}): rode a etapa 1 de novo`;
+    }
+  }
 
   const verificar = () => {
     const problemas = [];
@@ -65,9 +75,11 @@ async function principal() {
     } catch (erro) {
       problemas.push(erro.message);
     }
+    if (erroPrevisoes) problemas.push(erroPrevisoes);
     problemas.push(...verificarAntesDoGabarito({
       congelamento, gravado, sha256PrevisoesAtual: sha256Previsoes, sha256ConfiguracaoAtual: sha256Configuracao,
       sha256CodigoAtual: sha256CodigoAtual(congelamento.sha256Codigo), hashesAtuais, avaliacaoExiste,
+      previsoes, treino: ctx.treino, filmes: ctx.dataset.filmes,
     }));
     return problemas;
   };
@@ -86,7 +98,7 @@ async function principal() {
     sha256FC150: gravado.sha256FC150,
     commitCodigo: congelamento.commitCodigo,
     ...avaliarPrevisoes({
-      previsoes: JSON.parse(textoPrevisoes.toString('utf8')),
+      previsoes,
       relevantes: relevantesPorUsuario(gabarito),
       contagens: ctx.regua.contagens,
       congelamento,
@@ -98,7 +110,7 @@ async function principal() {
 
   const gravar = (resultado) => {
     fs.mkdirSync(path.dirname(ARQ_AVALIACAO), { recursive: true });
-    fs.writeFileSync(ARQ_AVALIACAO, jsonEstavel(resultado) + '\n', { flag: 'wx' }); // 'wx': nunca sobrescreve
+    gravarResultado(ARQ_AVALIACAO, resultado); // flag 'wx': nunca sobrescreve
   };
 
   const r = await executarEtapa2({ verificar, lerGabarito, avaliar, gravar });

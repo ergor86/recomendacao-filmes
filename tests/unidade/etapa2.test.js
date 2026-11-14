@@ -7,10 +7,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { hashAvaliacoes } from '../../src/util/hash-avaliacoes.js';
 import {
-  verificarAntesDoGabarito, avaliarPrevisoes, executarEtapa2, conferirGabarito, TEXTO_SEM_CONFIRMATORIA,
+  verificarAntesDoGabarito, validarPrevisoes, avaliarPrevisoes, executarEtapa2, conferirGabarito, gravarResultado,
+  TEXTO_SEM_CONFIRMATORIA,
 } from '../../src/avaliacao/etapa2.js';
 
 const raiz = path.resolve(import.meta.dirname, '../..');
@@ -77,9 +79,9 @@ function congelamentoCom(v2 = 'S3') {
 }
 
 // Previsões no formato da etapa 1: `lista(nome, semente, u)` dá o top 10.
-function previsoesCom(lista) {
+function previsoesCom(lista, nomes = SECUNDARIAS) {
   const sistemas = {};
-  for (const nome of SECUNDARIAS) {
+  for (const nome of nomes) {
     const sementes = nome === 'S0' || nome === 'S1' ? ['0'] : ['1', '2', '3'];
     const porSemente = {};
     for (const s of sementes) {
@@ -114,6 +116,9 @@ const entradaOk = () => {
     sha256CodigoAtual: { ...congelamento.sha256Codigo },
     hashesAtuais: { treino: congelamento.hashes.treino, regua: congelamento.hashes.regua, vetoresFC: congelamento.hashes.vetoresFC },
     avaliacaoExiste: false,
+    previsoes: previsoesCom(padrao),
+    treino,
+    filmes,
   };
 };
 
@@ -141,6 +146,53 @@ for (const [desc, mudar, re] of [
     assert.match(problemas[0], re);
   });
 }
+
+// Previsões inválidas que se detectam sem o gabarito.
+const invalidas = [
+  ['sistema faltando', (p) => { delete p.sistemas['S4-100-50']; }, /faltam: S4-100-50/],
+  ['sistema a mais', (p) => { p.sistemas.S9 = p.sistemas.S0; }, /sobram: S9/],
+  ['semente faltando', (p) => { delete p.sistemas.S3.porSemente['2']; }, /S3 com as sementes \[1, 3\]/],
+  ['usuário faltando', (p) => { delete p.sistemas.S1.porSemente['0']['7']; }, /S1\/semente 0\/usuário 7 não é um top 10/],
+  ['lista com 9 filmes', (p) => { p.sistemas.S2.porSemente['1']['8'].pop(); }, /S2\/semente 1\/usuário 8 não é um top 10/],
+  ['filme repetido', (p) => { const l = p.sistemas.S0.porSemente['0']['9']; l[1] = l[0]; }, /usuário 9 não é um top 10/],
+  ['filme fora do catálogo', (p) => { p.sistemas.S0.porSemente['0']['10'][0] = 999; }, /usuário 10 não é um top 10/],
+  ['filme visto no treino', (p) => { p.sistemas.S0.porSemente['0']['5'][0] = 211; }, /usuário 5 traz o filme 211, já visto/],
+];
+
+test('validarPrevisoes: previsões da etapa 1 válidas → nenhum problema', () => {
+  assert.deepEqual(validarPrevisoes({ previsoes: previsoesCom(padrao), congelamento: congelamentoCom(), treino, filmes }), []);
+});
+
+for (const [desc, estragar, re] of invalidas) {
+  test(`verificarAntesDoGabarito: previsão inválida (${desc}) → um problema`, () => {
+    const e = entradaOk();
+    estragar(e.previsoes);
+    const problemas = verificarAntesDoGabarito(e);
+    assert.equal(problemas.length, 1, problemas.join('\n'));
+    assert.match(problemas[0], re);
+  });
+}
+
+test('validarPrevisoes: muitas listas inválidas → 20 por extenso e a contagem do resto', () => {
+  const p = previsoesCom(padrao);
+  for (let u = 1; u <= 30; u++) p.sistemas.S0.porSemente['0'][String(u)] = [];
+  const problemas = validarPrevisoes({ previsoes: p, congelamento: congelamentoCom(), treino, filmes });
+  assert.equal(problemas.length, 21);
+  assert.match(problemas[20], /e mais 10 listas inválidas/);
+});
+
+test('executarEtapa2: previsão inválida bloqueia a leitura (lerGabarito com 0 chamadas)', async () => {
+  const e = entradaOk();
+  e.previsoes.sistemas.S0.porSemente['0']['5'][0] = 211;
+  let lidas = 0;
+  await assert.rejects(executarEtapa2({
+    verificar: () => verificarAntesDoGabarito(e),
+    lerGabarito: () => { lidas++; return gabarito; },
+    avaliar: () => ({}),
+    gravar: () => {},
+  }), /já visto no treino/);
+  assert.equal(lidas, 0);
+});
 
 test('verificarAntesDoGabarito: várias divergências → todas listadas', () => {
   const e = entradaOk();
@@ -245,6 +297,57 @@ test('avaliarPrevisoes: IC contendo zero → suportada = false', () => {
   assert.equal(c.reamostragens, 5000);
   assert.equal(c.semente, 2026);
   assert.equal(c.nUsuarios, NT);
+});
+
+test('avaliarPrevisoes: IC que atravessa o zero → suportada = false', () => {
+  // v2 acerta na posição 1 nos pares e a v1 nos ímpares: diferenças ±1, média perto de zero.
+  const lista = (nome, s, u) => {
+    if (nome === 'S3') return u % 2 === 0 ? comAcerto(u, s, 1) : semAcerto(u, s);
+    if (nome === 'S2') return u % 2 === 1 ? comAcerto(u, s, 1) : semAcerto(u, s);
+    return padrao(nome, s, u);
+  };
+  const c = avaliar({ previsoes: previsoesCom(lista) }).comparacaoPrincipal;
+  assert.ok(c.ic95[0] < 0 && c.ic95[1] > 0, `IC ${c.ic95}`);
+  assert.equal(c.suportada, false);
+});
+
+test('avaliarPrevisoes: IC inteiro abaixo de zero (v2 pior) → suportada = false, média negativa', () => {
+  const lista = (nome, s, u) => (nome === 'S3' ? semAcerto(u, s) : nome === 'S2' ? comAcerto(u, s, 1) : padrao(nome, s, u));
+  const c = avaliar({ previsoes: previsoesCom(lista) }).comparacaoPrincipal;
+  assert.equal(c.media, -1);
+  assert.ok(c.ic95[1] < 0);
+  assert.equal(c.suportada, false);
+});
+
+test('avaliarPrevisoes: secundária sem "melhor" congelado ou com sistema fora do congelamento → motivo exato', () => {
+  const semMelhor = congelamentoCom();
+  semMelhor.melhores = { orcamentoFixoComFC: 'S4-100-50', S4: null };
+  const r1 = avaliar({ congelamento: semMelhor });
+  assert.equal(r1.secundarias['melhor S4 - S3'].calculada, false);
+  assert.match(r1.secundarias['melhor S4 - S3'].motivo, /congelamento\.melhores não registra/);
+
+  // Sem S3 no congelamento (v2 = S4-100-50): S3 − S1 não é avaliada, e o motivo nomeia S3.
+  const semS3 = congelamentoCom('S4-100-50');
+  const nomes = SECUNDARIAS.filter((n) => n !== 'S3');
+  semS3.secundarias = nomes;
+  delete semS3.sistemas.S3;
+  const r2 = avaliar({ congelamento: semS3, previsoes: previsoesCom(padrao, nomes) });
+  assert.equal(r2.secundarias['S3 - S1'].rotulo, 'descritiva');
+  assert.match(r2.secundarias['S3 - S1'].motivo, /^não avaliada: S3 fora dos sistemas congelados \(cenário aprovado\)/);
+  assert.match(r2.secundarias['melhor S4 - S3'].motivo, /^não avaliada: S3 fora/);
+});
+
+test('gravarResultado: grava JSON estável e recusa sobrescrever (EEXIST)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'etapa2-'));
+  try {
+    const arq = path.join(dir, 'avaliacao-v2.json');
+    gravarResultado(arq, { b: 1, a: 2 });
+    assert.equal(fs.readFileSync(arq, 'utf8'), '{"a":2,"b":1}\n');
+    assert.throws(() => gravarResultado(arq, { c: 3 }), (e) => e.code === 'EEXIST');
+    assert.equal(fs.readFileSync(arq, 'utf8'), '{"a":2,"b":1}\n');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('avaliarPrevisoes: v2 sempre acerta na posição 1 e v1 nunca → suportada = true', () => {

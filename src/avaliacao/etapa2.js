@@ -7,7 +7,9 @@
 // Só importa módulos puros. A leitura do gabarito e a gravação chegam como funções injetadas pelo
 // script 23, que é o único lugar que pede o gabarito ao contexto; assim a ordem é testada com dados
 // sintéticos e este arquivo nunca lê o teste-2 sozinho.
+import fs from 'node:fs';
 import { hashAvaliacoes } from '../util/hash-avaliacoes.js';
+import { jsonEstavel } from '../util/json-estavel.js';
 import { popEscalada } from '../features/regua.js';
 import { avaliarSistema } from './metricas.js';
 import { projetar, mediaEntreSementes } from './escolha.js';
@@ -33,15 +35,19 @@ const media = (v) => v.reduce((s, x) => s + x, 0) / v.length;
  * - coerência do congelamento (sistemas avaliados; comparação confirmatória ⇔ v2 ≠ v1);
  * - arquivo de previsões presente e com o sha256 gravado; sha256 do congelamento igual ao gravado;
  * - sha256 atual de cada arquivo de código congelado (e de nenhum arquivo novo) igual ao congelado;
- * - resultados/avaliacao-v2.json ainda não existe.
+ * - resultados/avaliacao-v2.json ainda não existe;
+ * - previsões válidas (validarPrevisoes), quando `previsoes` vem preenchido: tudo o que se confere
+ *   nelas sem o gabarito bloqueia a leitura, para nunca precisar de uma segunda leitura.
  * @param gravado conteúdo de resultados/previsoes-v2-final.sha256.json (null se ausente)
  * @param sha256PrevisoesAtual sha256 dos bytes de artefatos/previsoes-v2-final.json (null se ausente)
  * @param sha256CodigoAtual Record caminho → sha256 atual (null se o arquivo sumiu), cobrindo os
  *        arquivos congelados e os de src/avaliacao/ e do script 23 que existem hoje
  * @param hashesAtuais { treino, regua, vetoresFC } da fase v2-final sem o gabarito
+ * @param previsoes conteúdo das previsões (null se ausentes ou ilegíveis); treino e filmes da v2-final
  */
 export function verificarAntesDoGabarito({
   congelamento, gravado, sha256PrevisoesAtual, sha256ConfiguracaoAtual, sha256CodigoAtual, hashesAtuais, avaliacaoExiste,
+  previsoes = null, treino = null, filmes = null,
 }) {
   const problemas = [];
   for (const campo of HASHES_CONFERIDOS) {
@@ -85,6 +91,74 @@ export function verificarAntesDoGabarito({
   }
 
   if (avaliacaoExiste) problemas.push(`${ARQ_AVALIACAO} já existe (ou já foi commitado): a etapa 2 roda uma única vez`);
+  if (previsoes !== null) problemas.push(...validarPrevisoes({ previsoes, congelamento, treino, filmes }));
+  else if (sha256PrevisoesAtual) problemas.push(`${ARQ_PREVISOES} não foi lido: as previsões precisam ser validadas antes do gabarito`);
+  return problemas;
+}
+
+// Vistos no treino: Map<u, Set<filme>>.
+function vistosPorUsuario(treino) {
+  const vistos = new Map();
+  for (const { usuario, filme } of treino) {
+    if (!vistos.has(usuario)) vistos.set(usuario, new Set());
+    vistos.get(usuario).add(filme);
+  }
+  return vistos;
+}
+
+const MAX_PROBLEMAS_PREVISOES = 20;
+
+/**
+ * Tudo o que se confere nas previsões sem o gabarito (§9.3, passo 1): os sistemas gravados são
+ * exatamente os de sistemasAvaliados(congelamento); cada um tem as sementes esperadas (S0 e S1: 0;
+ * com rede: 1, 2, 3); cada usuário 1–462 tem 10 filmes distintos do catálogo, nenhum visto no treino
+ * v2-final. Devolve a lista de problemas (no máximo 20 listas por extenso, mais a contagem do resto).
+ */
+export function validarPrevisoes({ previsoes, congelamento, treino, filmes }) {
+  let sistemas;
+  try {
+    sistemas = sistemasAvaliados(congelamento);
+  } catch (erro) {
+    return [`previsões não conferidas: congelamento incoerente (${erro.message})`];
+  }
+  if (!Array.isArray(treino) || !Array.isArray(filmes)) return ['previsões não conferidas: faltam o treino e o catálogo v2-final'];
+  if (!previsoes || typeof previsoes.sistemas !== 'object' || previsoes.sistemas === null) {
+    return [`${ARQ_PREVISOES} sem o campo sistemas: rode a etapa 1 de novo`];
+  }
+  const problemas = [];
+  const nomes = sistemas.map((s) => s.nome);
+  const gravados = Object.keys(previsoes.sistemas);
+  const faltam = nomes.filter((n) => !gravados.includes(n));
+  const sobram = gravados.filter((n) => !nomes.includes(n));
+  if (faltam.length || sobram.length) {
+    problemas.push(`previsões não correspondem ao congelamento (faltam: ${faltam.join(', ') || '-'}; sobram: ${sobram.join(', ') || '-'})`);
+  }
+  const vistos = vistosPorUsuario(treino);
+  const catalogo = new Set(filmes.map((f) => f.id));
+  const porLista = [];
+  for (const s of sistemas.filter((x) => gravados.includes(x.nome))) {
+    const esperadas = (s.rede ? SEMENTES : [0]).map(String).sort();
+    const porSemente = previsoes.sistemas[s.nome]?.porSemente ?? {};
+    const sementes = Object.keys(porSemente).sort();
+    if (esperadas.join(',') !== sementes.join(',')) {
+      problemas.push(`previsões de ${s.nome} com as sementes [${sementes.join(', ')}]; esperadas [${esperadas.join(', ')}]`);
+      continue;
+    }
+    for (const semente of esperadas) {
+      for (const u of USUARIOS_TESTE2) {
+        const ids = porSemente[semente]?.[String(u)];
+        const onde = `${s.nome}/semente ${semente}/usuário ${u}`;
+        if (!Array.isArray(ids) || ids.length !== 10 || new Set(ids).size !== 10 || !ids.every((id) => catalogo.has(id))) {
+          porLista.push(`previsão de ${onde} não é um top 10 de filmes distintos do catálogo`);
+          continue;
+        }
+        const visto = ids.find((id) => vistos.get(u)?.has(id));
+        if (visto !== undefined) porLista.push(`previsão de ${onde} traz o filme ${visto}, já visto no treino`);
+      }
+    }
+  }
+  problemas.push(...porLista.slice(0, MAX_PROBLEMAS_PREVISOES));
+  if (porLista.length > MAX_PROBLEMAS_PREVISOES) problemas.push(`... e mais ${porLista.length - MAX_PROBLEMAS_PREVISOES} listas inválidas nas previsões`);
   return problemas;
 }
 
@@ -192,7 +266,9 @@ function secundarias(congelamento, ndcg) {
   const { orcamentoFixoComFC: melhorFixo, S4: melhorS4 } = congelamento.melhores ?? {};
   const conta = (a, b, melhor) => {
     if (!a || !b || !ndcg.has(a) || !ndcg.has(b)) {
-      return { rotulo: 'descritiva', calculada: false, motivo: `não avaliada: ${!a ? 'sem "melhor" congelado' : `${ndcg.has(a) ? b : a} não rodado no cenário ${congelamento.cenario}`}` };
+      if (!a) return { rotulo: 'descritiva', calculada: false, motivo: 'não avaliada: congelamento.melhores não registra o "melhor" desta conta' };
+      const faltam = [a, b].filter((x) => !ndcg.has(x));
+      return { rotulo: 'descritiva', calculada: false, motivo: `não avaliada: ${faltam.join(' e ')} fora dos sistemas congelados (cenário ${congelamento.cenario}), sem previsões` };
     }
     // diferencaDescritiva compara mapas na mesma ordem de usuários; ordena por id para o bootstrap.
     const ordem = (m) => new Map([...m].sort((x, y) => x[0] - y[0]));
@@ -219,14 +295,10 @@ function secundarias(congelamento, ndcg) {
  * @param treino treino v2-final (vistos e curtidos); @param filmes catálogo [{ id }]
  */
 export function avaliarPrevisoes({ previsoes, relevantes, contagens, congelamento, regua, treino, filmes }) {
+  // Rede de segurança: as mesmas conferências já bloquearam a leitura em verificarAntesDoGabarito.
+  const invalidas = validarPrevisoes({ previsoes, congelamento, treino, filmes });
+  if (invalidas.length > 0) throw new Error(`previsões inválidas:\n- ${invalidas.join('\n- ')}`);
   const sistemas = sistemasAvaliados(congelamento);
-  const nomes = sistemas.map((s) => s.nome);
-  const gravados = Object.keys(previsoes?.sistemas ?? {});
-  const faltam = nomes.filter((n) => !gravados.includes(n));
-  const sobram = gravados.filter((n) => !nomes.includes(n));
-  if (faltam.length || sobram.length) {
-    throw new Error(`previsões não correspondem ao congelamento (faltam: ${faltam.join(', ') || '-'}; sobram: ${sobram.join(', ') || '-'})`);
-  }
   const usuarios = [...relevantes.keys()].sort((a, b) => a - b);
   const fora = usuarios.find((u) => u < USUARIOS_TESTE2[0] || u > USUARIOS_TESTE2.at(-1));
   if (fora !== undefined) throw new Error(`usuário ${fora} com relevantes fora de 1–462`);
@@ -286,6 +358,11 @@ export function avaliarPrevisoes({ previsoes, relevantes, contagens, congelament
     regrasAvaliacao: congelamento.regrasAvaliacao,
     ressalva: congelamento.ressalva,
   };
+}
+
+/** Grava o resultado em `caminho` com flag 'wx': nunca sobrescreve (erro EEXIST se o arquivo existir). */
+export function gravarResultado(caminho, objeto) {
+  fs.writeFileSync(caminho, jsonEstavel(objeto) + '\n', { flag: 'wx' });
 }
 
 /**
