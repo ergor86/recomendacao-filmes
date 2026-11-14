@@ -1,12 +1,13 @@
 // Teste-2: notas escondidas dos usuários 1–462 dentro do próprio u1.base, para avaliar o Plano 3
 // sem tocar no u1.test. O acesso fica restrito a este módulo e a src/contexto.js (spec §3.2).
 
-import crypto from 'node:crypto';
 import { criarAleatorio, embaralhar } from '../util/aleatorio.js';
-import { jsonEstavel } from '../util/json-estavel.js';
 import { carregarDataset } from './carregar.js';
 import { criarDivisoes } from './divisoes.js';
 import { mediana } from './estatisticas.js';
+import { hashAvaliacoes } from '../util/hash-avaliacoes.js';
+
+export { hashAvaliacoes }; // nome público mantido; a implementação mora em util/
 
 export const FRACAO_TESTE2 = 0.2;
 export const SEMENTE_TESTE2 = 20_000_000;
@@ -41,17 +42,6 @@ export function dividirTeste2(base) {
     }
   }
   return { teste2, semTeste2: base.filter((a) => !escondidas.has(a)) };
-}
-
-/**
- * Hash sha256 (hex) das avaliações: jsonEstavel dos triplos [usuario, filme, nota]
- * ordenados por usuário e filme; não depende da ordem de entrada.
- */
-export function hashAvaliacoes(avaliacoes) {
-  const triplos = avaliacoes
-    .map((a) => [a.usuario, a.filme, a.nota])
-    .sort((x, y) => x[0] - y[0] || x[1] - y[1]);
-  return crypto.createHash('sha256').update(jsonEstavel(triplos)).digest('hex');
 }
 
 /**

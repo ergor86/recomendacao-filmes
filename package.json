@@ -24,7 +24,8 @@
     "congelar": "node scripts/12-congelar.js",
     "avaliacao-final": "node scripts/13-avaliacao-final.js",
     "divisoes-v2": "node scripts/14-divisoes-v2.js",
-    "mde-v2": "node scripts/15-mde-v2.js"
+    "mde-v2": "node scripts/15-mde-v2.js",
+    "carregar-v2": "node scripts/16-carregar-v2.js"
   },
   "dependencies": {
     "@tensorflow/tfjs-node": "^4.22.0",
