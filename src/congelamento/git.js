@@ -104,6 +104,32 @@ export function sha256Arquivos(caminhos) {
   return saida;
 }
 
+// Nome do sistema com rede da célula (K, N), como na grade: S2 = (150, 0), S3 = (0, 150), S4-k-n as demais.
+function nomeDaCelula(k, n) {
+  if (k === 150 && n === 0) return 'S2';
+  if (k === 0 && n === 150) return 'S3';
+  return `S4-${k}-${n}`;
+}
+
+/**
+ * Sistemas que a grade oficial roda em cada cenário (§8.1, §8.2), ordenados: aprovado → S0, S1 e as 15
+ * células de {0, 50, 100, 150}² sem (0, 0), ou só as 4 de orçamento fixo com o corte do orçamento
+ * variável; reprovado → S0, S1 e S2.
+ */
+export function sistemasEsperados(cenario, cortarOrcamentoVariavel = false) {
+  if (cenario === 'reprovado') return ['S0', 'S1', 'S2'];
+  if (cenario !== 'aprovado') throw new Error(`cenário do portão inválido: ${cenario}`);
+  const valores = [0, 50, 100, 150];
+  const nomes = ['S0', 'S1'];
+  for (const k of valores) {
+    for (const n of valores) {
+      if (k + n === 0 || (cortarOrcamentoVariavel && k + n !== 150)) continue;
+      nomes.push(nomeDaCelula(k, n));
+    }
+  }
+  return nomes.sort();
+}
+
 // Melhor por NDCG médio da grade entre os nomes rodados (só S3 e S4, todos com rede). Empate vai para o
 // mais simples pela chave da §8.4 restrita aos sistemas com rede, [N, K + N, K], como na grade.
 function melhorPorNdcg(sistemas, nomes) {
@@ -148,6 +174,10 @@ export function montarCongelamento({ grade, portao, mde, resumo, hashes, commitC
   const v2 = grade.escolha?.escolhida;
   if (!rodados.includes(v2)) throw new Error(`a escolhida da grade (${v2}) não está entre os sistemas rodados (${rodados.join(', ')})`);
   if (!rodados.includes('S2')) throw new Error('a v1 (S2) não foi rodada na grade');
+  const esperados = sistemasEsperados(grade.cenario, grade.cortarOrcamentoVariavel === true);
+  if (jsonEstavel(esperados) !== jsonEstavel(rodados)) {
+    throw new Error(`sistemas da grade (${rodados.join(', ')}) não correspondem ao cenário "${grade.cenario}"${grade.cortarOrcamentoVariavel ? ' com o corte do orçamento variável' : ''} (esperados: ${esperados.join(', ')}): refaça a grade oficial`);
+  }
 
   const melhorFixo = melhorPorNdcg(grade.sistemas, FIXO_COM_FC);
   const melhorS4 = melhorPorNdcg(grade.sistemas, rodados.filter((n) => n.startsWith('S4-')));
@@ -204,20 +234,49 @@ export function montarCongelamento({ grade, portao, mde, resumo, hashes, commitC
   };
 }
 
+const LIVRES_NO_DESVIO = new Set(['commitCodigo', 'sha256Codigo', 'desvios', 'data', 'hashes']);
+const HASHES_QUE_PODEM_MUDAR = ['treino', 'regua', 'vetoresFC'];
+
 /**
- * Recongelamento por --desvio (§9.1, bug antes do gabarito): exige o mesmo cenário, a mesma v2 e v1,
- * as mesmas secundárias, sistemas (configurações e épocas) e rede do congelamento anterior, um novo
- * commitCodigo e um motivo; acrescenta { commitCodigoAnterior, motivo, data } aos desvios anteriores.
+ * Recongelamento por --desvio (§9.1, bug antes do gabarito): todo campo do congelamento tem de ser
+ * igual ao do anterior (sistemas, épocas, regras de avaliação, comparação principal, ressalva, grade,
+ * portão, MDE...), exceto commitCodigo (que tem de ser novo), sha256Codigo, desvios e data. Dos hashes,
+ * o do teste-2 não pode mudar; os de treino, régua e vetores FC podem, e cada mudança fica registrada
+ * no desvio. Acrescenta { commitCodigoAnterior, motivo, data[, hashesAlterados] } aos desvios anteriores.
  */
 export function aplicarDesvio({ anterior, novo, motivo, data }) {
   if (typeof motivo !== 'string' || motivo.trim() === '') throw new Error('--desvio exige um motivo não vazio');
-  for (const campo of ['cenario', 'v2', 'v1', 'secundarias', 'sistemas', 'rede', 'seed_api']) {
-    if (jsonEstavel(anterior[campo]) !== jsonEstavel(novo[campo])) {
-      throw new Error(`desvio recusado: "${campo}" mudou em relação ao congelamento anterior (${jsonEstavel(anterior[campo])} → ${jsonEstavel(novo[campo])}); o --desvio só cobre correção de bug, não troca de configuração`);
+  const campos = [...new Set([...Object.keys(anterior), ...Object.keys(novo)])].filter((c) => !LIVRES_NO_DESVIO.has(c)).sort();
+  for (const campo of campos) {
+    if (jsonEstavel(anterior[campo] ?? null) !== jsonEstavel(novo[campo] ?? null)) {
+      throw new Error(`desvio recusado: "${campo}" mudou em relação ao congelamento anterior; o --desvio só cobre correção de bug, não troca de configuração ou de critério`);
     }
   }
+  const ha = anterior.hashes ?? {};
+  const hn = novo.hashes ?? {};
+  const chavesHash = [...new Set([...Object.keys(ha), ...Object.keys(hn)])];
+  const fora = chavesHash.filter((c) => !HASHES_QUE_PODEM_MUDAR.includes(c) && ha[c] !== hn[c]);
+  if (fora.length) throw new Error(`desvio recusado: hash ${fora.join(', ')} mudou (${fora.map((c) => `${ha[c]} → ${hn[c]}`).join('; ')}); só treino, régua e vetores FC podem mudar num desvio`);
   if (novo.commitCodigo === anterior.commitCodigo) {
     throw new Error(`desvio recusado: mesmo commitCodigo do congelamento anterior (${anterior.commitCodigo}); commite a correção antes`);
   }
-  return { ...novo, desvios: [...(anterior.desvios ?? []), { commitCodigoAnterior: anterior.commitCodigo, motivo: motivo.trim(), data }] };
+  const hashesAlterados = {};
+  for (const c of HASHES_QUE_PODEM_MUDAR) if (ha[c] !== hn[c]) hashesAlterados[c] = { anterior: ha[c], novo: hn[c] };
+  const entrada = { commitCodigoAnterior: anterior.commitCodigo, motivo: motivo.trim(), data };
+  if (Object.keys(hashesAlterados).length) entrada.hashesAlterados = hashesAlterados;
+  return { ...novo, desvios: [...(anterior.desvios ?? []), entrada] };
+}
+
+/**
+ * Pré-condições do script de congelamento: recusa se resultados/avaliacao-v2.json existir na árvore
+ * ou já tiver sido commitado alguma vez (o gabarito foi lido); recusa congelamento existente sem
+ * --desvio e --desvio sem congelamento anterior.
+ */
+export function conferirPermissaoCongelar({ desvio, existeCongelamento, existeAvaliacao, arquivoAvaliacao = 'resultados/avaliacao-v2.json', git = executarGit }) {
+  const historico = git(['log', '--format=%H', '--', arquivoAvaliacao]);
+  if (existeAvaliacao || historico !== '') {
+    throw new Error(`${arquivoAvaliacao} ${existeAvaliacao ? 'existe' : 'já foi commitado'}: o gabarito já foi lido e o congelamento não pode mudar (bug agora é desvio pós-gabarito no README)`);
+  }
+  if (existeCongelamento && !desvio) throw new Error(`${ARQ_CONGELAMENTO} já existe: para recongelar depois de um bug use --desvio "<motivo>"`);
+  if (!existeCongelamento && desvio) throw new Error(`--desvio sem congelamento anterior: ${ARQ_CONGELAMENTO} não existe`);
 }

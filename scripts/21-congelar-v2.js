@@ -6,7 +6,7 @@
 // - Hashes v2-final calculados aqui, sem ler o gabarito: teste-2 (resumoDivisoesV2, conferido contra
 //   resultados/divisoes-v2.json), treino, régua e vetores FC. Mais o portão, os MDE, as regras de
 //   avaliação, a ressalva da §3.4 e o sha256 de src/avaliacao/*.js e de scripts/23-etapa2-v2.js.
-// - Recusa se resultados/avaliacao-v2.json existir. Sem --desvio, recusa se o congelamento já existir.
+// - Recusa se resultados/avaliacao-v2.json existir ou já tiver sido commitado. Sem --desvio, recusa se o congelamento já existir.
 // Grava resultados/configuracao-v2.json (jsonEstavel), que é commitado sozinho em seguida.
 
 import 'dotenv/config';
@@ -19,7 +19,7 @@ import { jsonEstavel } from '../src/util/json-estavel.js';
 import { construirFC, hashVetoresFC } from '../src/fc/referencia.js';
 import { ARQ_GRADE_OFICIAL } from '../src/avaliacao/sistemas-v2.js';
 import {
-  ARQ_CONGELAMENTO, executarGit, commitAtualLimpo, sha256Arquivos, montarCongelamento, aplicarDesvio,
+  ARQ_CONGELAMENTO, executarGit, commitAtualLimpo, sha256Arquivos, montarCongelamento, aplicarDesvio, conferirPermissaoCongelar,
 } from '../src/congelamento/git.js';
 
 const ARQ_AVALIACAO = 'resultados/avaliacao-v2.json';
@@ -55,12 +55,10 @@ function exigirVersionado(arq) {
 
 function principal() {
   const args = lerArgumentos(process.argv.slice(2));
-  if (fs.existsSync(ARQ_AVALIACAO)) {
-    throw new Error(`${ARQ_AVALIACAO} já existe: o gabarito já foi lido e o congelamento não pode mudar (bug agora é desvio pós-gabarito no README)`);
-  }
-  const existe = fs.existsSync(ARQ_CONGELAMENTO);
-  if (existe && !args.desvio) throw new Error(`${ARQ_CONGELAMENTO} já existe: para recongelar depois de um bug use --desvio "<motivo>"`);
-  if (!existe && args.desvio) throw new Error(`--desvio sem congelamento anterior: ${ARQ_CONGELAMENTO} não existe`);
+  conferirPermissaoCongelar({
+    desvio: args.desvio, existeCongelamento: fs.existsSync(ARQ_CONGELAMENTO), existeAvaliacao: fs.existsSync(ARQ_AVALIACAO),
+    arquivoAvaliacao: ARQ_AVALIACAO,
+  });
 
   const commitCodigo = commitAtualLimpo();
 

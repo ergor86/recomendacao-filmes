@@ -10,6 +10,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {
   commitAtualLimpo, conferirCongelamento, gitSemDiferenca, sha256Arquivos, montarCongelamento, aplicarDesvio, RESSALVA,
+  conferirPermissaoCongelar,
 } from '../../src/congelamento/git.js';
 
 const COMMIT = 'a'.repeat(40);
@@ -105,10 +106,21 @@ test('sha256Arquivos devolve o sha256 de cada arquivo e falha alto se faltar alg
   assert.throws(() => sha256Arquivos([path.join(dir, 'falta.js')]), /ausente/);
 });
 
-// Grade sintética do cenário aprovado com S0, S1, S2, S3 e três S4.
+// Grade sintética do cenário aprovado: S0, S1 e as 15 células (as não citadas com NDCG 0,3).
 function gradeSintetica(mudar = {}) {
   const rede = (k, n, ndcg) => ({ rede: true, k, n, totalCandidatos: k + n, grupo: k + n === 150 ? 'fixo' : 'variavel', ndcg });
-  const sistemas = {
+  const ep = (a, b, c) => ({ 1: a, 2: b, 3: c });
+  const sistemas = {};
+  const epocasPorSistema = {};
+  for (const k of [0, 50, 100, 150]) {
+    for (const n of [0, 50, 100, 150]) {
+      if (k + n === 0) continue;
+      const nome = k === 150 && n === 0 ? 'S2' : k === 0 && n === 150 ? 'S3' : `S4-${k}-${n}`;
+      sistemas[nome] = rede(k, n, 0.3);
+      epocasPorSistema[nome] = ep(2, 2, 2);
+    }
+  }
+  Object.assign(sistemas, {
     S0: { rede: false, k: 10, n: 0, totalCandidatos: 10, ndcg: 0.2 },
     S1: { rede: false, k: 0, n: 150, totalCandidatos: 150, ndcg: 0.36 },
     S2: rede(150, 0, 0.33),
@@ -116,14 +128,14 @@ function gradeSintetica(mudar = {}) {
     'S4-100-50': rede(100, 50, 0.355),
     'S4-50-100': rede(50, 100, 0.351),
     'S4-150-150': rede(150, 150, 0.37),
-  };
-  const ep = (a, b, c) => ({ 1: a, 2: b, 3: c });
+  });
+  Object.assign(epocasPorSistema, { S2: ep(5, 6, 7), S3: ep(4, 4, 5), 'S4-100-50': ep(3, 3, 3), 'S4-50-100': ep(6, 5, 4), 'S4-150-150': ep(8, 9, 7) });
   return {
     fase: 'v2-exp',
     cenario: 'aprovado',
     sistemas,
     escolha: { escolhida: 'S1', melhor: 'S4-150-150', fragil: false, tabela: [] },
-    epocasPorSistema: { S2: ep(5, 6, 7), S3: ep(4, 4, 5), 'S4-100-50': ep(3, 3, 3), 'S4-50-100': ep(6, 5, 4), 'S4-150-150': ep(8, 9, 7) },
+    epocasPorSistema,
     contribuicoes: {
       'melhor de (100, 50), (50, 100), (0, 150) - S2': { melhor: 'S4-100-50' },
       'melhor S4 - S3': { melhor: 'S4-150-150' },
@@ -152,7 +164,7 @@ test('montarCongelamento: a v2 é a escolhida da grade, com sistemas, épocas e 
   assert.equal(c.v2, 'S1');
   assert.equal(c.v1, 'S2');
   assert.equal(c.cenario, 'aprovado');
-  assert.deepEqual(c.sistemasRodados, ['S0', 'S1', 'S2', 'S3', 'S4-100-50', 'S4-150-150', 'S4-50-100']);
+  assert.equal(c.sistemasRodados.length, 17);
   assert.deepEqual(c.secundarias, ['S0', 'S1', 'S2', 'S3', 'S4-100-50', 'S4-150-150']);
   assert.deepEqual(c.sistemas.S2.epocasPorSemente, { 1: 5, 2: 6, 3: 7 });
   assert.equal(c.sistemas.S1.epocasPorSemente, undefined);
@@ -170,8 +182,8 @@ test('montarCongelamento: a v2 é a escolhida da grade, com sistemas, épocas e 
 });
 
 test('montarCongelamento recusa grade cuja escolhida não está entre os sistemas rodados', () => {
-  const g = gradeSintetica({ escolha: { escolhida: 'S4-0-50', melhor: 'S4-150-150', fragil: false, tabela: [] } });
-  assert.throws(() => montarCongelamento(entradas(g)), /S4-0-50.*não está entre os sistemas rodados/);
+  const g = gradeSintetica({ escolha: { escolhida: 'S4-0-60', melhor: 'S4-150-150', fragil: false, tabela: [] } });
+  assert.throws(() => montarCongelamento(entradas(g)), /S4-0-60.*não está entre os sistemas rodados/);
 });
 
 test('montarCongelamento recusa cenário diferente do portão, épocas faltando, grade de verificação e hash de treino divergente', () => {
@@ -234,4 +246,61 @@ test('montarCongelamento: empate no melhor de orçamento fixo vai para o mais si
   assert.equal(montarCongelamento(entradas(g)).melhores.orcamentoFixoComFC, 'S4-100-50');
   g.contribuicoes['melhor de (100, 50), (50, 100), (0, 150) - S2'].melhor = 'S4-50-100';
   assert.throws(() => montarCongelamento(entradas(g)), /grade inconsistente/);
+});
+
+test('montarCongelamento recusa conjunto de sistemas que não corresponde ao cenário', () => {
+  const falta = gradeSintetica();
+  delete falta.sistemas['S4-50-50'];
+  assert.throws(() => montarCongelamento(entradas(falta)), /não correspondem ao cenário "aprovado"/);
+  const corte = gradeSintetica({ cortarOrcamentoVariavel: true });
+  assert.throws(() => montarCongelamento(entradas(corte)), /corte do orçamento variável/);
+  for (const nome of Object.keys(corte.sistemas)) {
+    if (!['S0', 'S1', 'S2', 'S3', 'S4-100-50', 'S4-50-100'].includes(nome)) delete corte.sistemas[nome];
+  }
+  corte.escolha.escolhida = 'S1';
+  corte.contribuicoes = {};
+  assert.deepEqual(montarCongelamento(entradas(corte)).sistemasRodados, ['S0', 'S1', 'S2', 'S3', 'S4-100-50', 'S4-50-100']);
+  const reprovadoComS3 = gradeSintetica({ cenario: 'reprovado' });
+  const e = entradas(reprovadoComS3);
+  assert.throws(() => montarCongelamento(e), /não correspondem ao cenário "reprovado"/);
+});
+
+test('aplicarDesvio recusa regras de avaliação, sha256Grade ou hash do teste-2 alterados', () => {
+  const anterior = { ...montarCongelamento(entradas()), data: '2026-11-15T00:00:00.000Z' };
+  const novo = montarCongelamento({ ...entradas(), commitCodigo: 'e'.repeat(40) });
+  const regras = { ...novo, regrasAvaliacao: { ...novo.regrasAvaliacao, relevancia: 'nota ≥ 3' } };
+  assert.throws(() => aplicarDesvio({ anterior, novo: regras, motivo: 'bug', data: 'x' }), /"regrasAvaliacao" mudou/);
+  const grade = { ...novo, sha256Grade: 'outra-grade' };
+  assert.throws(() => aplicarDesvio({ anterior, novo: grade, motivo: 'bug', data: 'x' }), /"sha256Grade" mudou/);
+  const comparacao = { ...novo, comparacaoPrincipal: { ...novo.comparacaoPrincipal, texto: 'outra' } };
+  assert.throws(() => aplicarDesvio({ anterior, novo: comparacao, motivo: 'bug', data: 'x' }), /"comparacaoPrincipal" mudou/);
+  const teste2 = { ...novo, hashes: { ...novo.hashes, teste2: 'outro' } };
+  assert.throws(() => aplicarDesvio({ anterior, novo: teste2, motivo: 'bug', data: 'x' }), /hash teste2 mudou/);
+});
+
+test('aplicarDesvio aceita hash de treino alterado e o registra no desvio', () => {
+  const anterior = montarCongelamento(entradas());
+  const e = { ...entradas(), commitCodigo: 'e'.repeat(40) };
+  e.hashes = { ...e.hashes, treino: 'h-treino-2' };
+  e.resumo = { hashes: { ...e.resumo.hashes, treinoV2Final: 'h-treino-2' } };
+  const r = aplicarDesvio({ anterior, novo: montarCongelamento(e), motivo: 'bug no treino', data: 'd' });
+  assert.equal(r.hashes.treino, 'h-treino-2');
+  assert.deepEqual(r.desvios, [{
+    commitCodigoAnterior: COMMIT, motivo: 'bug no treino', data: 'd',
+    hashesAlterados: { treino: { anterior: 'h-treino', novo: 'h-treino-2' } },
+  }]);
+});
+
+test('conferirPermissaoCongelar recusa avaliação existente ou já commitada e combinações erradas de --desvio', () => {
+  const git = (hist) => (args) => {
+    assert.deepEqual(args, ['log', '--format=%H', '--', 'resultados/avaliacao-v2.json']);
+    return hist;
+  };
+  const base = { desvio: null, existeCongelamento: false, existeAvaliacao: false, git: git('') };
+  assert.doesNotThrow(() => conferirPermissaoCongelar(base));
+  assert.doesNotThrow(() => conferirPermissaoCongelar({ ...base, desvio: 'bug', existeCongelamento: true }));
+  assert.throws(() => conferirPermissaoCongelar({ ...base, existeAvaliacao: true }), /existe: o gabarito já foi lido/);
+  assert.throws(() => conferirPermissaoCongelar({ ...base, git: git('f'.repeat(40)) }), /já foi commitado/);
+  assert.throws(() => conferirPermissaoCongelar({ ...base, existeCongelamento: true }), /use --desvio/);
+  assert.throws(() => conferirPermissaoCongelar({ ...base, desvio: 'bug' }), /sem congelamento anterior/);
 });
