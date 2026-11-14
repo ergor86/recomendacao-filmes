@@ -2,7 +2,7 @@
 
 Os arquivos desta pasta são gerados pelos scripts e versionados, para que os números citados na documentação possam ser conferidos. JSON não aceita comentários, então a explicação de cada campo fica aqui.
 
-Quase todos foram gerados na **fase `exp`** (validação), ou seja, nos usuários 463 a 943 com 40% das notas de cada um escondidas (semente 42). As exceções são `treino-*-final.json` e `avaliacao-final.json`, da **fase `final`**: treino no `u1.base` inteiro e avaliação no teste oficial (`u1.test`), usado **uma única vez**, em 2026-11-12 (seção [`avaliacao-final.json`](#avaliacao-finaljson)).
+Quase todos foram gerados na **fase `exp`** (validação), ou seja, nos usuários 463 a 943 com 40% das notas de cada um escondidas (semente 42). As exceções são `treino-*-final.json` e `avaliacao-final.json`, da **fase `final`**: treino no `u1.base` inteiro e avaliação no teste oficial (`u1.test`), usado **uma única vez**, em 2026-11-12 (seção [`avaliacao-final.json`](#avaliacao-finaljson)). Os arquivos `*-v2-*.json`, `divisoes-v2.json`, `mde-v2.json`, `configuracao-v2.json` e `avaliacao-v2.json` são do Plano 3, na seção [Plano 3](#plano-3-filtragem-colaborativa-teste-2), no fim deste arquivo.
 
 ## Conceitos usados em todos os arquivos
 
@@ -241,3 +241,141 @@ Da revisão final:
 - **O Exp. 5 é idêntico ao Exp. 4** porque N = 0, pela regra da spec (§9.2) decidida antes do teste. Neste caso, ele não traz informação nova.
 - **`ambas` não é uma contribuição exclusiva:** conta os acertos que as duas fontes trariam. Com N = 0, vale zero.
 - **Scores do Exp. 4 calculados num lote maior:** na avaliação final, a rede pontua de uma vez todos os filmes não vistos de cada usuário, para que os Exp. 4, 5 e 6 usem os mesmos scores. Na validação, ela pontuava só os candidatos. A conta é a mesma, mas lotes de tamanhos diferentes podem mudar o último dígito dos números de ponto flutuante e, em casos raros de empate quase exato, a ordem de dois filmes.
+
+## Plano 3: filtragem colaborativa (teste-2)
+
+Os arquivos abaixo vêm do Plano 3 (spec em `docs/superpowers/specs/2026-11-13-plano3-filtragem-colaborativa-design.md`, v4.3). As fases são `v2-exp` (validação: usuários 463 a 943, com 40% das notas de cada um escondidas) e `v2-final` (treino no `u1.base` sem as notas escondidas dos usuários 1–462). O **teste-2** são os usuários 1 a 462, com 20% das notas escondidas. O `u1.test` e o `u.data` não foram lidos. O resultado da v1 no `u1.test` continua na seção [`avaliacao-final.json`](#avaliacao-finaljson), intocado.
+
+Convenção dos sistemas: `S0` popularidade; `S1` FC sozinha (lista FC150, sem rede); `S2` = (150, 0) com rede (a v1); `S3` = (0, 150) com rede; `S4-<K>-<N>` as demais células da grade (K populares e N da FC, com rede). Nos sistemas com rede, o valor de cada usuário é a média das sementes 1, 2 e 3.
+
+**Usuários avaliados no teste-2:** o teste-2 tem 462 usuários (1–462), mas só 445 entram nas métricas. Os outros 17 não têm nenhuma curtida escondida (nenhuma nota ≥ 4 escondida) e ficam fora de todas as médias; a lista está em `avaliacao-v2.json`, campo `usuarios.semRelevantes`.
+
+### `divisoes-v2.json`
+
+**Gerado por:** `npm run divisoes-v2` (script 14), no Passo 0, antes de qualquer treino. Só agregados do teste-2, nunca ids nem notas.
+
+| Campo | O que significa |
+|---|---|
+| `hashes` | sha256 das divisões: `teste2`, `validacao`, `treinoV2Exp` e `treinoV2Final`. O congelamento confere os mesmos hashes. |
+| `validacao`, `teste2` | Resumo de cada conjunto: `notasDisponiveis`, `notasEscondidas` e `curtidasEscondidas` (média, mediana, p10, p25, p75, p90, **sobre todos os usuários do conjunto, inclusive os sem curtidas**), `semCurtidas` e `avaliaveis`. |
+
+Teste-2: `avaliaveis` 445 e `semCurtidas` 17 (462 usuários); curtidas escondidas com média 7,78 e mediana 5. Validação: `avaliaveis` 478 e `semCurtidas` 3; média 21,68 e mediana 15.
+
+### `mde-v2.json`
+
+**Gerado por:** `npm run mde-v2` (script 15), antes da grade.
+
+O MDE é o menor ganho detectável (poder de 80%, IC de 95%): uma **capacidade de detecção, não uma previsão**. O `σ_d` é estimado na validação com o gabarito subamostrado para imitar o teste-2 (`q` = 0,3590, a razão entre as curtidas escondidas dos dois conjuntos; 20 repetições), com `nt` = 445.
+
+| Par | `sigmaD` | `mde` | Simulação (média; mín–máx) |
+|---|---|---|---|
+| `S0xS1` (sistemas bem diferentes) | 0,1770 | 0,0235 | 0,0233; 0,0208–0,0254 |
+| `S1xHeuristica` (S1 contra a FC150 ordenada por escore × √pop) | 0,1245 | 0,0165 | 0,0167; 0,0151–0,0193 |
+
+Cada par também traz `sigmaPorRepeticao`, `nPorRepeticao` e, por repetição, o IC normal e o IC do bootstrap (`icNormalVsBootstrap`). O arquivo guarda a `frase` obrigatória: a estimativa vem de outro grupo de usuários, o par v2 × v1 não é nenhum dos dois, e a capacidade real no teste-2 pode ser diferente, inclusive menor. O MDE do par efetivamente escolhido (S1 × S2) é só descritivo e está em `grade-v2-exp.json` e em `configuracao-v2.json` (0,0215).
+
+### `portao-fc-v2-exp.json`
+
+**Gerado por:** `npm run portao-v2` (script 18).
+
+O portão da FC como fonte de candidatos: um **filtro de viabilidade, não uma prova**. Foi visto na prévia e não é pré-registrado (`aviso`). Usa a FC do HNSW (`fonteFC`: `hnsw`).
+
+| Campo | Valor | O que significa |
+|---|---|---|
+| `cenario` | `aprovado` | Aprovado: rodam S0 a S4 (as 15 configurações com rede). Reprovado: só S0, S1 e S2. |
+| `composicoes` | | Recall médio dos candidatos para cada lista de 50, 100, 150 e 200 e cada fração de FC (0, 25, 50, 75 e 100%). Com 150: (150, 0) 0,5815; (37, 113) 0,6990; (0, 150) 0,6946. |
+| `criterioA` | passa | Com 150, a melhor mistura supera (150, 0) por mais de 1 erro padrão: diferença 0,1175, erro padrão 0,0083. |
+| `criterioB` | passa | Concentração: tirando os 10% de usuários com mais curtidas escondidas (47), a diferença média de recall de (100, 50) sobre (150, 0) ainda é positiva (0,1084). |
+| `melhorMistura` | `37-113` | A mistura de maior recall entre as de 25, 50 e 75%. |
+| `contribuicaoPuF` | | Relevantes capturados só pelos populares, só pela FC, pelas duas e por nenhuma (agregado: 659, 1.704, 5.212 e 2.855). |
+
+### `deficit-v2-exp.json` e `deficit-v2-final.json`
+
+**Gerados por:** `npm run candidatos-v2` (script 17) para o primeiro, que cobre a validação (943 usuários, fase `v2-exp`), e pela etapa 1 (`npm run etapa1-v2`, script 22) para o segundo, que cobre os usuários 1–462 do teste-2 (fase `v2-final`), sem gabarito.
+
+Quando a FC devolve menos que os N candidatos pedidos, a lista é completada (**preenchimento**) com os próximos populares não vistos. Para cada configuração (K-N):
+
+| Campo | O que significa |
+|---|---|
+| `usuariosDeficitReal` / `vagasReal` | Usuários (e vagas) em que faltaram filmes elegíveis na FC. |
+| `usuariosDeficitRecuperacao` / `vagasRecuperacao` | Havia elegíveis, mas o HNSW não os devolveu. |
+| `usuariosDevKMaiorQueElegK` | Casos em que o HNSW devolve filme cujo escore em float64 arredonda para 0. |
+| `usuariosEmpateNaoResolvido` | Empates no teto da busca que não se resolveram. |
+| `usuariosSemCurtidas` | Usuários sem curtidas no treino (sem perfil FC). |
+| `posicoesPreenchimento` | Quantas posições do top 10 de S1, S3 e da v2 vieram do preenchimento. |
+
+Validação: o único déficit é o de 1 usuário sem curtidas (déficit real); o de recuperação é 0 em todas as configurações. Teste-2: tudo zero, inclusive as posições do top 10 vindas do preenchimento.
+
+### `fidelidade-fc-v2-exp.json` e `fidelidade-fc-v2-final.json`
+
+**Gerados por:** `npm run fidelidade-v2` (script 19) para o `exp` e pela etapa 1 (`npm run etapa1-v2`, script 22) para o `final`. A fidelidade é **separada do ganho de qualidade** e **não entra na escolha** do sistema. Compara o HNSW (a lista oficial) com a busca exata no banco e com a **referência** em float64 em memória. A busca exata tem de igualar a referência, com tolerância τ = 10⁻⁵ (`precisao`).
+
+| Campo | O que significa |
+|---|---|
+| `medidas12` | Para N = 50, 100 e 150, sobre a parte FC da lista (antes do preenchimento): sobreposição média e fração de usuários com lista idêntica, em `hnswXreferencia`, `hnswXexata` (efeito da aproximação) e `exataXreferencia` (efeito da precisão). |
+| `medida3` (só `exp`) | Recall do HNSW e da referência, pareado por usuário. |
+| `medida4` (só `exp`) | NDCG@10 do mesmo ordenador sobre a lista final (com preenchimento) do HNSW e da referência. S1: diferença 0. S3 (3 redes sem retreino): +0,00004, IC [0; 0,0001]. |
+| `top10Identicos` (só `final`) | Usuários com top 10 idêntico (HNSW × referência), em S1 e na v2. |
+| `impacto` (só `final`) | Impacto da aproximação sobre a comparação principal: **zero por construção**, porque o top 10 é idêntico em 462 de 462 usuários e a v1 não usa a FC. |
+| `naoCalculados` (só `final`) | Recall e NDCG de fidelidade não são calculados no teste-2. |
+
+Validação (942 usuários com perfil): listas FC idênticas HNSW × referência em 99,7%, 99,4% e 98,9% (N = 50, 100 e 150). Teste-2 (462 usuários com perfil): 100%, 100% e 99,8% (HNSW × referência) e 100% em HNSW × exata; 1 divergência de precisão aceita. A fidelidade de S3 e S4-50-150 no teste-2 não foi medida (só S1, a v2).
+
+### `grade-v2-exp.json`
+
+**Gerado por:** `npm run grade-v2` (script 20).
+
+A validação: os 17 sistemas (S0, S1, S2, S3 e as 13 células S4), `otimista: true`. O NDCG da escolhida, o ganho dela sobre a v1 e as épocas de parada vêm da mesma validação e **não são estimativas imparciais** (`notaOtimista`).
+
+| Campo | O que significa |
+|---|---|
+| `sistemas` | Para cada sistema: NDCG@10, P@10, R@10, cobertura e popularidade, por semente e agregados, e o histórico do treino. Na validação: S1 0,3721; S3 0,3145; S4-50-150 0,3164; S2 0,3113; S0 0,2316. |
+| `configuracoes` | A grade, com `grupo` (`fixo`: orçamento de 150; `variavel`) e `totalCandidatos`. |
+| `escolha` | A regra de 1 erro padrão com ordem de simplicidade fixa (S1, depois S2, depois os demais). Resultado: `escolhida` = `S1` (a v2), `fragil` = `false`. S1 também é o melhor e o único sistema no grupo de empate. |
+| `epocasPorSistema` | Épocas de parada de cada semente, que o treino final reaproveita. |
+| `contribuicoes` | As comparações da §8.5, todas `descritiva`, com IC; "melhor S4" e o melhor de orçamento fixo trazem `escolhidoDepoisDeVer: true`. Na validação: S1 − S0 +0,1405; S3 − S1 −0,0576; melhor S4 − S3 +0,0019; melhor S4 − S2 +0,0051. |
+| `mdeDescritivo`, `ganhoSobSubamostragem` | MDE de S1 × S2 sob a subamostragem (0,0215) e o ganho da validação recalculado nela (0,0320). Só descritivo. |
+| `posicoesPreenchimento`, `sha256Candidatos`, `sha256FC150` | Posições do preenchimento e hashes das listas. |
+
+### `configuracao-v2.json`
+
+**Gerado por:** `npm run congelar-v2` (script 21), commit `e95b744`. É o **congelamento**, commitado antes da etapa 1.
+
+| Campo | O que significa |
+|---|---|
+| `v2`, `v1` | `S1` e `S2`. |
+| `sistemas`, `sistemasRodados` | Os sistemas avaliados no teste-2 (com as épocas de S2, S3 e S4-50-150 por semente) e os 17 rodados na grade. |
+| `melhores` | O "melhor S4" (`S4-50-150`) e o melhor de orçamento fixo com FC (`S3`), ambos com `escolhidosDepoisDeVer: true`. |
+| `rede` | Arquitetura 64-32, 70 entradas, negativos dos candidatos, lote 256, paciência 3, teto de 50 épocas, sementes 1, 2 e 3 (rede treinada com `@tensorflow/tfjs-node`). |
+| `comparacaoPrincipal` | A comparação confirmatória, por extenso. |
+| `regrasAvaliacao` | Relevância, exclusão de usuários, métricas, agregação das sementes e corte mainstream × nicho, escritos antes do gabarito. |
+| `ressalva` | O texto da §3.4 da spec. |
+| `hashes` | `regua`, `teste2`, `treino` e `vetoresFC` da fase `v2-final`. |
+| `portao`, `mde`, `mdeDescritivo` | Os resultados anteriores, copiados. |
+| `sha256Grade`, `sha256Codigo`, `commitCodigo` | Travas: hash da grade, hash de cada arquivo de `src/avaliacao/` e do script da etapa 2, e o commit do código (`c048537`). |
+| `desvios` | **Vazio**: nenhum desvio depois do congelamento. |
+
+### `previsoes-v2-final.sha256.json`
+
+**Gerado por:** `npm run etapa1-v2` (script 22), commit `65318c4`, **antes** da leitura do gabarito.
+
+Guarda o hash (`sha256`) das previsões do teste-2 (o top 10 de cada sistema, por semente, em `artefatos/previsoes-v2-final.json`, fora do git), o do congelamento (`sha256Configuracao`) e o da lista FC150 (`sha256FC150`). A etapa 2 confere os três antes de ler o gabarito. A etapa 1 não usa o gabarito.
+
+### `avaliacao-v2.json`
+
+**Gerado por:** `npm run etapa2-v2` (script 23), **uma única vez**, commit `86112a6`. Gravado com a flag `wx`: o script se recusa a rodar de novo. É o único arquivo com números do teste-2.
+
+- **Usuários avaliados:** 445 de 462 (ver acima). `usuarios.semRelevantes` lista os 17 que ficaram de fora.
+- **Ressalva:** o campo `ressalva` traz o texto da §3.4, que vale para todo o resultado (está no [README principal](../README.md#comparação-principal-única-hipótese-confirmatória-e-ressalva), ao lado da comparação principal).
+- **Rótulos:** só `comparacaoPrincipal` é `confirmatoria: true`. Tudo em `secundarias` é `rotulo: "descritiva"`, e as três últimas trazem `escolhidoDepoisDeVer: true`. `notaSecundarias` registra que nenhuma é descoberta independente.
+
+| Campo | O que significa |
+|---|---|
+| `comparacaoPrincipal` | S1 (v2) − S2 (v1): média **+0,0294**, IC 95% **[0,0136; 0,0458]**, `suportada` = `true`, 445 usuários, 5.000 reamostragens, semente 2026. A `nota` lembra que ela mede o sistema completo e que só S3 − S1 isola o ordenador. |
+| `secundarias` | S1 − S0 (+0,0600), S3 − S1 (−0,0234), melhor S4 − S2 (+0,0060), melhor S4 − S3 (−0,00002) e melhor de orçamento fixo − S2 (+0,0060), cada uma com IC e erro padrão. |
+| `sistemas` | Para S0, S1, S2, S3 e S4-50-150: NDCG@10, P@10, R@10, cobertura, popularidade média, `ndcgPorUsuario` e, nos com rede, `porSemente` e `minMax`. NDCG@10: 0,0962; 0,1562; 0,1268; 0,1328; 0,1327. |
+| `mainstreamNicho` | Mediana 0,7871; 223 mainstream e 222 nicho; métricas por grupo e por sistema. Descritivo. |
+| `sha256Previsoes`, `sha256Configuracao`, `sha256FC150` | Os hashes conferidos na etapa 2. |
+| `cenario`, `commitCodigo`, `regrasAvaliacao` | Cenário do portão, commit do código congelado e as regras copiadas do congelamento. |
+
+**Limites de leitura:** o teste-2 é uma avaliação retrospectiva (ver a ressalva), vale para um conjunto (MovieLens 100K), uma arquitetura e um protocolo, e o gabarito é incompleto (cerca de 28 notas por usuário no `u1.test` aparecem como "não vistas" e não podem ser medidas). Os números absolutos não são comparáveis aos da validação nem aos do `u1.test`. Os números da validação da escolhida são otimistas.
