@@ -27,6 +27,11 @@ export function avaliarPortao({ recallPorComposicao, curtidasEscondidas }) {
   };
   const base = get('150-0');
   const usuarios = [...base.keys()].sort((a, b) => a - b);
+  for (const [chave, m] of recallPorComposicao) {
+    if (m.size !== usuarios.length || usuarios.some((u) => !m.has(u))) {
+      throw new Error(`avaliarPortao: a composição ${chave} não tem os mesmos usuários de 150-0`);
+    }
+  }
 
   const candidatas = [['112-38', 38], ['75-75', 75], ['37-113', 113]].map(([chave, n]) => ({
     chave, n, recallMedio: media(usuarios.map((u) => get(chave).get(u))),
@@ -40,8 +45,13 @@ export function avaliarPortao({ recallPorComposicao, curtidasEscondidas }) {
   const ordenados = [...usuarios].sort((a, b) => (curtidasEscondidas.get(b) ?? 0) - (curtidasEscondidas.get(a) ?? 0) || a - b);
   const nRetirados = Math.floor(0.1 * ordenados.length);
   const restantes = ordenados.slice(nRetirados);
-  const valor = media(restantes.map((u) => get('100-50').get(u) - base.get(u)));
-  const criterioB = { nRetirados, valor, passa: valor > 0 };
+  const dif = (u) => get('100-50').get(u) - base.get(u);
+  const valor = media(restantes.map(dif));
+  const total = ordenados.reduce((s, u) => s + dif(u), 0);
+  const dosRetirados = ordenados.slice(0, nRetirados).reduce((s, u) => s + dif(u), 0);
+  // Descritivo (§8.1): fração do ganho total vinda dos usuários retirados.
+  const fracaoDoGanhoDosRetirados = total === 0 ? null : dosRetirados / total;
+  const criterioB = { nRetirados, valor, passa: valor > 0, fracaoDoGanhoDosRetirados };
 
   const passa = criterioA.passa && criterioB.passa;
   return { melhorMistura: melhor.chave, criterioA, criterioB, passa, cenario: passa ? 'aprovado' : 'reprovado' };

@@ -45,3 +45,24 @@ test('(b) ignora os usuários com mais curtidas; reprovado quando só (a) passa'
   assert.equal(r.criterioB.passa, false);
   assert.equal(r.cenario, 'reprovado');
 });
+
+test('(b) com 25 usuários retira floor(2,5) = 2', () => {
+  const r = avaliarPortao(montar(25, { '100-50': alt, '112-38': alt, '75-75': alt, '37-113': alt }));
+  assert.equal(r.criterioB.nRetirados, 2);
+  assert.ok(Math.abs(r.criterioB.fracaoDoGanhoDosRetirados - 2 / 25 * (0.11 / 0.11)) < 0.05);
+});
+
+test('(a) com diferença média positiva porém abaixo do EP não passa', () => {
+  // Deltas de sinal alternado e grande, média pequena e positiva.
+  const d = (u) => (u % 2 ? 0.2 : -0.18);
+  const r = avaliarPortao(montar(20, { '100-50': d, '112-38': d, '75-75': d, '37-113': d }));
+  assert.ok(r.criterioA.diferenca > 0);
+  assert.ok(r.criterioA.diferenca < r.criterioA.erroPadrao);
+  assert.equal(r.criterioA.passa, false);
+});
+
+test('composição com usuários diferentes de 150-0 falha alto', () => {
+  const entrada = montar(20, { '100-50': alt, '112-38': alt, '75-75': alt, '37-113': alt });
+  entrada.recallPorComposicao.get('75-75').delete(3);
+  assert.throws(() => avaliarPortao(entrada), /75-75/);
+});

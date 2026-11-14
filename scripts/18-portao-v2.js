@@ -48,7 +48,8 @@ for (const chave of ['150-0', '100-50', '112-38', '75-75', '37-113']) {
 
 const avaliacao = avaliarPortao({ recallPorComposicao, curtidasEscondidas });
 
-// Contribuição sobre P ∪ F (top-150 de cada fonte, FC pura sem preenchimento).
+// Contribuição sobre P ∪ F (top-150 de cada fonte, FC pura sem preenchimento). A contagem em 4 classes
+// não reusa contribuicaoExclusiva, que devolve uma única fração.
 const soma = { soPop: 0, soFC: 0, ambas: 0, nenhuma: 0 };
 const porUsuario = { soPop: [], soFC: [], ambas: [], nenhuma: [] };
 for (const [u, r] of relevantes) {
@@ -89,7 +90,7 @@ const saida = {
   fracaoSoFC_100_50: comSoFC / relevantes.size,
 };
 fs.mkdirSync('resultados', { recursive: true });
-fs.writeFileSync(`resultados/portao-fc-v2-${fase}.json`, jsonEstavel(saida) + '\n');
+fs.writeFileSync('resultados/portao-fc-v2-exp.json', jsonEstavel(saida) + '\n');
 
 console.log(`== Portão da FC (HNSW, ${fase}); usuários: ${relevantes.size} ==`);
 for (const c of composicoes[150]) console.log(`  ${c.k}-${c.n}: recall ${c.recallMedio.toFixed(4)}`);
