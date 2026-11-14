@@ -1,8 +1,8 @@
 # Design: Plano 3 — Filtragem Colaborativa no pgvector
 
-- **Data:** 2026-11-14 (versão 4.2; a v4.0 é de 2026-11-13)
+- **Data:** 2026-11-14 (versão 4.3; a v4.0 é de 2026-11-13)
 - **Base:** [spec v3.2](2026-11-07-recomendacao-filmes-design.md). Tudo o que esta spec não muda continua valendo como lá está, por exemplo as métricas (§9.3), a entrada da rede (§6) e o treino (§7). A v3.2 continua sendo a spec da **versão 1** e da avaliação no `u1.test`.
-- **Status:** rascunho para revisão do usuário. Ela foi desenhada em conversa, parte por parte, com aprovação em cada parte. Também passou por duas rodadas de revisão adversarial por subagentes, com medições nos dados, e por duas revisões externas. A v4.1 incorpora uma terceira revisão externa e as condições do usuário sobre ela, depois de duas rodadas de contestação por subagentes com conferência no código. A v4.2 fecha seis pontos de executabilidade de uma quarta revisão externa, sem mudar o desenho (resumo das mudanças na §15).
+- **Status:** rascunho para revisão do usuário. Ela foi desenhada em conversa, parte por parte, com aprovação em cada parte. Também passou por duas rodadas de revisão adversarial por subagentes, com medições nos dados, e por duas revisões externas. A v4.1 incorpora uma terceira revisão externa e as condições do usuário sobre ela, depois de duas rodadas de contestação por subagentes com conferência no código. A v4.2 fecha seis pontos de executabilidade de uma quarta revisão externa, sem mudar o desenho. A v4.3 incorpora a revisão técnica do plano de implementação, validada por subagentes no código (resumo das mudanças na §15).
 - **Prazo:** segunda-feira, 2026-11-16. O objetivo é a melhor versão **validada** possível, não necessariamente todas as ideias implementadas. A simplificação não pode reduzir a capacidade de responder à pergunta principal nem esconder limitações da implementação.
 
 ## 1. Objetivo e pergunta
@@ -80,18 +80,24 @@ As notas do teste-2 saem **antes** de qualquer cálculo. Há três níveis de ac
   - Em `v2-final`, `alvos` = teste-2 só com `incluirTeste2: true`, usado **apenas** pela etapa 2. Sem a opção, `alvos = null`.
   - `incluirTeste` numa fase v2 é erro, porque leria o `u1.test`. `incluirTeste2` nas fases `exp`/`final` também é erro.
 - **Leitura direta proibida:** só `src/contexto.js`, `src/dados/teste2.js` e o script antigo `scripts/03-eda.js` podem importar `carregarDataset` ou `criarDivisoes`. O `03-eda.js` lê o `u1.test` e **não pode ser executado no Plano 3**.
+- **Os outros caminhos até o gabarito também são fechados:**
+  - `lerAvaliacoes` só é usada em `src/dados/leitura.js` e `src/dados/carregar.js`;
+  - `dividirTeste2` só em `src/dados/teste2.js` e `src/contexto.js`;
+  - além do contexto, só o Passo 0 e o congelamento importam `teste2.js`, e apenas `resumoDivisoesV2`;
+  - a opção `incluirTeste2` só aparece em `src/contexto.js` e no script da etapa 2.
 
 Verificações:
 - **Teste unitário:** nenhuma nota aparece ao mesmo tempo no treino de uma fase e no teste-2. A conferência varre os pares `(usuário, filme)` dos arrays de notas, não o texto do JSON.
 - **Teste unitário:** as chaves do objeto devolvido pelo contexto v2 são exatamente as da lista acima.
 - **Teste unitário de invariância:** acrescentar ao teste-2 uma nota fictícia não muda a régua, a popularidade nem os vetores FC. Com `incluirTeste2`, o treino e a régua continuam iguais aos de sem a opção.
 - **Teste unitário:** a saída de `resumoTeste2` só tem as chaves agregadas permitidas.
-- **Teste estático:** só os três arquivos acima importam `carregarDataset` ou `criarDivisoes`.
+- **Teste estático:** confere, em `src/` e `scripts/`, todas as restrições de importação e de uso da lista acima.
+- **Teste da etapa 2:** com uma conferência que acusa problema, a função que lê o gabarito não é chamada nenhuma vez; sem problema, a ordem das chamadas é conferência → leitura do gabarito.
 - **Hash:** o hash do conjunto teste-2 é gravado no registro do Passo 0 e no congelamento. A avaliação final confere os dois.
 
 ### 3.3 Passo 0: registro antes de qualquer treino
 
-Um script grava `resultados/divisoes-v2.json`, que é commitado antes da grade. O registro é **só descritivo**: tamanhos e contagens agregadas, nenhuma métrica de sistema sobre o teste-2 e nenhuma lista por usuário. Os números do teste-2 vêm de `resumoTeste2`. Ele contém, para a validação e para o teste-2:
+Um script grava `resultados/divisoes-v2.json`, que é commitado antes da grade. O registro é **só descritivo**: tamanhos e contagens agregadas, nenhuma métrica de sistema sobre o teste-2 e nenhuma lista por usuário. Os números do teste-2 vêm de `resumoTeste2`. As estatísticas são calculadas sobre **todos os usuários do conjunto, inclusive os que têm zero curtidas escondidas**: é a população que a subamostragem do MDE imita (§8.3), porque os usuários zerados só saem depois do sorteio. Ele contém, para a validação e para o teste-2:
 - notas disponíveis por usuário e notas escondidas por usuário, com média, mediana e percentis 10, 25, 75 e 90;
 - curtidas escondidas por usuário, com as mesmas estatísticas, e o nº de usuários sem nenhuma;
 - nº de usuários avaliáveis, ou seja, com pelo menos uma curtida escondida (`n_t`, no teste-2);
@@ -239,6 +245,7 @@ Não há mudança na rede: ela é a mesma da v3.2 (§6, §7).
 ### 8.1 Passo 1: portão da FC como fonte de candidatos (filtro de viabilidade)
 
 - **Aviso:** o portão **já foi visto na prévia**, então não é pré-registrado. O texto do resultado diz isso.
+- **Sobre qual FC:** o portão usa o `H_M` do **HNSW** (§6), o mesmo do sistema avaliado. Por isso ele roda depois da carga do banco e da geração dos candidatos da fase `v2-exp`, e antes da grade.
 - **Composições:** para cada tamanho de lista L ∈ {50, 100, 150, 200} e cada fração p de FC ∈ {0; 0,25; 0,5; 0,75; 1}, a composição é (K, N) com `N = Math.round(p · L)` e `K = L − N`, montada pela regra da §6. O `Math.round` do JavaScript arredonda 0,5 para cima. Com L = 150, isso dá:
   - só pop: (150, 0);
   - 25%: (112, 38);
@@ -319,7 +326,7 @@ O MDE é o menor ganho detectável, ou seja, uma **capacidade de detecção, nã
   4. aplicar um ganho δ desloca cada `c_u` para `c_u + δ`. O IC normal de 95% exclui zero pelo lado positivo quando `δ > 1,96 · ep_s − m_s`;
   5. `δ*_r` = quantil 0,80 de `(1,96 · ep_s − m_s)`, ou seja, o menor δ em que 80% dos IC excluem zero.
 
-  O resultado é a média dos `δ*_r`, com mínimo e máximo, comparada ao MDE da fórmula. A simulação usa o IC normal, e não o bootstrap, porque um bootstrap aninhado seria inviável (mais de 10¹⁰ operações) e, para a média de ~430 diferenças, os dois praticamente coincidem. A comparação principal continua usando `bootstrapPareado` (5.000 reamostragens, semente 2026). A prévia mostrou concordância de ±0,001 com a fórmula. Qualquer discrepância é reportada.
+  O resultado é a média dos `δ*_r`, com mínimo e máximo, comparada ao MDE da fórmula. A simulação usa o IC normal, e não o bootstrap, porque um bootstrap aninhado seria inviável (mais de 10¹⁰ operações). Para a média de ~430 diferenças, os dois IC devem ficar próximos, mas isso **é medido, não presumido**: em cada repetição r, `mde-v2.json` grava o IC normal e o IC de `bootstrapPareado` (5.000 reamostragens, semente 2026) das diferenças observadas. As diferenças de NDCG são assimétricas e têm muitos zeros. A comparação principal continua usando `bootstrapPareado`. A prévia mostrou concordância de ±0,001 entre a simulação e a fórmula, não com o teste final. Qualquer discrepância é reportada. **A simulação aproxima, não reproduz, o teste final:** ela usa outros usuários, outro par de sistemas e outro método de IC.
 - **Frase obrigatória:** "se o ganho real for da ordem do observado na validação **sob a mesma subamostragem**, a capacidade de detecção é provavelmente boa, mas não garantida. A estimativa vem de outro grupo de usuários (validação), e o par v2 × v1 não é nenhum dos dois pares de referência. A subamostragem imita só de forma aproximada as curtidas invisíveis do `u1.test` (§13), e a capacidade real no teste-2 pode ser diferente, inclusive menor."
 - **Escala da comparação:** o ganho da validação citado na frase é recalculado com o gabarito subamostrado (as mesmas 20 repetições), porque o ganho com o gabarito completo está em outra escala.
 - **Depois da grade:** o MDE do par efetivamente escolhido (v2 × v1) é calculado e reportado **só como descritivo**, nunca como justificativa do resultado.
@@ -343,7 +350,7 @@ O MDE é o menor ganho detectável, ou seja, uma **capacidade de detecção, nã
 7. **Resultado:** o escolhido é a **v2**.
    - **Se a configuração escolhida for exatamente (150, 0) com a mesma rede:** o Plano 3 não introduziu uma nova versão, e **não há comparação confirmatória**. O resultado é reportado assim.
    - **Qualquer outra configuração**, mesmo próxima na validação, segue para a comparação v2 − v1.
-8. **Maldição do vencedor:** escolher o melhor entre 17 sistemas (S0, S1 e as 15 configurações com rede; 3 se o portão reprovar) deixa a vantagem da v2 na validação **otimista**. A estimativa sem esse viés é a do teste-2. O "melhor S4" também é escolhido depois de ver os resultados.
+8. **Maldição do vencedor:** escolher o melhor entre 17 sistemas (S0, S1 e as 15 configurações com rede; 3 se o portão reprovar) deixa a vantagem da v2 na validação **otimista**. Além disso, a validação também define as épocas de parada das redes. O NDCG da escolhida na validação, e o ganho dela sobre a v1 ali, **não são estimativas imparciais** de desempenho futuro; os JSON os marcam como otimistas. A estimativa sem esse viés é a do teste-2. O "melhor S4" também é escolhido depois de ver os resultados.
 9. **Expectativa registrada antes da grade:** pela prévia, a FC sozinha (NDCG 0,369 na validação) está acima da v1 da v3.2 (~0,326, com um treino ligeiramente diferente). O mais provável é que S1 seja a v2.
 
 ### 8.5 Contribuições (descritivas)
@@ -353,17 +360,20 @@ O MDE é o menor ganho detectável, ou seja, uma **capacidade de detecção, nã
 | A FC ordena melhor que a popularidade? | S1 − S0 | |
 | A rede acrescenta algo à FC? | S3 − S1 | Mesma lista FC150, dois ordenadores. A rede de S3 aprendeu com negativos dessa lista. As posições do top 10 vindas do preenchimento são reportadas ao lado (§6). |
 | A FC melhora os candidatos da rede, com o mesmo orçamento? | melhor de (100, 50), (50, 100) e (0, 150) − (150, 0) | Composição + efeito no treino. "Melhor" é escolhido depois de ver os resultados. |
-| Os populares ajudam junto com a FC? | melhor S4 − S3 | Efeito do híbrido inteiro se os orçamentos diferirem; escolhido depois de ver. |
+| Os populares ajudam junto com a FC? | melhor S4 − S3 | Sempre inclui o efeito nos negativos de treino; também o de orçamento, se os orçamentos diferirem. Escolhido depois de ver. |
 | A FC melhora o sistema da v1? | melhor S4 − S2 | Idem. |
 
 Todas aparecem com IC, mas **rotuladas como descritivas**. Nenhuma é apresentada como descoberta independente, por causa das comparações múltiplas.
+
+**A comparação principal mede o sistema completo.** v2 − v1 inclui, ao mesmo tempo, a mudança dos candidatos, dos negativos de treino, do ordenador, do HNSW e do preenchimento. Ela não atribui o ganho a um componente. Só S3 − S1 isola o ordenador, porque as duas listas são a mesma FC150.
 
 ## 9. Congelamento e avaliação final
 
 ### 9.1 Congelamento
 
 `resultados/configuracao-v2.json` é commitado **antes** da etapa 1. Ele contém:
-- **os sistemas:** a v2 e a v1 (configuração, épocas por semente e `seed_api = 1`), mais as configurações secundárias que serão avaliadas. Entram **só os sistemas efetivamente rodados** no cenário do portão (§8.1), e o cenário fica registrado;
+- **os sistemas:** a v2 e a v1 (configuração, épocas por semente e `seed_api = 1`), mais as configurações secundárias que serão avaliadas. Entram **só os sistemas efetivamente rodados** no cenário do portão (§8.1), e o cenário fica registrado. A v2, as épocas e os sistemas são **lidos de `resultados/grade-v2-exp.json`**, nunca informados à mão, e o congelamento grava o sha256 da grade;
+- **a ressalva histórica** da §3.4, por extenso, que é copiada para o resultado final;
 - **os hashes:** do teste-2, do treino `v2-final`, da régua `v2-final` e dos vetores FC `v2-final`. Estes são calculados no congelamento, sem ler o gabarito (o hash do teste-2 vem de `resumoTeste2`);
 - **os resultados anteriores:** o resultado do portão, os dois MDE de referência e o MDE descritivo de v2 × v1;
 - **a comparação principal, por extenso:** "NDCG@10(v2) − NDCG@10(v1) por usuário, média das 3 sementes por usuário nos sistemas com rede, bootstrap pareado com 5.000 reamostragens e semente 2026; suportada se o IC 95% exclui zero";
@@ -381,9 +391,10 @@ Todas aparecem com IC, mas **rotuladas como descritivas**. Nenhuma é apresentad
 - a árvore de trabalho está limpa;
 - o arquivo de congelamento está versionado (`git ls-files --error-unmatch`) e sem diferença em relação ao HEAD;
 - `commitCodigo` é ancestral do HEAD;
-- `git diff --quiet <commitCodigo> HEAD -- src scripts package.json package-lock.json` não acusa diferença.
+- `git diff --quiet <commitCodigo> HEAD -- src scripts package.json package-lock.json` não acusa diferença;
+- o arquivo de congelamento foi alterado **por exatamente um commit** depois de `commitCodigo` (`git log <commitCodigo>..HEAD -- <arquivo>`). Sem isso, um commit posterior poderia mudar o próprio congelamento, por exemplo trocar qual sistema é a v2, e passar pela trava, que só olha o código.
 
-Assim, depois do congelamento, só commits em `resultados/` são aceitos, como o do hash das previsões entre as etapas 1 e 2. Exigir que o HEAD fosse o commit do congelamento quebraria a etapa 2 por causa desse commit.
+Assim, depois do congelamento, só commits em `resultados/` são aceitos, como o do hash das previsões entre as etapas 1 e 2, e nenhum deles pode alterar o congelamento. Exigir que o HEAD fosse o commit do congelamento quebraria a etapa 2 por causa desse commit. Como segunda trava, a etapa 1 grava o sha256 do congelamento junto com o hash das previsões, e a etapa 2 confere.
 
 **Bug encontrado depois do congelamento:**
 - **Antes da leitura do gabarito:** corrigir, commitar e congelar de novo. O novo arquivo lista os `desvios` (o `commitCodigo` anterior e o motivo). O script recusa se o sistema escolhido, as épocas ou as configurações mudarem. Se o hash das previsões já estava commitado, a etapa 1 é refeita, e o desvio fica no histórico e no README. Como nada do gabarito foi visto, isso não é uma segunda rodada.
@@ -398,13 +409,13 @@ Assim, depois do congelamento, só commits em `resultados/` são aceitos, como o
 5. Gera os candidatos (§6) e calcula o top 10 de todos os sistemas avaliados, para todas as sementes e para os usuários 1–462.
 6. Mede a fidelidade no teste-2 e as contagens de déficit, só com o que dispensa gabarito (§5.3 e §6; descritivo; 1º corte).
 7. Grava as previsões em `artefatos/previsoes-v2-final.json`, fora do git, porque são dados derivados do MovieLens.
-8. Grava o sha256 delas em `resultados/previsoes-v2-final.sha256.json`, que é **commitado antes da etapa 2**. O histórico do git prova que as recomendações existiam antes da leitura do gabarito.
+8. Grava o sha256 delas, o sha256 de `configuracao-v2.json` e o sha256 da FC150 de todos os usuários (a mesma lista entregue a S1 e S3) em `resultados/previsoes-v2-final.sha256.json`, que é **commitado antes da etapa 2**. O histórico do git prova que as recomendações existiam antes da leitura do gabarito.
 
 ### 9.3 Etapa 2: leitura do gabarito
 
 1. **Confere, sem ler o gabarito:**
    - o congelamento (`conferirCongelamento()`) e os seus hashes;
-   - o hash das previsões, contra o arquivo commitado;
+   - o hash das previsões e o sha256 do congelamento, contra o arquivo commitado;
    - os sha256 do código de avaliação, contra os do congelamento;
    - que `resultados/avaliacao-v2.json` ainda não existe.
 
@@ -415,7 +426,7 @@ Assim, depois do congelamento, só commits em `resultados/` são aceitos, como o
    - **nos sistemas com rede:** cada semente separada, além da média;
    - **para todos os sistemas:** o corte mainstream × nicho.
 4. Calcula a comparação principal e as secundárias (§8.5).
-5. Grava `resultados/avaliacao-v2.json` com `flag: 'wx'`, e o arquivo é commitado em seguida.
+5. Grava `resultados/avaliacao-v2.json` com `flag: 'wx'`, com a ressalva histórica do congelamento num campo próprio, e o arquivo é commitado em seguida.
    - A trava contra uma segunda execução é só uma proteção de conveniência: um arquivo pode ser apagado.
    - A proteção real é o histórico do git: congelamento → hash das previsões → resultado.
 
@@ -440,8 +451,9 @@ Assim, depois do congelamento, só commits em `resultados/` são aceitos, como o
 ## 11. Documentação
 
 - **README principal:** ganha a seção "Avaliação retrospectiva do Plano 3 (teste-2)", com:
-  - a ressalva histórica da §3.4, completa;
-  - a comparação principal;
+  - a ressalva histórica da §3.4, completa, **ao lado da comparação principal** (e não só nas limitações), principalmente se o ganho for significativo;
+  - a comparação principal, descrita como ganho do sistema completo (§8.5);
+  - o aviso de que os números da validação da escolhida são otimistas (§8.4, item 8);
   - as contribuições, rotuladas como descritivas;
   - a fidelidade do pgvector, separada, com as contagens de déficit real e de recuperação;
   - a declaração de que o sistema avaliado inclui a aproximação do HNSW e o preenchimento por populares (§1);
@@ -472,10 +484,10 @@ As sementes da v3.2 são:
 
 **Tarefas** (detalhadas no plano):
 1. fases como descritor, contexto v2 isolado (`teste2.js`, lista branca), divisão do teste-2 e registro do Passo 0;
-2. FC em memória (referência), portão e MDE pré-registrado (com a simulação);
+2. FC em memória (referência) e MDE pré-registrado (com a simulação);
 3. banco: schema por fase, `filmes_fc`, carga e `buscarColaborativos`;
-4. fidelidade na validação (medidas 1–3 e medida 4 de S1);
-5. candidatos com composição exata e relatório de déficit, gravados com hash;
+4. candidatos com composição exata e relatório de déficit, gravados com hash; portão sobre o `H_M` do HNSW; fidelidade na validação (medidas 1–3 e medida 4 de S1);
+5. (fundida na 4);
 6. grade, escolha e medida 4 de fidelidade de S3 e da v2;
 7. congelamento (`conferirCongelamento()`);
 8. etapa 1;
@@ -515,6 +527,7 @@ O calendário original previa as tarefas 1–6 no sábado. O atraso é anterior 
 - **Sistema avaliado com aproximação:** a lista oficial é a do HNSW, com preenchimento por populares. A fidelidade e o déficit são reportados à parte (§5.3, §6). No teste-2, o impacto da aproximação sobre o NDCG só é limitado por um teto, não medido.
 - **Dimensão do vetor FC = nº de usuários (943):** cabe no limite do HNSW (2.000), mas não escala para milhares ou milhões de usuários. A evolução arquitetural é usar vetores de dimensão fixa (por exemplo, fatoração de matrizes). Um usuário novo funciona na hora, mas só entra nos vetores dos filmes no próximo recálculo.
 - **Viés de popularidade na FC:** não corrigido (§4.2).
+- **Vetores FC binários (nota ≥ 4):** descartam a intensidade da nota e não distinguem nota baixa de ausência de nota. Alternativas, como centrar as notas por usuário, ficaram fora do prazo.
 - **Índice HNSW num catálogo pequeno:** é demonstrativo (§5.3).
 - **Herdadas da v3.2 (§15):** divisão não temporal, viés de coleta, usuário novo não medido, falsos negativos, parada aproximada e só 3 sementes.
 
@@ -538,9 +551,19 @@ O calendário original previa as tarefas 1–6 no sábado. O atraso é anterior 
 | Abortar quando o HNSW devolve menos que a referência | a avaliação final poderia ficar bloqueada por uma limitação que é parte do sistema implantado; a lista é preenchida e o déficit de recuperação é reportado (§6) |
 | Exigir HEAD = commit do congelamento nas etapas | o commit do hash das previsões, entre as etapas 1 e 2, muda o HEAD; a conferência por `git diff` do código é equivalente e não quebra (§9.1) |
 | Afirmar que as notas invisíveis do `u1.test` jogam contra a v2, ou que preservam o sinal | as duas afirmações dependem de hipóteses não verificáveis; a redação é conservadora (§13) |
-| Bootstrap aninhado na simulação do MDE | mais de 10¹⁰ operações; o IC normal praticamente coincide para a média de ~430 diferenças (§8.3) |
+| Bootstrap aninhado na simulação do MDE | mais de 10¹⁰ operações; usa-se o IC normal, e a diferença para o bootstrap é medida em cada repetição (§8.3) |
+| Portão sobre a FC em memória | o portão decide quais sistemas rodam, então usa o mesmo `H_M` do HNSW que o sistema avaliado (§8.1) |
 
 ## 15. Mudanças
+
+### v4.2 → v4.3 (revisão técnica do plano; desenho inalterado)
+
+1. **Isolamento (§3.2):** fechados os caminhos por `lerAvaliacoes`, `dividirTeste2` e `incluirTeste2`; teste da ordem conferência → gabarito na etapa 2.
+2. **Congelamento (§9.1–§9.3):** sistemas lidos da grade, com sha256 dela; o arquivo de congelamento só pode ter um commit depois de `commitCodigo`; sha256 do congelamento e da FC150 gravados junto com o hash das previsões.
+3. **Portão (§8.1, §12):** usa o `H_M` do HNSW e roda depois da carga e dos candidatos.
+4. **Passo 0 (§3.3):** estatísticas sobre todos os usuários, inclusive os com zero curtidas.
+5. **MDE (§8.3):** a diferença entre IC normal e bootstrap é medida; a simulação aproxima, não reproduz, o teste final.
+6. **Leitura dos resultados (§8.4, §8.5, §11, §13):** números da validação marcados como otimistas (escolha e parada); v2 − v1 descrito como ganho do sistema completo; ressalva histórica ao lado da comparação principal e no JSON final; limitação dos vetores binários.
 
 ### v4.1 → v4.2 (executabilidade; desenho inalterado)
 
