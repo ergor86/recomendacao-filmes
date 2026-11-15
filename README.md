@@ -230,7 +230,7 @@ Mainstream × nicho (descritivo): os usuários são divididos na mediana da popu
 
 O trabalho pertence a uma unidade de Deep Learning e Sistemas de Recomendação, e a rede é parte central dele. Todas as redes foram implementadas, treinadas e avaliadas com **TensorFlow.js** (`@tensorflow/tfjs-node`, em `src/modelo/rede.js`): MLP denso com camadas ocultas ReLU de 64 e 32 neurônios, saída sigmoid, entropia cruzada binária e Adam (taxa 0,001), negativos tirados dos candidatos, lote de 256, parada antecipada com paciência de 3, teto de 50 épocas e sementes 1, 2 e 3. Os parâmetros estão em `configuracao-v2.json` (`rede`).
 
-As **70 entradas** são 24 de demografia, 23 do perfil do usuário (gêneros e épocas curtidos) e 23 do filme (gêneros, época e popularidade). A rede **não recebe o escore FC nem embeddings de usuário ou filme**; o escore FC como entrada ficou fora do escopo (spec §1). Logo, S3 − S1 mede "esta rede de atributos, que não vê o sinal colaborativo, reordenando a FC150". **Não se testou uma rede que receba o sinal colaborativo.**
+As **70 entradas** são 24 de demografia, 23 do perfil do usuário (médias de gêneros, época e popularidade dos filmes curtidos) e 23 do filme (gêneros, época e popularidade). A rede **não recebe o escore FC nem embeddings de usuário ou filme**; o escore FC como entrada ficou fora do escopo (spec §1). Logo, S3 − S1 mede "esta rede de atributos, que não vê o sinal colaborativo, reordenando a FC150". **Não se testou uma rede que receba o sinal colaborativo.**
 
 A rede **não ficou de fora por ausência**: ela é a v1 (S2), o ponto de comparação da hipótese principal, e entra nos sistemas S3 e S4. Na validação, foram treinadas 15 configurações com 3 sementes cada. As três que seguem para o teste-2 (S2, S3 e S4-50-150) usam as épocas escolhidas na validação (S2: 11, 16 e 11; S3: 11, 9 e 15; S4-50-150: 12, 9 e 11, por semente). O resultado negativo é um **resultado descritivo, medido**: neste conjunto, nesta arquitetura e neste protocolo, o ranqueador neural não demonstrou contribuição adicional sobre a FC. Na comparação descritiva, S3 ficou 0,0234 abaixo de S1.
 
@@ -264,7 +264,7 @@ Esta é uma **prática adotada neste projeto, não um padrão acadêmico formalm
 - **Agente controlador:** tomou as decisões operacionais durante a execução (ordem das tarefas, grade sem o corte de orçamento, aceite do import transitivo e outras) e as registrou num diário de execução que **não está no repositório**.
 - O protocolo é travado por git (congelamento, hash das previsões antes do gabarito), com as ressalvas da etapa 2 acima.
 
-Isso é a prática deste projeto, não um padrão acadêmico estabelecido. As revisões por IA **não substituem a revisão humana nem a replicação independente**.
+As revisões por IA **não substituem a revisão humana nem a replicação independente**.
 
 ### Limitações do Plano 3
 
@@ -284,8 +284,8 @@ Isso é a prática deste projeto, não um padrão acadêmico estabelecido. As re
 - **Vetores FC binários (nota ≥ 4):** descartam a intensidade da nota e não distinguem nota baixa de ausência de nota. Alternativas, como centrar as notas por usuário, ficaram fora do prazo.
 - **Índice HNSW num catálogo pequeno:** é demonstrativo.
 - **Isolamento do teste-2 conferido só em imports diretos:** o teste estático de isolamento é textual (regex): confere só os imports diretos, não pega re-export nem `import()` e não varre `tests/`. Não proíbe chamar `criarContexto` com as fases antigas `exp`/`final`, que contêm o teste-2, nem impede leituras por fora. `etapa1.js` e `etapa2.js` não importam `src/banco` nem `src/modelo` diretamente, mas as cadeias transitivas existem: etapa1/etapa2 → `experimentos.js` (import direto) → `modelo/ranqueador.js` → `modelo/rede.js` (TensorFlow.js), e etapa1 → `fidelidade.js` → `experimentos.js`. Banco e rede entram por funções injetadas. A conferência manual não encontrou uso desses caminhos.
-- **`sha256Codigo` e fim de linha:** o hash foi calculado sobre os bytes do working tree no Windows (autocrlf). Num clone com LF, a conferência da etapa 2 pode recusar. É uma recusa falsa, nunca uma aprovação falsa; afeta a reprodução da verificação, não os números.
-- **Grade e `commitCodigo`:** a grade foi gerada em `79f0e59`; o `commitCodigo` (`c048537`) atesta o código no congelamento. Entre os dois houve só refatoração (extração de `vetorDeBusca` e `conferirExataUsuario`), sem mudança de cálculo, e o script 20 não mudou.
+- **`sha256Codigo` e fim de linha:** o hash foi calculado sobre os bytes do working tree. Um dos arquivos cobertos (`src/avaliacao/portao.js`) estava com CRLF no working tree, embora esteja com LF no git (`.gitattributes` `eol=lf`). Num clone novo, esse arquivo sai com LF e a conferência da etapa 2 recusa. É uma recusa falsa, nunca uma aprovação falsa; afeta a reprodução da verificação, não os números.
+- **Grade e `commitCodigo`:** a grade foi gerada em `79f0e59`; o `commitCodigo` (`c048537`) atesta o código no congelamento. No código usado pela grade, houve entre os dois só refatoração (extração de `vetorDeBusca` e `conferirExataUsuario`), sem mudança de cálculo; os demais commits acrescentaram o congelamento e as etapas 1 e 2, que a grade não usa. O script 20 não mudou.
 - **Atalho dos negativos observados:** a limitação herdada do Plano 2 (perfil dos negativos observados como possível atalho) vale também para S2, S3 e S4.
 - **Herdadas do Plano 2:** divisão não temporal, viés de coleta, usuário novo não medido, falsos negativos, parada aproximada e só 3 sementes.
 - **Sem replicação independente:** as revisões por IA não a substituem.
