@@ -233,7 +233,7 @@ Da spec (§15):
 - **Falsos negativos:** os negativos sorteados (principalmente os dos candidatos) podem incluir filmes de que o usuário gostaria. No treino final, os usuários do teste têm um pouco mais de falsos negativos nos candidatos (29,6%) que os de validação (27,7%), então a validação subestima levemente esse efeito.
 - **Parada automática aproximada:** usa o erro em pares amostrados, não o NDCG. As épocas do treino final vêm da validação, e cada época final tem cerca de 31% mais passos de gradiente (ver o README principal).
 - **Só 3 sementes:** a variação entre sementes é estimada com poucas repetições.
-- **Perfil dos negativos observados:** continuam com o perfil completo, enquanto positivos e sorteados usam o perfil sem o filme do positivo. A rede ainda pode usar essa diferença como atalho.
+- **Perfil dos negativos observados:** continuam com o perfil completo, enquanto positivos e sorteados usam o perfil sem o filme do positivo. A rede ainda pode usar essa diferença como atalho. No Plano 3, isso vale também para S2, S3 e S4.
 
 Da revisão final:
 
@@ -301,8 +301,8 @@ Quando a FC devolve menos que os N candidatos pedidos, a lista é completada (**
 | `usuariosDeficitRecuperacao` / `vagasRecuperacao` | Havia elegíveis, mas o HNSW não os devolveu. |
 | `usuariosDevKMaiorQueElegK` | Casos em que o HNSW devolve filme cujo escore em float64 arredonda para 0. |
 | `usuariosEmpateNaoResolvido` | Empates no teto da busca que não se resolveram. |
-| `usuariosSemCurtidas` | Usuários sem curtidas no treino (sem perfil FC). |
-| `posicoesPreenchimento` | Quantas posições do top 10 de S1, S3 e da v2 vieram do preenchimento. |
+| `usuariosSemCurtidas` | Usuários com `nElegiveis` = 0 (sem curtidas ou sem filmes elegíveis). |
+| `posicoesPreenchimento` | Quantas posições do top 10 de S1, S3 e da v2 vieram do preenchimento. Existe em `deficit-v2-final.json` e em `grade-v2-exp.json`, mas **não** em `deficit-v2-exp.json`. |
 
 Validação: o único déficit é o de 1 usuário sem curtidas (déficit real); o de recuperação é 0 em todas as configurações. Teste-2: tudo zero, inclusive as posições do top 10 vindas do preenchimento.
 
@@ -333,7 +333,7 @@ A validação: os 17 sistemas (S0, S1, S2, S3 e as 13 células S4), `otimista: t
 | `configuracoes` | A grade, com `grupo` (`fixo`: orçamento de 150; `variavel`) e `totalCandidatos`. |
 | `escolha` | A regra de 1 erro padrão com ordem de simplicidade fixa (S1, depois S2, depois os demais). Resultado: `escolhida` = `S1` (a v2), `fragil` = `false`. S1 também é o melhor e o único sistema no grupo de empate. |
 | `epocasPorSistema` | Épocas de parada de cada semente, que o treino final reaproveita. |
-| `contribuicoes` | As comparações da §8.5, todas `descritiva`, com IC; "melhor S4" e o melhor de orçamento fixo trazem `escolhidoDepoisDeVer: true`. Na validação: S1 − S0 +0,1405; S3 − S1 −0,0576; melhor S4 − S3 +0,0019; melhor S4 − S2 +0,0051. |
+| `contribuicoes` | As comparações da §8.5, todas `descritiva`, com IC; "melhor S4" e o melhor de orçamento fixo trazem `escolhidoDepoisDeVer: true`. Na validação: S1 − S0 +0,1405; S3 − S1 −0,0576; melhor S4 − S3 +0,0019; melhor S4 − S2 +0,0051; melhor de orçamento fixo − S2 +0,0033. |
 | `mdeDescritivo`, `ganhoSobSubamostragem` | MDE de S1 × S2 sob a subamostragem (0,0215) e o ganho da validação recalculado nela (0,0320). Só descritivo. |
 | `posicoesPreenchimento`, `sha256Candidatos`, `sha256FC150` | Posições do preenchimento e hashes das listas. |
 
@@ -363,7 +363,7 @@ Guarda o hash (`sha256`) das previsões do teste-2 (o top 10 de cada sistema, po
 
 ### `avaliacao-v2.json`
 
-**Gerado por:** `npm run etapa2-v2` (script 23), **uma única vez**, commit `86112a6`. Gravado com a flag `wx`: o script se recusa a rodar de novo. É o único arquivo com números do teste-2.
+**Gerado por:** `npm run etapa2-v2` (script 23), **uma única vez**, commit `86112a6`. Gravado com a flag `wx`: o script se recusa a rodar de novo. É o único arquivo com métricas contra o gabarito do teste-2.
 
 - **Usuários avaliados:** 445 de 462 (ver acima). `usuarios.semRelevantes` lista os 17 que ficaram de fora.
 - **Ressalva:** o campo `ressalva` traz o texto da §3.4, que vale para todo o resultado (está no [README principal](../README.md#comparação-principal-única-hipótese-confirmatória-e-ressalva), ao lado da comparação principal).
@@ -373,7 +373,7 @@ Guarda o hash (`sha256`) das previsões do teste-2 (o top 10 de cada sistema, po
 |---|---|
 | `comparacaoPrincipal` | S1 (v2) − S2 (v1): média **+0,0294**, IC 95% **[0,0136; 0,0458]**, `suportada` = `true`, 445 usuários, 5.000 reamostragens, semente 2026. A `nota` lembra que ela mede o sistema completo e que só S3 − S1 isola o ordenador. |
 | `secundarias` | S1 − S0 (+0,0600), S3 − S1 (−0,0234), melhor S4 − S2 (+0,0060), melhor S4 − S3 (−0,00002) e melhor de orçamento fixo − S2 (+0,0060), cada uma com IC e erro padrão. |
-| `sistemas` | Para S0, S1, S2, S3 e S4-50-150: NDCG@10, P@10, R@10, cobertura, popularidade média, `ndcgPorUsuario` e, nos com rede, `porSemente` e `minMax`. NDCG@10: 0,0962; 0,1562; 0,1268; 0,1328; 0,1327. |
+| `sistemas` | Para S0, S1, S2, S3 e S4-50-150: NDCG@10, P@10, R@10, cobertura, popularidade média, `ndcgPorUsuario` e, nos com rede, `porSemente` e `minMax`. NDCG@10: 0,0962; 0,1562; 0,1268; 0,1328; 0,1327. A cobertura dos sistemas com rede é a média das coberturas por semente, não a cobertura da união das listas. |
 | `mainstreamNicho` | Mediana 0,7871; 223 mainstream e 222 nicho; métricas por grupo e por sistema. Descritivo. |
 | `sha256Previsoes`, `sha256Configuracao`, `sha256FC150` | Os hashes conferidos na etapa 2. |
 | `cenario`, `commitCodigo`, `regrasAvaliacao` | Cenário do portão, commit do código congelado e as regras copiadas do congelamento. |
