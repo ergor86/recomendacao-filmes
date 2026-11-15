@@ -77,3 +77,13 @@ test('conjuntos de usuários diferentes dão erro', () => {
   const D = { ...B, porUsuario: new Map([[1, 0.1], [2, 0.1], [3, 0.1], [9, 0.1]]) };
   assert.throws(() => escolherConfiguracao([A, D]), /usuários/);
 });
+
+test('empate exato (diferenças todas nulas) empata, nas duas ordens de entrada', () => {
+  const valores = [0.2, 0.5, 0.7, 0.1];
+  const S1 = { nome: 'S1', porUsuario: mapa(valores), porSemente: [0.375], simplicidade: [0] };
+  const S2 = { nome: 'S2', porUsuario: mapa(valores), porSemente: [0.375], simplicidade: [1] };
+  assert.equal(escolherConfiguracao([S1, S2]).escolhida, 'S1');
+  const r = escolherConfiguracao([S2, S1]);
+  assert.equal(r.escolhida, 'S1');
+  assert.equal(r.tabela.find((t) => t.nome === 'S1').empata, true);
+});

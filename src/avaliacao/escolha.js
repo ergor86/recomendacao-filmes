@@ -48,6 +48,7 @@ function faixasSeSobrepoem(a, b) {
  * Escolhe a configuração: a de maior média (melhor) define a referência; toda config cuja diferença
  * para a melhor é menor que o erro padrão pareado por usuário "empata"; entre as que empatam
  * (a melhor inclusive) vence a de menor `simplicidade` lexicográfica (se igual, a de maior média).
+ * Diferenças por usuário todas nulas são empate exato (com 0 < 0 falso, só a primeira do array empataria).
  * `fragil` (ruling R10): true quando a faixa [mín, máx] das médias por semente da melhor se sobrepõe
  * à da escolhida (quando são diferentes) ou, se a escolhida é a própria melhor, à de qualquer outra
  * configuração. É só registro: não altera a escolha.
@@ -62,7 +63,7 @@ export function escolherConfiguracao(configs) {
     const difs = [...melhor.porUsuario].map(([u, v]) => v - c.porUsuario.get(u));
     const diferenca = medias.get(melhor.nome) - medias.get(c.nome);
     const erroPadrao = erroPadraoPareado(difs);
-    return { nome: c.nome, media: medias.get(c.nome), diferenca, erroPadrao, empata: diferenca < erroPadrao };
+    return { nome: c.nome, media: medias.get(c.nome), diferenca, erroPadrao, empata: diferenca < erroPadrao || difs.every((d) => d === 0) };
   });
   const empatadas = configs.filter((c) => tabela.find((t) => t.nome === c.nome).empata);
   const escolhida = empatadas.reduce((e, c) => {

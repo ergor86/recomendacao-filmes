@@ -34,7 +34,7 @@ function configurarModo(modo) {
 // Dentro de uma transação aberta: ajusta o ef_search, liga a varredura iterativa em ordem estrita
 // (strict_order: o índice continua buscando quando o filtro remove linhas demais) e aplica o modo.
 // As configurações valem só até o fim da transação, então não afetam outras consultas do pool.
-async function prepararTransacao(client, modo, pedidas) {
+export async function prepararTransacao(client, modo, pedidas) {
   const comandoModo = configurarModo(modo);
   await client.query("SELECT set_config('hnsw.ef_search', $1, true)", [String(efSearchPara(pedidas))]);
   await client.query('SET LOCAL hnsw.iterative_scan = strict_order');
