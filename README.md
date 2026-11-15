@@ -148,7 +148,7 @@ Comandos do Plano 3, na ordem em que rodaram (scripts 14 a 23):
     npm run portao-v2
     npm run fidelidade-v2 -- --fase v2-exp
     npm run grade-v2                                     # grade e escolha (commitar)
-    npm run fidelidade-v2 -- --fase v2-exp --medida4 S3,v2
+    npm run fidelidade-v2 -- --fase v2-exp --medida4 S3  # medida 4 de S3 (a v2 = S1 já foi medida no passo anterior)
     npm run carregar-v2 -- --fase v2-final               # banco da fase final, antes do congelamento
     npm run congelar-v2                                  # configuracao-v2.json (commitar)
     npm run etapa1-v2                                    # previsões e hash, sem gabarito (commitar)
@@ -240,7 +240,7 @@ A rede **não ficou de fora por ausência**: ela é a v1 (S2), o ponto de compar
 
 - **Teste-2 (usuários 1 a 462, sem gabarito):** o top 10 do HNSW é **idêntico** ao da referência exata em float64 em 462 de 462 usuários na v2 (S1). Por isso, o impacto da aproximação sobre a comparação principal é **zero por construção** (a v1 não usa a FC). A busca exata no banco bate com a referência (conferência aprovada), com 1 divergência de precisão float32 × float64, dentro da tolerância τ = 10⁻⁵ (1 usuário). O tipo da divergência não foi registrado; o corte usa `x < τ` sobre escores ≥ 0.
 - **Déficit e preenchimento no teste-2:** nenhum usuário teve déficit real nem de recuperação, e nenhuma posição do top 10 de S1 e de S3 veio do preenchimento (0 posições). Não houve empate sem resolução no HNSW.
-- **Fase v2-exp (943 usuários, 942 com perfil):** a fração de usuários com a mesma lista FC no HNSW e na referência foi de 99,7% (N = 50), 99,4% (N = 100) e 98,9% (N = 150). O NDCG de S1 é idêntico nas duas versões, e o de S3 difere em +0,00004 (IC [0; 0,0001]). O único déficit é o de 1 usuário sem curtidas (déficit real); o déficit de recuperação é 0.
+- **Fase v2-exp (943 usuários, 942 com perfil):** a fração de usuários com a mesma lista FC no HNSW e na referência foi de 99,7% (N = 50), 99,4% (N = 100) e 98,9% (N = 150). O NDCG de S1 é idêntico nas duas versões, e o de S3 difere em +0,00004 (IC [0; 0,0001]). A busca exata no banco teve 7 divergências de precisão aceitas (7 usuários, τ = 10⁻⁵). O único déficit é o de 1 usuário sem curtidas (déficit real); o déficit de recuperação é 0.
 - **Fidelidade de S3 no teste-2:** a parte FC da lista FC150 (`fidelidade-fc-v2-final.json` → `medidas12`, N = 150, 462 usuários) tem listas idênticas em 100% dos usuários em HNSW × exata e em 99,8% (461 de 462) em HNSW × referência, com sobreposição média 1. A lista FC150 praticamente não sofre efeito da aproximação.
 - **Fidelidade não medida:** para S4-50-150, a parte da FC além da posição 150 de H_M não foi medida. O top 10 com rede e o NDCG de fidelidade **não** foram calculados no teste-2 (§5.3 da spec); o impacto da aproximação sobre o NDCG das comparações descritivas não foi medido.
 
