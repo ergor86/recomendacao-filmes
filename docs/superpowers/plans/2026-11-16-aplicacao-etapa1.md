@@ -11,7 +11,7 @@
   - `app`: servidor Fastify que serve a API e o build React, com uma máquina de estados `preparando`/`falhou`/`bloqueado`/`operante`.
 - O servidor importa da raiz, só para leitura, `buscarColaborativos`, `perfilFC`, `vetorDeBusca` e `hashVetoresFC`. A lógica de produto (exclusão, preenchimento, explicações, efeitos) fica em `app/servidor/recomendacao/`.
 
-**Stack:** Node 22 (ESM), Fastify 5, `pg` 8, Postgres 17 + pgvector 0.8.1, React 18.3.1 + Vite 5, Vitest 2 + Testing Library, Playwright (Chromium e WebKit), `node:test`, Docker Compose v2, GitHub Actions.
+**Stack:** Node 22 (ESM), Fastify 5, `pg` 8, Postgres 17 + pgvector 0.8.1, React 18.3.1 + Vite 5, Vitest 2 + Testing Library, Playwright (Chromium e WebKit; `@playwright/test` com versão exata em `app/package.json`), `node:test`, Docker Compose v2, GitHub Actions.
 
 **Spec:** `docs/superpowers/specs/2026-11-16-aplicacao-etapa1-design.md` (v3.1). A spec é a autoridade: este plano a referencia por seção (§) e não repete o que ela já define.
 
@@ -132,7 +132,16 @@ app/
   - `congelamento: resultados idênticos a 6077974`: `git diff --exit-code <COMMIT_PESQUISA> -- :/resultados :/docker-compose.yml :/.env.example` sai com 0;
   - `integridade: HASHES iguais aos de 6077974`: `JSON.parse(git show <COMMIT_PESQUISA>:resultados/configuracao-v2.json).hashes` tem `regua`, `treino` e `vetoresFC` iguais a `HASHES`;
   - `integridade: RESULTADO_PLANO3 igual a 6077974`: cada campo de `RESULTADO_PLANO3` (menos `v1`/`v2`, conferidos contra `v1`/`v2` do JSON) é igual ao de `git show …:resultados/avaliacao-v2.json` → `comparacaoPrincipal`;
-  - `congelamento: rodar de dentro de app/ não muda o resultado`: o mesmo diff executado com `cwd = app/` também sai com 0, e um caminho inexistente (`:/src-inexistente`) é rejeitado.
+  - `congelamento: rodar de dentro de app/ não muda o resultado`: o mesmo diff, executado com `cwd = app/`, também sai com 0;
+  - `congelamento: os caminhos protegidos existem no commit de referência`: `git cat-file -e <COMMIT_CODIGO>:src`, `:scripts`, `:package.json` e `:package-lock.json`, e `git cat-file -e <COMMIT_PESQUISA>:resultados/configuracao-v2.json` e `:resultados/avaliacao-v2.json`, saem com 0. Esse teste existe porque o `git diff` sai com 0 também para um pathspec **inexistente**, o que foi verificado neste repositório, e por isso o diff sozinho não prova que algo foi conferido. Ele confere também que `git cat-file -e <COMMIT_CODIGO>:src-inexistente` sai diferente de 0, mostrando que a verificação distingue os dois casos;
+  - `congelamento: a função de conferência detecta uma modificação`: a conferência fica numa função `conferirCongelamento(raiz, commit, caminhos) → { ok, alterados: string[] }`, em `app/testes/apoio-congelamento.js`, que é a que os testes acima usam. Num **repositório temporário** criado pelo teste em `os.tmpdir()`:
+    1. `git init`, um arquivo `src/protegido.js` e um commit `base`;
+    2. a função contra `base` dá `ok: true`;
+    3. depois de modificar `src/protegido.js` sem commitar, ela dá `ok: false` com `alterados = ['src/protegido.js']`;
+    4. depois de commitar a modificação, continua `ok: false`;
+    5. um pathspec inexistente em `base` lança erro (a função chama `git cat-file -e` antes do diff).
+
+    Os arquivos congelados reais nunca são modificados.
 
   Em `app/testes/isolamento.test.js`, as regras da §10.1, usando `es-module-lexer` para coletar `import`, `export … from` e `import()`, e uma busca textual de `require(` e `createRequire`:
   - `isolamento: sem import() dinâmico não literal`;
@@ -698,7 +707,7 @@ app/
   - `mkdir` e `chown` antes de `USER node`;
   - `COPY` explícitos.
 - Playwright:
-  - `baseURL: http://127.0.0.1:${APP_PORTA}`;
+  - `baseURL: process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${APP_PORTA}``;
   - projetos `chromium` e `webkit`, com `reducedMotion: 'reduce'`;
   - `outputDir` e o relatório em pastas ignoradas.
 - O `capturas.spec.js` gera 5 PNGs em `app/docs/capturas/` (Perfis, Onboarding, Top 10, Detalhe, Sobre) com o "Perfil de exemplo". Só tem cartazes gerados, então pode ser versionado.
@@ -706,10 +715,18 @@ app/
   - `testes` (Linux): `npm test` e `test:web`, `npm run test:integracao` contra um `db` do Compose, e `equivalencia` com o ML-100K baixado e guardado em cache pelo sha256;
   - `congelamento`: `fetch-depth: 0` e os diffs da Tarefa 1, rodados da raiz **e** de `app/`;
   - `instalacao-limpa`: os passos da §13, critério 1, com `APP_PORTA=3317`, sobre o commit do próprio CI (o checkout já é uma revisão commitada), mais as verificações de que `docker compose config` não publica a 5432, de que a imagem não tem `.env`, `app/.env`, `.git` nem `resultados/`, de que a senha não aparece em `docker compose logs`, e de que o retrato de `git status --porcelain` depois da suíte é igual ao de antes (critério (a));
-  - `multiplataforma`: Windows, macOS e Linux, com `npm ci --ignore-scripts` na raiz e em `app/`, mais `node --test app/testes/determinismo/hashes.test.js`;
+  - `multiplataforma`: matriz `ubuntu-latest`, `windows-latest` e `macos-latest`, com Node 22 (`actions/setup-node`), `shell: bash` em todos os passos (o Git Bash no Windows), e estes passos:
+    1. `npm ci --ignore-scripts` na raiz e em `app/`;
+    2. **obtenção dos dados**: um cache (`actions/cache`) com chave igual à concatenação dos 5 sha256 de `SHA256_ARQUIVOS`. Sem cache, `node app/testes/determinismo/obter-dados.js "$RUNNER_TEMP/ml100k"` baixa o zip oficial, extrai **só** os 5 arquivos (reutilizando `obterArquivosML` da Tarefa 4) e confere o sha256 de cada um, saindo com erro se algum divergir;
+    3. `echo "ML100K_DIR=$RUNNER_TEMP/ml100k/ml-100k" >> "$GITHUB_ENV"`;
+    4. `APP_EXIGIR_DADOS=1 node --test --test-reporter=spec app/testes/determinismo/hashes.test.js`. Com `APP_EXIGIR_DADOS=1`, a ausência de `ML100K_DIR` ou de algum dos 5 arquivos **falha** o teste em vez de ignorá-lo. O CI sempre define essa variável; o skip só acontece localmente, quando a variável não está definida;
+    5. o teste escreve no `t.diagnostic` e num arquivo `hashes-<os>.json`, com a plataforma, a versão do Node e os três hashes **calculados**. O arquivo é publicado como artefato do job (`actions/upload-artifact`), como prova de que os hashes foram efetivamente calculados em cada plataforma. Um passo final compara os três artefatos entre si e com `HASHES`.
   - `imagem-arm64`: `docker/setup-qemu-action` e `docker/setup-buildx-action` (que cria um builder `docker-container`, necessário para várias plataformas) e, **a partir da raiz do repositório**, o comando padronizado `docker buildx build --platform linux/amd64,linux/arm64 -f app/Dockerfile .`, sem `--push` e sem `--load`. O resultado fica só no cache do builder. É o mesmo comando do Passo 5 local.
 
-- [ ] **Passo 1: escrever o teste de determinismo.** Em `hashes.test.js`, ignorado sem `ML100K_DIR`, confere o sha256 dos 5 arquivos e `regua.hash`, `hashAvaliacoes(treino)` e `hashVetoresFC(construirFC(treino, 943))` iguais a `HASHES`.
+- [ ] **Passo 1: escrever o teste de determinismo e o script de obtenção dos dados.**
+  - Em `hashes.test.js`: sem `ML100K_DIR`, o teste é ignorado, **exceto** com `APP_EXIGIR_DADOS=1`, quando falha com "ML100K_DIR ausente: o CI precisa baixar os dados". Com os dados, confere o sha256 dos 5 arquivos e `regua.hash`, `hashAvaliacoes(treino)` e `hashVetoresFC(construirFC(treino, 943))` iguais a `HASHES`, e grava os valores calculados em `t.diagnostic` e em `hashes-<process.platform>.json`, numa pasta ignorada.
+  - Em `app/testes/determinismo/obter-dados.js <destino>`: um script que chama `obterArquivosML({ destino })`.
+  - Um teste de unidade confere que `APP_EXIGIR_DADOS=1` sem `ML100K_DIR` faz o teste de hashes falhar (subprocesso com código de saída diferente de 0) e que, sem a variável, ele é ignorado.
 - [ ] **Passo 2: escrever `fluxo.spec.js`.** Ele cobre o fluxo principal da §12 (linha "Ponta a ponta") passo a passo, incluindo:
   - "sem nenhum clique a lista volta a ter 10";
   - "duas notas seguidas";
@@ -727,9 +744,10 @@ app/
 - [ ] **Passo 7: verificação local da instalação limpa, sobre a revisão commitada.**
   1. Anotar `REV=$(git rev-parse HEAD)`.
   2. Rodar `git clone --no-local --branch app-etapa1 <raiz> <pasta temporária fora do repositório>` e conferir que `git -C <clone> rev-parse HEAD` é igual a `$REV` e que o clone não tem `data/`, `artefatos/`, `.env` nem `node_modules/`.
-  3. No clone, rodar `cd app && APP_PORTA=3318 docker compose -p recomendacao-app-clone up -d --build`, esperar `operante` e rodar `APP_PORTA=3318 npx playwright test fluxo --project=chromium`.
-  4. Rodar `docker compose -p recomendacao-app-clone down -v` e apagar o clone.
-  5. Anotar no relatório o `$REV` e o tempo da primeira preparação.
+  3. No clone, rodar só o que a pessoa usuária roda, Git e Docker: `cd app && APP_PORTA=3318 docker compose -p recomendacao-app-clone up -d --build`. Depois, esperar `operante`.
+  4. **Os testes rodam a partir do repositório de desenvolvimento, não do clone.** Rodar `cd <raiz>/app && npm ci && npx playwright install chromium && PLAYWRIGHT_BASE_URL=http://127.0.0.1:3318 npx playwright test fluxo --project=chromium`. A versão do Playwright é a fixada em `app/package-lock.json` (`@playwright/test` com versão exata, sem `^`), e o `playwright.config.js` usa `PLAYWRIGHT_BASE_URL` quando definido. O clone nunca recebe `node_modules` nem navegadores: um passo confere que, depois do teste, o clone continua sem `node_modules/`. No CI, o job `instalacao-limpa` faz o mesmo: a imagem e o Compose vêm do checkout, e o Playwright vem de um passo separado, com `npm ci` em `app/` e `npx playwright install --with-deps chromium webkit`, com cache da pasta de navegadores pela versão do `@playwright/test`.
+  5. Rodar `docker compose -p recomendacao-app-clone down -v` e apagar o clone.
+  6. Anotar no relatório o `$REV` e o tempo da primeira preparação.
 - [ ] **Passo 8: se o Passo 7 falhar,** corrigir no repositório, fazer um **novo commit**, sem `--amend`, e repetir o Passo 7 com o novo `$REV`. Nada vai para o remoto: o `push` continua proibido.
 
 ---
