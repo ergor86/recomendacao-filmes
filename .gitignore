@@ -6,3 +6,10 @@ modelos/
 artefatos/
 *.log
 .superpowers/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+coverage/
+*.tsbuildinfo
+app/compose.dev.override.yml
