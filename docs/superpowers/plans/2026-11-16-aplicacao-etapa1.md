@@ -29,7 +29,10 @@
 - **S1:** `M = 300`, `N_FC = 150`, `K = 10` e `MODO = 'hnsw'` existem **só** em `app/servidor/recomendacao/s1.js`.
 - **Isolamento:** só são importados da raiz os módulos que a §10.1 permite, com as exceções de teste da §10.3.
 - **Comandos git de conferência:** sempre com `git -C "$(git rev-parse --show-toplevel)"` e pathspecs `:/…`.
-- **Testes:** gravam saídas só em pastas ignoradas (§8). Ao fim de toda suíte, `git status --porcelain` fica vazio.
+- **Árvore git:** dois critérios distintos, que nunca se confundem:
+  - **(a) Sem resíduos dos testes:** as suítes gravam saídas só em pastas ignoradas (§8). Os testes que conferem isso comparam o `git status --porcelain` **antes e depois** da execução (um retrato) e falham só se aparecer uma entrada nova criada pelo próprio teste. O trabalho ainda não commitado da tarefa nunca faz um teste falhar.
+  - **(b) Árvore limpa depois do commit:** ao fim de cada tarefa, depois do commit, `git status --porcelain` está vazio. Isso é um passo de verificação da tarefa, não um teste automatizado.
+- **Congelamento:** a conferência compara a **árvore de trabalho** com o commit congelado (`git diff --exit-code <commit> -- :/src …`, sem `HEAD`). Isso pega alterações commitadas e não commitadas nos caminhos congelados e ignora os arquivos novos da tarefa em `app/`.
 - **Idioma:** textos da interface em português (`lang="pt-BR"`), com os títulos dos filmes em `lang="en"`. Os textos fixos (avisos, motivos, frases do `AvisoAcao`) são **copiados literalmente** da spec §7.
 - **Rede:** nenhuma requisição externa em tempo de execução. A CSP é a da §7, exatamente.
 - **Sem TMDB:** nenhum adaptador TMDB, nenhum código dele e nenhuma variável dele (§11.2).
@@ -125,8 +128,8 @@ app/
 
 - [ ] **Passo 1: criar a tag local da pesquisa.** Rodar `git tag pesquisa-plano3-final 6077974fb015c31c870eb5c4995a3a6f45682ca7`. Sem push.
 - [ ] **Passo 2: escrever os testes que falham.** Em `app/testes/congelamento.test.js`:
-  - `congelamento: código da pesquisa idêntico a c048537`: `git -C <raiz> diff --exit-code <COMMIT_CODIGO> HEAD -- :/src :/scripts :/package.json :/package-lock.json` sai com 0;
-  - `congelamento: resultados idênticos a 6077974`: `git diff --exit-code <COMMIT_PESQUISA> HEAD -- :/resultados` sai com 0;
+  - `congelamento: código da pesquisa idêntico a c048537`: `git -C <raiz> diff --exit-code <COMMIT_CODIGO> -- :/src :/scripts :/package.json :/package-lock.json` sai com 0, comparando a árvore de trabalho com o commit;
+  - `congelamento: resultados idênticos a 6077974`: `git diff --exit-code <COMMIT_PESQUISA> -- :/resultados :/docker-compose.yml :/.env.example` sai com 0;
   - `integridade: HASHES iguais aos de 6077974`: `JSON.parse(git show <COMMIT_PESQUISA>:resultados/configuracao-v2.json).hashes` tem `regua`, `treino` e `vetoresFC` iguais a `HASHES`;
   - `integridade: RESULTADO_PLANO3 igual a 6077974`: cada campo de `RESULTADO_PLANO3` (menos `v1`/`v2`, conferidos contra `v1`/`v2` do JSON) é igual ao de `git show …:resultados/avaliacao-v2.json` → `comparacaoPrincipal`;
   - `congelamento: rodar de dentro de app/ não muda o resultado`: o mesmo diff executado com `cwd = app/` também sai com 0, e um caminho inexistente (`:/src-inexistente`) é rejeitado.
@@ -135,12 +138,14 @@ app/
   - `isolamento: sem import() dinâmico não literal`;
   - `isolamento: sem createRequire`;
   - `isolamento: imports da raiz só os permitidos`, com a lista permitida por pasta (`app/servidor/`, `app/preparar/`, `app/testes/referencia/`, `app/testes/determinismo/`) exatamente como na §10.1 e na §10.3;
-  - `isolamento: strings proibidas ausentes`: `incluirTeste`, `u1.test`, `u.data`, `.test'`, `ua.` e `ub.` não aparecem em nenhum `.js`/`.jsx` de `app/` (menos `node_modules`, `dist` e o próprio teste);
+  - `isolamento: strings proibidas ausentes no código de produção`: `incluirTeste`, `u1.test`, `u.data`, `.test'`, `ua.` e `ub.` não aparecem em `app/servidor/`, `app/preparar/`, `app/comum/` nem em `app/web/src/` (exceto `*.test.jsx`);
+  - `isolamento: nos testes, nomes proibidos só no fixture declarado`: em `app/testes/` e nos `*.test.jsx`, `incluirTeste` não aparece em lugar nenhum. Os nomes de arquivos proibidos (`u1.test`, `u.data`, `u2.test`…`u5.test`, `ua.test`, `ub.test`) só podem aparecer em `app/testes/fixtures/nomes-proibidos.js`, que exporta `NOMES_PROIBIDOS: string[]` para os testes que montam zips **sintéticos**. A regra de imports proibidos vale para os testes como para a produção, com as exceções nomeadas da §10.3;
+  - `isolamento: o fixture não lê arquivos`: `nomes-proibidos.js` não importa nada e só exporta a lista;
   - `isolamento: recomendacao não importa midia`.
 - [ ] **Passo 3: rodar e ver falhar.** Rodar `cd app && npm test`. O esperado é falhar porque `integridade.js` não existe.
 - [ ] **Passo 4: implementar** `app/package.json` (com a dependência `es-module-lexer`), `app/integridade.js`, o `.dockerignore` e o `.gitignore`. Rodar `npm install` em `app/` para gerar o lockfile.
-- [ ] **Passo 5: rodar e ver passar.** Rodar `cd app && npm test`. O esperado é PASS. Depois, `git status --porcelain` deve listar só os arquivos novos.
-- [ ] **Passo 6: commit** com a mensagem `feat(app): esqueleto, constantes de integridade e travas de congelamento e isolamento`.
+- [ ] **Passo 5: rodar e ver passar.** Rodar `cd app && npm test`. O esperado é PASS.
+- [ ] **Passo 6: commit** com a mensagem `feat(app): esqueleto, constantes de integridade e travas de congelamento e isolamento`. Depois, `git status --porcelain` tem de sair vazio (critério (b)).
 
 ---
 
@@ -194,7 +199,7 @@ app/
 - `001_inicial.sql`: todas as tabelas da §5.1 com `CREATE … IF NOT EXISTS`, `CREATE EXTENSION IF NOT EXISTS pgcrypto` (para `gen_random_uuid`) e `app.migracao`.
 - `aplicarMigracoes(client) → number[]`: as versões aplicadas, em `app/preparar/papeis.js`.
 - `aplicarPapeis(client, { senhas, superusuario })`, conforme a §4.2, passo 5, e a §5.2:
-  - `CREATE ROLE … LOGIN` se não existir, e `ALTER ROLE … PASSWORD` com `client.escapeLiteral`, depois de `SET LOCAL log_statement = 'none'` e `SET LOCAL log_min_error_statement = 'panic'`;
+  - `CREATE ROLE … LOGIN` se não existir, e `ALTER ROLE … PASSWORD` com o literal montado por **`pg.escapeLiteral`**, a função exportada pelo módulo `pg` (`import pg from 'pg'`). Ela foi conferida em `pg` 8.23.1, e `app/package.json` exige `"pg": "^8.23.1"`. O comando roda depois de `SET LOCAL log_statement = 'none'` e `SET LOCAL log_min_error_statement = 'panic'`;
   - os GRANTs da §5.2 e `ALTER DEFAULT PRIVILEGES FOR ROLE <superusuario> IN SCHEMA v2_final GRANT SELECT ON TABLES TO app_leitura` (e o mesmo em `app`);
   - os nomes dos papéis são as constantes `'app_leitura'` e `'app_escrita'`.
 - `apoio.js`:
@@ -209,7 +214,9 @@ app/
   - `app_leitura não escreve em app`;
   - `app_leitura: current_schema() = v2_final com search_path=v2_final,public`;
   - `GRANT sobrevive a DROP/CREATE`: depois de `DROP TABLE v2_final.filmes_fc; CREATE TABLE v2_final.filmes_fc(id int)` como superusuário, `app_leitura` ainda faz `SELECT`;
-  - `senha não vai ao log`: `ALTER ROLE` com uma senha conhecida e depois `docker compose logs db` sem essa senha. Esse caso é ignorado se `docker` não estiver disponível; o CI da Tarefa 16 o roda.
+  - `senha com caracteres especiais funciona`: com a senha `` a'b\c"d$1 ;--é `x` ``, `aplicarPapeis` cria o papel, e um `poolComo('app_leitura', senha)` conecta e faz `SELECT 1`. Rodar de novo com outra senha especial faz a antiga ser recusada (`28P01`) e a nova aceita;
+  - `pg.escapeLiteral existe`: `typeof pg.escapeLiteral === 'function'`;
+  - `senha não vai ao log`: `ALTER ROLE` com as duas senhas especiais acima, mais uma execução forçada a falhar (papel inexistente num `ALTER ROLE` direto, dentro do mesmo esquema de `SET LOCAL`), e depois `docker compose logs db` sem nenhuma das senhas. Esse caso é ignorado se `docker` não estiver disponível; o CI da Tarefa 16 o roda.
 - [ ] **Passo 2:** subir o banco de desenvolvimento e rodar `npm run test:integracao -- testes/integracao/papeis.test.js`. Esperado: FAIL.
 - [ ] **Passo 3: implementar** a migração, `aplicarMigracoes`, `aplicarPapeis` e `apoio.js`.
 - [ ] **Passo 4:** rodar e ver PASS. Rodar também `npm test`, que deve continuar PASS.
@@ -233,8 +240,8 @@ app/
   - sem rede: causa "Não consegui baixar o MovieLens 100K (sem internet ou servidor fora do ar).", comando `docker compose -f compose.yml -f compose.local-zip.yml run --rm preparar`;
   - sha256 divergente: causa "O arquivo <nome> baixado não confere com o usado na pesquisa." e o mesmo comando.
 
-- [ ] **Passo 1: escrever os testes que falham.** Os zips sintéticos são montados com `adm-zip` no próprio teste, e um `baixar` falso é injetado:
-  - `extrai só os 5 arquivos`: um zip com `ml-100k/u1.test` e `ml-100k/u.data` resulta numa pasta **sem** esses dois. O teste usa os sha256 de um conjunto sintético por injeção `{ sha256Esperado }`, um parâmetro opcional só para teste;
+- [ ] **Passo 1: escrever os testes que falham.** Os zips sintéticos são montados com `adm-zip` no próprio teste, com conteúdo inventado, e um `baixar` falso é injetado. Os nomes proibidos vêm **só** de `NOMES_PROIBIDOS`, de `app/testes/fixtures/nomes-proibidos.js` (Tarefa 1):
+  - `extrai só os 5 arquivos`: um zip com todos os `NOMES_PROIBIDOS` sob `ml-100k/` resulta numa pasta **sem** nenhum deles. O teste usa os sha256 de um conjunto sintético por injeção `{ sha256Esperado }`, um parâmetro opcional só para teste;
   - `sha256 divergente → ErroPreparacao` e a pasta final não existe;
   - `sem rede → ErroPreparacao com causa em português e o comando do zip local` (foco de revisão 5);
   - `existente → não chama baixar`;
@@ -265,7 +272,7 @@ app/
 
 - [ ] **Passo 1: escrever os testes que falham.** Usam `garantirBancoTeste()` e `copiarArquivosML`, e rodam `rodarScript16` uma vez no `before` do arquivo:
   - `script 16 grava os hashes congelados`: `v2_final.metadados` tem `HASHES.regua` e `HASHES.treino`;
-  - `script 16 não escreve na árvore`: depois dele, `git status --porcelain` na raiz continua igual, e `artefatos/regua-v2-final.json` aparece em `dirTrabalho`;
+  - `script 16 não escreve na árvore`: o retrato de `git status --porcelain` da raiz tirado antes é igual ao tirado depois (critério (a)), e `artefatos/regua-v2-final.json` aparece em `dirTrabalho`;
   - `fc reconstruído confere`: `conferirVetores(await carregarFcDoBanco(pool)).ok === true`;
   - `valor adulterado é detectado`: depois de um `UPDATE` de um componente não nulo de um vetor (via `v[1] = …`) numa transação revertida no fim do teste, a causa é `"valores dos vetores"`;
   - `impressaoDigital muda com DROP/CREATE`: os OIDs são diferentes depois de rodar o script 16 de novo.
@@ -289,7 +296,10 @@ app/
   - grava `app.estatistica_historica` a partir de `ctx.regua.contagens` e de somas sobre `ctx.treino`;
   - grava `app.filme_gemeo` nos dois sentidos;
   - faz as conferências da §4.2, passo 6, e lança erro se alguma falhar;
-  - é idempotente (`TRUNCATE` e reinserção na mesma transação).
+  - **é idempotente sem apagar nada que os usuários usam.** É proibido `TRUNCATE` (com ou sem `CASCADE`) e `DELETE` em `app.filme`, `app.estatistica_historica`, `app.perfil` e `app.interacao`. Assim:
+    - `app.filme` e `app.estatistica_historica` são gravadas por `INSERT … ON CONFLICT (id) DO UPDATE SET <todas as colunas>`. O conjunto de ids é sempre 1..1682, e um id em `app.filme` fora de `ctx.dataset.filmes` faz a função lançar erro sem alterar nada;
+    - `app.filme_gemeo`, que nenhuma tabela de usuário referencia, é reescrita por `DELETE FROM app.filme_gemeo` seguido de `INSERT`;
+    - tudo roda na transação dos passos 5 a 7 (§4.2), e as tabelas `app.perfil` e `app.interacao` nunca aparecem no SQL deste módulo.
 
 - [ ] **Passo 1: escrever os testes que falham:**
   - `1682 filmes e 1682 estatísticas`;
@@ -299,7 +309,9 @@ app/
   - `tem_vetor em exatamente 1385`;
   - `visivel = false exatamente em OCULTOS` (são 20: o 267, os 18 maiores e o 1504);
   - `gêmeos simétricos (38 linhas)`;
-  - `idempotente`.
+  - `idempotente`: rodar duas vezes dá as mesmas linhas;
+  - `não toca dados de usuários`: inserir por SQL um perfil e 5 interações (incluindo uma nota num filme e um "gostei"), rodar `preencherReferencia` de novo e conferir que `app.perfil` e `app.interacao` ficam **idênticas** (comparação linha a linha, incluindo `atualizado_em`);
+  - `sem TRUNCATE nem DELETE proibido`: um teste estático lê `app/preparar/referencia.js` e confere que não contém `TRUNCATE` nem `DELETE FROM app.(filme|estatistica_historica|perfil|interacao)`.
 - [ ] **Passo 2:** rodar e ver FAIL.
 - [ ] **Passo 3: implementar.**
 - [ ] **Passo 4:** rodar e ver PASS.
@@ -330,7 +342,15 @@ app/
   - `preparação interrompida não passa como pronta`: depois de forçar uma exceção logo antes do selo (por um gancho injetado `antesDoSelo`), o selo está ausente, o estado é `falhou`, e a preparação seguinte refaz até o selo;
   - `duas preparações simultâneas`: a segunda lança "outra preparação em andamento";
   - `recusa o banco da pesquisa`: com `pg.port = 5433` lança o erro de recusa sem conectar;
-  - `linha Pronto usa a porta`: com `porta: 3317`, o log contém `http://localhost:3317`.
+  - `linha Pronto usa a porta`: com `porta: 3317`, o log contém `http://localhost:3317`;
+  - **`nova preparação preserva os dados dos usuários` (obrigatório):**
+    1. preparar;
+    2. criar por SQL 2 perfis com notas, "gostei" e "quero assistir";
+    3. guardar um retrato de `app.perfil` e `app.interacao` e das estatísticas locais (`COUNT`/`AVG` por filme das notas que não são de perfis de exemplo);
+    4. apagar o selo `app.preparacao`, para forçar o passo 6 a rodar de novo, e rodar `prepararTudo`;
+    5. conferir que os retratos são idênticos.
+
+    O mesmo vale depois de forçar o **script 16** de novo (o selo é apagado e os hashes de `v2_final.metadados` são invalidados antes da preparação).
 - [ ] **Passo 2:** rodar e ver FAIL.
 - [ ] **Passo 3: implementar.**
 - [ ] **Passo 4:** rodar e ver PASS, e `npm test` também PASS.
@@ -685,9 +705,9 @@ app/
 - O workflow `app.yml` tem os jobs:
   - `testes` (Linux): `npm test` e `test:web`, `npm run test:integracao` contra um `db` do Compose, e `equivalencia` com o ML-100K baixado e guardado em cache pelo sha256;
   - `congelamento`: `fetch-depth: 0` e os diffs da Tarefa 1, rodados da raiz **e** de `app/`;
-  - `instalacao-limpa`: os passos da §13, critério 1, com `APP_PORTA=3317`, mais as verificações de que `docker compose config` não publica a 5432, de que a imagem não tem `.env`, `app/.env`, `.git` nem `resultados/`, de que a senha não aparece em `docker compose logs` e de que o `git status --porcelain` está vazio;
+  - `instalacao-limpa`: os passos da §13, critério 1, com `APP_PORTA=3317`, sobre o commit do próprio CI (o checkout já é uma revisão commitada), mais as verificações de que `docker compose config` não publica a 5432, de que a imagem não tem `.env`, `app/.env`, `.git` nem `resultados/`, de que a senha não aparece em `docker compose logs`, e de que o retrato de `git status --porcelain` depois da suíte é igual ao de antes (critério (a));
   - `multiplataforma`: Windows, macOS e Linux, com `npm ci --ignore-scripts` na raiz e em `app/`, mais `node --test app/testes/determinismo/hashes.test.js`;
-  - `imagem-arm64`: `docker buildx build --platform linux/amd64,linux/arm64 -f app/Dockerfile ..`, sem push.
+  - `imagem-arm64`: `docker/setup-qemu-action` e `docker/setup-buildx-action` (que cria um builder `docker-container`, necessário para várias plataformas) e, **a partir da raiz do repositório**, o comando padronizado `docker buildx build --platform linux/amd64,linux/arm64 -f app/Dockerfile .`, sem `--push` e sem `--load`. O resultado fica só no cache do builder. É o mesmo comando do Passo 5 local.
 
 - [ ] **Passo 1: escrever o teste de determinismo.** Em `hashes.test.js`, ignorado sem `ML100K_DIR`, confere o sha256 dos 5 arquivos e `regua.hash`, `hashAvaliacoes(treino)` e `hashVetoresFC(construirFC(treino, 943))` iguais a `HASHES`.
 - [ ] **Passo 2: escrever `fluxo.spec.js`.** Ele cobre o fluxo principal da §12 (linha "Ponta a ponta") passo a passo, incluindo:
@@ -702,9 +722,15 @@ app/
   - o caminho bloqueado → "Apagar perfis e avaliações" → excluir. O bloqueio é provocado por um `docker compose exec db psql … UPDATE v2_final.metadados …` no `beforeAll` do bloco, e o `afterAll` restaura.
 - [ ] **Passo 3: completar o Compose e o Dockerfile.** Rodar `cd app && APP_PORTA=3317 docker compose up -d --build` e esperar `/api/saude` responder `operante`, consultando por `curl -H "Host: localhost:3317" http://127.0.0.1:3317/api/saude`.
 - [ ] **Passo 4: rodar o ponta a ponta.** Rodar `APP_PORTA=3317 npm run e2e`, esperar PASS em Chromium e WebKit, e rodar `npx playwright test capturas` para gerar as capturas.
-- [ ] **Passo 5: rodar a verificação local da instalação limpa.** Rodar `git clone . ../clone-teste && cd ../clone-teste/app && docker compose -p recomendacao-app-clone up -d --build` com `APP_PORTA=3318`, esperar `operante`, rodar `docker compose -p recomendacao-app-clone down -v` e apagar o clone. Anotar no relatório o tempo da primeira preparação.
-- [ ] **Passo 6:** rodar `git status --porcelain` na raiz, que deve sair vazio, e os testes de congelamento, que devem dar PASS.
-- [ ] **Passo 7: commit** com a mensagem `feat(app): imagem, compose completo, ponta a ponta, capturas e CI`.
+- [ ] **Passo 5: build multiplataforma local.** A partir da **raiz**, rodar `docker buildx create --use --name recomendacao-multi` (uma vez) e depois `docker buildx build --platform linux/amd64,linux/arm64 -f app/Dockerfile .`. O esperado é que os dois alvos construam sem erro.
+- [ ] **Passo 6: commit** com a mensagem `feat(app): imagem, compose completo, ponta a ponta, capturas e CI`. Depois, `git status --porcelain` tem de sair vazio (critério (b)), e os testes de congelamento têm de dar PASS.
+- [ ] **Passo 7: verificação local da instalação limpa, sobre a revisão commitada.**
+  1. Anotar `REV=$(git rev-parse HEAD)`.
+  2. Rodar `git clone --no-local --branch app-etapa1 <raiz> <pasta temporária fora do repositório>` e conferir que `git -C <clone> rev-parse HEAD` é igual a `$REV` e que o clone não tem `data/`, `artefatos/`, `.env` nem `node_modules/`.
+  3. No clone, rodar `cd app && APP_PORTA=3318 docker compose -p recomendacao-app-clone up -d --build`, esperar `operante` e rodar `APP_PORTA=3318 npx playwright test fluxo --project=chromium`.
+  4. Rodar `docker compose -p recomendacao-app-clone down -v` e apagar o clone.
+  5. Anotar no relatório o `$REV` e o tempo da primeira preparação.
+- [ ] **Passo 8: se o Passo 7 falhar,** corrigir no repositório, fazer um **novo commit**, sem `--amend`, e repetir o Passo 7 com o novo `$REV`. Nada vai para o remoto: o `push` continua proibido.
 
 ---
 
@@ -737,6 +763,19 @@ app/
 - [ ] **Passo 5: commit do registro de aceite**, com a mensagem `docs(app): registro do aceite manual`.
 
 ---
+
+## Estratégia de execução (aprovada pelo usuário em 2026-11-16)
+
+- **Uma tarefa por vez:** um subagente implementador por tarefa, que recebe a spec v3.1, o texto da tarefa e o estado atual do repositório.
+- **Revisão de cada tarefa:** um subagente revisor **independente**, instruído a procurar defeitos e regressões, e não a confirmar o trabalho. Ele confere a spec, o plano e estas restrições globais.
+- **Achados:** são corrigidos antes do commit final da tarefa e antes de avançar para a próxima.
+- **Testes:** demonstram os requisitos. É proibido enfraquecer, apagar ou adaptar um teste para aceitar uma implementação incorreta. Um teste só muda se estiver em desacordo com a spec, e a mudança fica registrada no relatório da tarefa com a justificativa.
+- **Revisões de integração obrigatórias** depois das Tarefas **7** (preparação completa), **12** (servidor completo) e **16** (instalação limpa e CI). Cada uma olha o conjunto acumulado: contratos entre as tarefas, isolamento, congelamento e o critério (a) da árvore git.
+- **Ao fim:** uma revisão adversarial do branch inteiro.
+- **Sempre valem:**
+  - os arquivos científicos congelados não mudam;
+  - o trabalho fica no branch `app-etapa1`, **sem push** sem autorização do usuário;
+  - o TMDB fica fora da implementação (§11.2).
 
 ## Rastreabilidade entre a spec e as tarefas
 
