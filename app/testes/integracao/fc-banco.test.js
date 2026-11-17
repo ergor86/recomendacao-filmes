@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
-import { HASHES } from '../../integridade.js';
+import { HASHES, N_FC } from '../../integridade.js';
 import { carregarFcDoBanco, conferirVetores, impressaoDigital } from '../../comum/fc-banco.js';
 import { rodarScript16 } from '../../preparar/script16.js';
 import { copiarArquivosML, garantirBancoTeste } from './apoio.js';
@@ -95,10 +95,25 @@ describe('fc do banco e conferencia dos vetores', { timeout: 600_000 }, () => {
     assert.equal(r.causa, 'vetores: suporte (hash)');
   });
 
+  it('rodarScript16 com dados ausentes rejeita com a causa real', async () => {
+    const vazio = mkdtempSync(path.join(os.tmpdir(), 'fc-vazio-'));
+    try {
+      await assert.rejects(
+        rodarScript16({ pg: cfg, dirDados: vazio, dirTrabalho: path.join(vazio, 'trabalho') }),
+        (e) => {
+          console.log('mensagem:', e.message);
+          return !e.message.includes('Node.js v') && /ENOENT|no such file|ml-100k|u.|Error/i.test(e.message);
+        },
+      );
+    } finally {
+      rmSync(vazio, { recursive: true, force: true });
+    }
+  });
+
   it('impressaoDigital le hashes, contagem e selo', async () => {
     const a = await impressaoDigital(pool, { comConteudo: false });
     assert.equal(a.oids.length, 3);
-    assert.equal(a.nFc, 1385);
+    assert.equal(a.nFc, N_FC);
     assert.equal(a.hashRegua, HASHES.regua);
     assert.equal(a.hashTreino, HASHES.treino);
     assert.equal(a.concluidaEm, null); // sem app.preparacao

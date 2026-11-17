@@ -7,6 +7,17 @@ import { fileURLToPath } from 'node:url';
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SCRIPT = path.join(RAIZ, 'scripts', '16-carregar-v2.js');
 
+const TIMEOUT_MS = 120_000;
+
+// Primeira linha de erro; senão, a última linha útil (sem "Node.js v" nem frames "at ...").
+function causaDoErro(stderr) {
+  const linhas = stderr.split(/\r?\n/).map((l) => l.trimEnd()).filter((l) => l.trim() !== '');
+  const erro = linhas.find((l) => /^\w*Error\b/.test(l) || /Error:/.test(l));
+  if (erro) return erro.trim();
+  const util = linhas.filter((l) => !l.startsWith('Node.js v') && !/^\s+at /.test(l));
+  return util.at(-1)?.trim();
+}
+
 // `dirDados` é a pasta que contém `ml-100k/`. O cwd é `dirTrabalho`, onde cai `artefatos/`.
 export function rodarScript16({ pg, dirDados, dirTrabalho }) {
   mkdirSync(dirTrabalho, { recursive: true });
@@ -29,12 +40,15 @@ export function rodarScript16({ pg, dirDados, dirTrabalho }) {
       stdio: ['ignore', 'ignore', 'pipe'],
     });
     let stderr = '';
+    let excedeu = false;
+    const relogio = setTimeout(() => { excedeu = true; filho.kill('SIGKILL'); }, TIMEOUT_MS);
     filho.stderr.on('data', (d) => { stderr += d; });
-    filho.on('error', reject);
+    filho.on('error', (e) => { clearTimeout(relogio); reject(e); });
     filho.on('close', (codigo) => {
+      clearTimeout(relogio);
+      if (excedeu) return reject(new Error('script 16 excedeu 120 s'));
       if (codigo === 0) return resolve();
-      const linhas = stderr.trim().split(/\r?\n/).filter(Boolean);
-      reject(new Error(linhas.at(-1) ?? `script 16 terminou com código ${codigo}`));
+      reject(new Error(causaDoErro(stderr) ?? `script 16 terminou com código ${codigo}`));
     });
   });
 }
