@@ -1,6 +1,6 @@
 # Aplicação local sobre a S1: design da etapa 1 (MVP)
 
-Data: 2026-11-16. Status: **v3**. A v2 foi revisada por quatro subagentes (reprodutibilidade e isolamento; instalação, segurança e integração; experiência de uso; checagem de quem constrói). A v3 incorpora uma revisão curta e direcionada de 7 pontos, levantados por uma revisão externa e contestados por dois subagentes. Nada foi implementado. As mudanças estão na §16.
+Data: 2026-11-16. Status: **v3.1, aprovada conceitualmente pelo usuário** em 2026-11-16, com dois ajustes (§4.3) e a decisão sobre o TMDB (§11.2). A v2 foi revisada por quatro subagentes (reprodutibilidade e isolamento; instalação, segurança e integração; experiência de uso; checagem de quem constrói). A v3 incorpora uma revisão curta e direcionada de 7 pontos, levantados por uma revisão externa e contestados por dois subagentes. Nada foi implementado. As mudanças estão na §16.
 
 ## 1. Intenção
 
@@ -26,7 +26,7 @@ O projeto é acadêmico (pós-graduação, unidade de Deep Learning e Sistemas d
 8. Ter um "Perfil de exemplo" e um README com GIF e capturas de tela, para quem não vai instalar.
 
 ### 1.2 Fora do escopo da etapa 1
-- Um fornecedor externo de cartazes ou sinopses. O TMDB ou outro fica condicionado à confirmação jurídica (§11).
+- Um fornecedor externo de cartazes ou sinopses. **O TMDB não será implementado** enquanto não houver autorização expressa e aplicável ao projeto (§11.2). Um outro fornecedor só entra com licença comprovadamente compatível.
 - O mapeamento MovieLens → IMDb/TMDB (etapa 2, §11.2).
 - O relatório de cold start (etapa 2).
 - O feedback negativo (etapa 3, com a S1 preservada como referência).
@@ -213,12 +213,33 @@ Quando o banco já está pronto, a preparação leva poucos segundos: só os pas
 - **Credenciais:** o servidor lê `credenciais.json` a cada conferência (§4.3) e recria os pools se as senhas mudaram.
 - **Conferência:** quando o estado vira `pronto`, o servidor abre os pools e roda a **conferência** dos passos 4 e 7 da §4.2: hashes, `fc` reconstruído, o selo e o `current_schema()` do pool de leitura igual a `v2_final`. Se passar, ele fica **operante**. Se falhar, fica **bloqueado** com a causa.
 - **Reavaliação:** fora do estado operante, cada `GET /api/saude` (limitado a 1 a cada 2 s) refaz a conferência. Assim o servidor se recupera sozinho depois de `docker compose run --rm preparar` ou do retorno do banco, sem reiniciar.
+- **Vigilância de integridade no estado operante**, proporcional a um app local. A ameaça considerada é uma nova preparação acidental ou uma edição manual do banco, não um adversário. Há três gatilhos:
+  1. **Em cada busca, sem custo extra:** `buscarColaborativos` já confere `hash_regua` e `hash_treino` de `v2_final.metadados` dentro da transação. Uma divergência lança erro, que é classificado como integridade e leva ao bloqueio imediato. O pedido recebe `503 BLOQUEADO`.
+  2. **Impressão digital barata, a cada `APP_VIGIA_SEGUNDOS` (padrão 60):** uma consulta lê:
+     - os OIDs de `v2_final.filmes`, `v2_final.filmes_fc` e `v2_final.metadados`;
+     - o `COUNT(*)` de `filmes_fc`;
+     - os dois hashes de `metadados`;
+     - o `concluida_em` de `app.preparacao`;
+     - o `atualizadoEm` de `estado.json`.
+
+     A cada `APP_VIGIA_CONTEUDO_A_CADA` ciclos (padrão 10, cerca de 10 minutos), ela também lê um resumo do conteúdo, `md5(string_agg(embedding::text, ',' ORDER BY id))` de `filmes_fc`.
+  3. **Reconferência integral:** se qualquer valor diferir do retrato tirado na última conferência integral bem-sucedida, o servidor refaz a conferência integral dos passos 4 e 7 da §4.2: hashes, `fc` reconstruído, valores dos vetores e selo. Se passar, por exemplo numa nova preparação legítima com os mesmos hashes, o servidor recarrega o `fc` e tira um novo retrato. Se falhar, bloqueia com a causa.
+
+  **Limite declarado:** uma edição manual dos **valores** dos vetores que preserve os OIDs, a contagem e os hashes só é detectada no ciclo de conteúdo seguinte, até cerca de 10 minutos com os valores padrão. Os hashes nunca são recalculados a cada pedido.
 - **Erros:**
   - de **disponibilidade** (ECONNREFUSED, `57P01`, `57P03`, "Connection terminated"): respondem `503 BANCO_INDISPONIVEL` no pedido e **não bloqueiam**;
   - de **integridade** (hash, tabela ausente, `42501 permission denied`): passam ao bloqueio com a causa certa;
   - de **credenciais** (`28P01`, senha recusada): passam ao bloqueio com a causa "credenciais do banco não conferem; rode `docker compose run --rm preparar`". A reconferência relê o arquivo;
   - os dois pools têm `pool.on('error', registrar)`.
-- **Conteúdo do bloqueio:** liberam só as rotas de perfil e de interações, que dependem só do schema `app`. Isso permite apagar os próprios dados. Recomendações, catálogo e detalhe respondem `503 BLOQUEADO`.
+- **Gestão de perfis fora do estado operante** (`preparando`, `falhou` ou `bloqueado`):
+  - **Rotas liberadas:** só `GET /perfis` e `DELETE /perfis/:id`, que usam só o pool de escrita e o schema `app`. Todas as outras respondem `503 PREPARANDO` ou `503 BLOQUEADO`.
+  - **Disponibilidade:** o servidor tenta abrir o pool de escrita sempre que `credenciais.json` existe, e o `/saude` informa `perfis: { disponivel: boolean, motivo? }`. A gestão está disponível quando o pool conecta e `app.perfil` existe.
+  - **Quando a exclusão não pode ser garantida:**
+    - banco indisponível (`motivo: 'banco_indisponivel'`);
+    - credenciais de escrita recusadas, `28P01` (`motivo: 'credenciais'`);
+    - schema `app` ainda inexistente, na primeira preparação (`motivo: 'sem_dados'`). Nesse caso ainda não há perfis a apagar.
+
+    Nessas situações a interface diz isso claramente e indica o último recurso, `docker compose down -v`, que apaga tudo, inclusive a preparação.
 - **`fc`:** fica em memória. A aplicação **não** lê o treino em tempo de execução.
 
 ### 4.4 Pipeline de recomendação (`app/servidor/recomendacao/s1.js`)
@@ -389,7 +410,8 @@ Recomendacoes = { perfilId, geradoEm,
 | Componente | Conteúdo |
 |---|---|
 | `Moldura` | cabeçalho (perfil ativo, Top 10, Catálogo, Minha lista, Minhas avaliações, Sobre), que vira menu abaixo de 640 px; rodapé curto ("Projeto acadêmico · dados MovieLens 100K (GroupLens) · Sobre") |
-| `TelaPreparando` | aparece enquanto `/saude` não está `operante`: etapa N de M, a mensagem e uma barra de progresso. Em `falhou` ou `bloqueado`, mostra a causa em português, o comando e o botão **"Conferir de novo"**. Faz polling de `/saude` a cada 2 s. |
+| `TelaPreparando` | aparece enquanto `/saude` não está `operante`: etapa N de M, a mensagem e uma barra de progresso. Em `falhou` ou `bloqueado`, mostra a causa em português, o comando e o botão **"Conferir de novo"**. Em qualquer estado não operante, quando `/saude` traz `perfis.disponivel = true`, mostra também o link **"Apagar perfis e avaliações"**, que abre a `GestaoPerfisRestrita`. Quando é `false`, mostra "Agora não é possível apagar perfis: <motivo>. Para apagar tudo, use `docker compose down -v` (isso também apaga a preparação)." Faz polling de `/saude` a cada 2 s. |
+| `GestaoPerfisRestrita` | Lista os perfis (`GET /perfis`) e permite **só** excluir, com a mesma confirmação da `TelaPerfis`. Não permite criar, renomear nem entrar num perfil. Volta à `TelaPreparando`. |
 | `TelaPerfis` | "Quem está usando?", com o aviso fixo "Os perfis ficam só neste computador e não têm senha." Campo **"Apelido"**. Botão **"Ver um exemplo"** (`POST /perfis/exemplo`). Renomear e excluir com confirmação ("Apagar remove as avaliações deste perfil"). |
 | `Onboarding` | Começa com "Marque filmes que você já viu e gostou. Cada um já muda as suas recomendações; sugerimos pelo menos 3, para que a lista não dependa de um filme só. O catálogo vai até 1998." Grade curada com o `ControleRapido` (abaixo), busca e filtro de gênero, e "Não reconheço nenhum: mostrar outros", que avança o cursor. O botão principal "Ver minhas recomendações" fica em destaque a partir de 3 filmes curtidos com vetor (`curtidosComVetor`). Com menos, aparece "N marcados · sugerimos pelo menos 3", e o botão continua disponível. Com 0, ele diz "Pular por enquanto". O 3 é só uma orientação: nenhum limiar de qualidade foi medido. |
 | `ControleRapido` (cartão) | Um botão "Gostei" (`aria-pressed`) e um menu "…" com "Quero assistir" e "Dar nota". Isso reduz as paradas de Tab. |
@@ -549,9 +571,17 @@ O Playwright e o Vitest gravam só nessas pastas.
    - **(a) Lógica, com igualdade exata:** o pipeline `s1.js`, com a função de busca **injetada** devolvendo `rankingReferencia(fc, perfil, new Set(excluir), M)` em memória, sobre `construirFC(ctx.treino, 943)`, comparado com uma referência independente escrita no teste: os 10 primeiros de `rankingReferencia`, mais o preenchimento por `rankingPopularidade(regua.contagens)`, mais as mesmas exclusões. Ids, escores, `fonte` e `motivo` têm de ser idênticos. São 30 perfis sintéticos com semente fixa e de 0 a 15 curtidos, incluindo curtidos sem vetor, gêmeos, perfis com déficit e um perfil que esgota os candidatos.
    - **(b) Precisão, contra o banco em modo exato:** os mesmos perfis com `modo: 'exata'` (só neste teste, por um parâmetro interno), avaliados pelas regras de `conferirPrecisao`/`conferirExataUsuario` com τ = 1e-5. Os escores precisam bater dentro de 1e-6 + 1e-12. O teste registra o número de divergências de precisão aceitas, como no Plano 3.
    - **HNSW:** nunca é comparado com uma lista fixa. Só se conferem as invariantes: no máximo K itens, sem `excluir`, escores S1 decrescentes e > 0, e `fonte`/`motivo` coerentes.
-6. **Integridade:**
-   - um teste adultera, num banco descartável, `v2_final.metadados.hash_treino` e um valor de `filmes_fc` e confere `bloqueado` com a causa certa;
-   - depois restaura, chama `/saude` e confere `operante`;
+6. **Integridade com o servidor já operante**, num banco descartável e com o servidor no estado **operante** antes de cada adulteração:
+   - **(a) Hash:** `UPDATE v2_final.metadados SET valor = 'x' WHERE chave = 'hash_treino'`. O pedido seguinte de `/recomendacoes` recebe `503 BLOQUEADO`, sem esperar a vigia, e o `/saude` mostra `bloqueado` com a causa "treino".
+   - **(b) Valores dos vetores:** com `APP_VIGIA_SEGUNDOS=1` e `APP_VIGIA_CONTEUDO_A_CADA=1`, um `UPDATE` muda um componente não nulo de um vetor de `filmes_fc`, preservando o suporte e os hashes. Em até 10 s, o `/saude` mostra `bloqueado` com a causa "valores dos vetores".
+   - **(c) Nova preparação legítima:** rodar o script 16 de novo, o que troca os OIDs. A vigia dispara a reconferência integral, que passa, e o servidor continua `operante` com o `fc` recarregado.
+   - **(d) Padrões:** um teste de unidade confere que os padrões são 60 s e 10 ciclos.
+   - Depois de (a) e (b), restaurar os valores, chamar "Conferir de novo" (`/saude`) e conferir `operante`.
+   - **Exclusão de perfis fora do estado operante:**
+     - no estado `bloqueado` de (a), `GET /perfis` responde 200, e `DELETE /perfis/:id` responde 200 e apaga as interações em cascata;
+     - com o `db` parado, `/saude` traz `perfis.disponivel = false` e `motivo = 'banco_indisponivel'`, e o `DELETE` responde `503 BANCO_INDISPONIVEL`;
+     - com `credenciais.json` adulterado, o motivo é `'credenciais'`;
+     - o Playwright cobre o caminho na interface: bloqueado → "Apagar perfis e avaliações" → excluir → o perfil some.
    - um terceiro caso derruba o `db` (`docker compose restart db`) e confere `503 BANCO_INDISPONIVEL` seguido da volta a `operante` sem reiniciar o `app`.
 7. **Determinismo entre plataformas:** um job em Windows, macOS e Linux, sem Docker:
    - `npm ci --ignore-scripts`;
@@ -568,13 +598,21 @@ O Playwright e o Vitest gravam só nessas pastas.
 ## 11. Mídia: arquitetura agora, fornecedor depois
 
 ### 11.1 Etapa 1
-- `app/servidor/midia/` tem a interface `midia(filme) → Midia` e o registro `MIDIA_FORNECEDOR` (padrão `local`). Só existe o fornecedor `local`.
+- `app/servidor/midia/` tem a interface `midia(filme) → Midia` e o registro `MIDIA_FORNECEDOR` (padrão `local`). Só existe o fornecedor `local`: o SVG gerado é o padrão, não um substituto provisório. Um valor desconhecido em `MIDIA_FORNECEDOR` é recusado com uma mensagem de erro, e nenhum adaptador TMDB existe no código.
 - O frontend já trata `externo`, o `onerror`, a atribuição e o `referrerpolicy`. A CSP recebe a origem do fornecedor por configuração.
 - Nenhum dado de mídia entra no recomendador, e o teste da §10.1 garante isso.
 
 ### 11.2 Etapa 2 (requisitos decididos, não implementados)
-- **TMDB, ou outro fornecedor autorizado:** adaptador opcional, ativado por variável no `app/.env`. O **uso definitivo depende de confirmar** que os termos são compatíveis com o projeto: a cláusula do TMDB sobre aplicações "ML or AI based" não se resolve pelo fato de a chave ser da própria pessoa. Sem a confirmação, o adaptador não vem ativado na entrega.
-- **Mapeamento MovieLens → IMDb/TMDB:** gerado na máquina de quem roda, por **ação explícita** (`docker compose run --rm mapear`). É opcional e não bloqueante.
+- **TMDB: não implementar nem disponibilizar como adaptador, nem mesmo ativável por chave pessoal.**
+  - Os "API Terms of Use" do TMDB (atualizados em 20/10/2023, https://www.themoviedb.org/documentation/api/terms-of-use), na seção 1.C, proíbem: "Use the TMDB APIs or TMDB Content in connection with, including for training, a machine learning (ML) or artificial intelligence (AI) based Application." A seção 1.A reserva ao TMDB o uso "in connection with, or for training, a machine learning or artificial intelligence based Application".
+  - Esta aplicação é um recomendador por filtragem colaborativa, uma técnica de aprendizado de máquina. A restrição vale "in connection with", ou seja, vai além do treinamento.
+  - Não se presume exceção por uso acadêmico, por ausência de monetização, pela chave ser da própria pessoa ou pela separação entre a interface e o recomendador. O FAQ sobre uso não comercial não afasta a seção 1.C.
+  - O usuário pretende pedir esclarecimento por escrito ao TMDB. Só uma autorização expressa e aplicável reabre este item, e com uma nova decisão.
+- **Outro fornecedor:** pode entrar no futuro pela interface da §11.1, se a licença for comprovadamente compatível com um recomendador acadêmico baseado em ML. Os candidatos já descartados são o Cinemeta/MetaHub (termos restritos ao Stremio; licença que não autoriza exibir imagens) e o TMDB (seção 1.C).
+- **A etapa 1 não espera** nenhuma integração visual externa.
+- **Mapeamento MovieLens → IMDb/TMDB:** gerado na máquina de quem roda, por **ação explícita** (`docker compose run --rm mapear`). É opcional, não bloqueante e independente de qualquer fornecedor de mídia.
+  - Os ids vêm do `links.csv` da GroupLens, e nenhuma API do TMDB é chamada.
+  - Antes de implementar, verificam-se as condições de uso das fontes (a licença dos datasets `ml-latest`). Ter um TMDB ID guardado não autoriza o uso da API do TMDB.
   - **Padrão:** o `ml-latest-small`, com 1.335 de 1.682 filmes (79,4%) na prova de conceito.
   - **`--completo`:** o `ml-latest`, com 1.637 (97,3%), extraindo só `movies.csv` e `links.csv` (cerca de 2,5 MB) por HTTP Range. Sem suporte a Range, o comando pede confirmação antes de baixar o zip inteiro.
   - **Registro:** a URL, o ETag ou Last-Modified, o sha256 dos CSVs e a data vão para `origem_versao`, junto com um relatório de correspondências.
@@ -721,3 +759,16 @@ O Playwright e o Vitest gravam só nessas pastas.
 - a origem dos números do Sobre;
 - o `ALTER ROLE` sem parâmetro;
 - o código `28P01`.
+
+### 16.2 Mudanças da v3 para a v3.1 (ajustes da aprovação)
+- **Exclusão de perfis fora do estado operante:**
+  - `GET /perfis` e `DELETE /perfis/:id` ficam liberados;
+  - o `/saude` informa `perfis.disponivel` e o motivo;
+  - foi acrescentada a tela `GestaoPerfisRestrita`, aberta a partir da `TelaPreparando`;
+  - a spec declara os casos em que a exclusão não pode ser garantida (banco indisponível, credenciais recusadas, schema inexistente) e o recurso `down -v`.
+- **Integridade com o servidor operante:**
+  - a busca já confere os hashes em cada pedido;
+  - uma vigia periódica e barata (60 s) lê OIDs, contagem, hashes, selo e estado, e a cada 10 ciclos lê também o resumo do conteúdo;
+  - uma divergência dispara a reconferência integral;
+  - o limite fica declarado, e os testes (a) a (d) da §10.6 rodam com o servidor já operante.
+- **TMDB:** não será implementado nem disponibilizado, nem com chave pessoal, por causa da seção 1.C dos API Terms of Use. O fornecedor local fica como padrão definitivo, e outro fornecedor só entra com licença comprovadamente compatível. O mapeamento de ids continua independente, sem chamar a API do TMDB.
