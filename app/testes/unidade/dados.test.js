@@ -235,3 +235,124 @@ test('fetchComTentativas devolve o Buffer em caso de sucesso', async (t) => {
   assert.ok(Buffer.isBuffer(b));
   assert.equal(b.toString(), 'abc');
 });
+
+const CAUSA_TAMANHO = 'O download do MovieLens excedeu o tamanho esperado.';
+
+test('baixar que devolve mais que o limite do zip é rejeitado', async () => {
+  const dir = await temp();
+  try {
+    const c = sintetico();
+    const zip = montarZip(c);
+    await assert.rejects(
+      obterArquivosML({ destino: dir, baixar: async () => zip, sha256Esperado: hashesDe(c), limites: { zip: zip.length - 1 } }),
+      (e) => e instanceof ErroPreparacao && e.causa === CAUSA_TAMANHO,
+    );
+    assert.deepEqual(await readdir(dir), []);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('zipLocal acima do limite é rejeitado pelo stat', async () => {
+  const dir = await temp();
+  try {
+    const c = sintetico();
+    const arq = path.join(dir, 'local.zip');
+    const zip = montarZip(c);
+    await writeFile(arq, zip);
+    await assert.rejects(
+      obterArquivosML({
+        destino: path.join(dir, 'dados'),
+        zipLocal: arq,
+        sha256Esperado: hashesDe(c),
+        limites: { zip: zip.length - 1 },
+      }),
+      (e) => e instanceof ErroPreparacao && e.causa === CAUSA_TAMANHO,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('entrada com tamanho declarado acima do teto é rejeitada pelo cabeçalho, sem descompactar', async () => {
+  const dir = await temp();
+  try {
+    const c = sintetico();
+    const zip = montarZip(c);
+    await assert.rejects(
+      obterArquivosML({
+        destino: dir,
+        baixar: async () => zip,
+        sha256Esperado: hashesDe(c),
+        limites: { arquivo: c['u.item'].length - 1 },
+      }),
+      // A mensagem do cabeçalho não tem "descompactado": a checagem pós-getData não rodou.
+      (e) => e instanceof ErroPreparacao && /^O arquivo u[\w.]+ do zip excede o tamanho esperado\.$/.test(e.causa),
+    );
+    assert.deepEqual(await readdir(dir), []);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('fetchComTentativas: Content-Length acima do limite aborta sem tentar de novo', async (t) => {
+  let n = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    n++;
+    return new Response('abc', { status: 200, headers: { 'content-length': '60000000' } });
+  });
+  await assert.rejects(
+    fetchComTentativas('http://exemplo.invalido/x.zip'),
+    (e) => e instanceof ErroPreparacao && e.causa === CAUSA_TAMANHO,
+  );
+  assert.equal(n, 1);
+});
+
+test('fetchComTentativas: corpo por stream acima do limite aborta', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => new Response(Buffer.alloc(100), { status: 200 }));
+  await assert.rejects(
+    fetchComTentativas('http://exemplo.invalido/x.zip', { limite: 50 }),
+    (e) => e instanceof ErroPreparacao && e.causa === CAUSA_TAMANHO,
+  );
+});
+
+test('existente com arquivo a mais (nome proibido) → nova extração e só restam os 5', async () => {
+  const dir = await temp();
+  try {
+    const c = sintetico();
+    await mkdir(path.join(dir, 'ml-100k'));
+    for (const [n, b] of Object.entries(c)) await writeFile(path.join(dir, 'ml-100k', n), b);
+    await writeFile(path.join(dir, 'ml-100k', NOMES_PROIBIDOS[0]), 'x');
+    let baixou = 0;
+    const r = await obterArquivosML({
+      destino: dir,
+      baixar: async () => {
+        baixou++;
+        return montarZip(c);
+      },
+      sha256Esperado: hashesDe(c),
+    });
+    assert.equal(baixou, 1);
+    assert.equal(r.origem, 'download');
+    assert.deepEqual((await readdir(path.join(dir, 'ml-100k'))).sort(), [...NOMES].sort());
+    assert.deepEqual(await readdir(dir), ['ml-100k']);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('órfãos .ml-100k.tmp-* e .ml-100k.antiga-* são apagados no início', async () => {
+  const dir = await temp();
+  try {
+    const c = sintetico();
+    await mkdir(path.join(dir, '.ml-100k.tmp-1-aa'));
+    await mkdir(path.join(dir, '.ml-100k.antiga-1-aa'));
+    await mkdir(path.join(dir, 'ml-100k'));
+    for (const [n, b] of Object.entries(c)) await writeFile(path.join(dir, 'ml-100k', n), b);
+    const r = await obterArquivosML({ destino: dir, baixar: semRede, sha256Esperado: hashesDe(c) });
+    assert.equal(r.origem, 'existente');
+    assert.deepEqual(await readdir(dir), ['ml-100k']);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
