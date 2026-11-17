@@ -1,6 +1,6 @@
 # Aplicação local sobre a S1: design da etapa 1 (MVP)
 
-Data: 2026-11-16. Status: **v2**, revisada depois da revisão crítica por quatro subagentes (reprodutibilidade e isolamento; instalação, segurança e integração; experiência de uso; checagem de quem constrói). Nada foi implementado. As mudanças em relação à v1 estão na §16.
+Data: 2026-11-16. Status: **v3**. A v2 foi revisada por quatro subagentes (reprodutibilidade e isolamento; instalação, segurança e integração; experiência de uso; checagem de quem constrói). A v3 incorpora uma revisão curta e direcionada de 7 pontos, levantados por uma revisão externa e contestados por dois subagentes. Nada foi implementado. As mudanças estão na §16.
 
 ## 1. Intenção
 
@@ -109,10 +109,11 @@ docker compose (name: recomendacao-app; arquivo app/compose.yml)
  db (pgvector, sem porta no host, healthcheck)
   ▲            ▲
   │            │ (pools só depois de "pronto")
- preparar ──► volume app_estado: estado.json (etapa, progresso, erro, senhas dos papéis)
+ preparar ──► volume app_estado: estado.json (progresso, sem segredos) + credenciais.json (0600)
   │            ▲
-  │            │ lê
-  │           app (Node 22, 127.0.0.1:3000) ── navegador (React)
+  │            │ lê (montado :ro; é o único volume do app)
+  │           app (Node 22, escuta 0.0.0.0:3000 no contêiner; publicado só em 127.0.0.1:APP_PORTA)
+  │                                                            ── navegador (React)
   │           sobe junto com o db; mostra "Preparando…" até o estado ficar "pronto"
   └─ volumes: app_dados_ml (só os 5 arquivos), app_trabalho (cwd do script 16)
 ```
@@ -125,13 +126,17 @@ docker compose (name: recomendacao-app; arquivo app/compose.yml)
 - **preparar:**
   - `build` da imagem `recomendacao-app:local`, com contexto `..` e `app/Dockerfile`;
   - `depends_on: db: condition: service_healthy`, `restart: "no"`;
-  - executa `node app/preparar/index.js` (§4.2).
+  - executa `node app/preparar/index.js` (§4.2);
+  - `environment: APP_PORTA: ${APP_PORTA:-3000}`, só para imprimir a URL correta;
+  - volumes: `app_dados_ml`, `app_trabalho` e `app_estado` (leitura e escrita).
 - **app:**
   - `image: recomendacao-app:local` com `pull_policy: never`, sem um segundo `build`;
   - `depends_on: db: condition: service_healthy`. **Não espera o `preparar`.**
   - `restart: unless-stopped`;
-  - `ports: "127.0.0.1:${APP_PORTA:-3000}:3000"`;
-  - executa `node app/servidor/index.js` e lê `app_estado` só para leitura.
+  - `ports: "127.0.0.1:${APP_PORTA:-3000}:3000"` e `environment: APP_PORTA: ${APP_PORTA:-3000}`. A mesma expressão aparece nos dois lugares, porque a interpolação em `ports:` não injeta a variável no contêiner;
+  - o servidor escuta sempre em `0.0.0.0:3000` **dentro** do contêiner. Quem restringe ao localhost é a publicação;
+  - executa `node app/servidor/index.js`;
+  - volumes: **só** `app_estado:/var/app/estado:ro`. O `app_dados_ml`, que tem o `u1.base`, e o `app_trabalho` ficam montados apenas no `preparar`, o que garante fisicamente que o servidor não lê os dados brutos.
 
 **Imagem** (`app/Dockerfile`, multi-stage, base `node:22-bookworm-slim@sha256:<digest do índice multiarquitetura, fixado por quem constrói>`; Alpine é proibido):
 1. O estágio `web` instala `app/web` com `npm ci` e roda `vite build`.
@@ -141,7 +146,8 @@ docker compose (name: recomendacao-app; arquivo app/compose.yml)
    - copia o `dist` do estágio `web`;
    - roda `RUN mkdir -p /var/app/dados /var/app/trabalho /var/app/estado && chown -R node:node /var/app` **antes** de `USER node`;
    - define `WORKDIR /repo`.
-3. O `app/package-lock.json` precisa ter as entradas `@rollup/rollup-linux-{x64,arm64}-gnu` e `@esbuild/linux-{x64,arm64}`. Ele é gerado ou conferido num contêiner Linux, e o CI faz `docker buildx build --platform linux/amd64,linux/arm64`.
+3. O `app/web/package-lock.json`, que é onde o Vite é instalado, precisa ter as entradas `@rollup/rollup-linux-{x64,arm64}-gnu` e `@esbuild/linux-{x64,arm64}`. Ele é gerado ou conferido num contêiner Linux. O CI faz `docker buildx build --platform linux/amd64,linux/arm64`.
+4. O Dockerfile usa só `COPY` explícitos (`src`, `scripts`, `package*.json`, `app`). O CI lista o contexto de build e confere que nenhum arquivo fora da lista de permissão entra.
 
 O `.dockerignore` é uma **lista de permissão**:
 
@@ -149,7 +155,6 @@ O `.dockerignore` é uma **lista de permissão**:
 *
 !src
 !scripts
-!resultados/configuracao-v2.json
 !package.json
 !package-lock.json
 !app
@@ -159,13 +164,18 @@ O `.dockerignore` é uma **lista de permissão**:
 **/dist
 **/test-results
 **/playwright-report
+**/blob-report
+**/playwright/.cache
 **/coverage
+**/*.log
+**/*.tsbuildinfo
+app/compose.dev.override.yml
 ```
 
-O CI confere que a imagem não contém `.env`, `app/.env` nem `.git`.
+A sintaxe foi conferida na documentação do Docker e no `moby/patternmatcher`: `*` seguido de `!pasta` funciona, e `**/.env` exclui `app/.env`. O `resultados/` **não** entra na imagem, porque nada o lê em execução: os hashes e os números exibidos vêm das constantes de `app/integridade.js`, conferidas no CI. O CI confere que a imagem não contém `.env`, `app/.env`, `.git` nem `resultados/`.
 
 ### 4.2 Preparação (`app/preparar/index.js`)
-O estado vai para `/var/app/estado/estado.json`, gravado de forma atômica (arquivo temporário e `rename`): `{ estado: 'preparando'|'pronto'|'falhou', etapa, total, mensagem, causa?, comando?, atualizadoEm }`. Cada etapa também imprime uma linha numerada no terminal ("3/8: carregando filmes no banco"), e o fim imprime em destaque **`Pronto: abra http://localhost:<porta>`**.
+O estado vai para `/var/app/estado/estado.json`, gravado de forma atômica (arquivo temporário e `rename`): `{ estado: 'preparando'|'pronto'|'falhou', etapa, total, mensagem, causa?, comando?, atualizadoEm }`. **Esse arquivo nunca contém segredos.** As senhas dos papéis ficam num arquivo separado, `/var/app/estado/credenciais.json`, com modo 0600 e dono `node`, gerado só quando não existe e também gravado de forma atômica. O 0600 quase não protege, porque os dois contêineres usam o mesmo UID. O que importa é o arquivo estar separado e nunca ser repassado pela API nem pelos logs. Cada etapa também imprime uma linha numerada no terminal ("3/8: carregando filmes no banco"), e o fim imprime em destaque **`Pronto: abra http://localhost:<porta>`**.
 
 0. **Trava:** `pg_advisory_lock(<constante>)` na sessão. Se outra preparação estiver em andamento, sai com a mensagem "outra preparação em andamento".
 1. **Conexão:** até 30 tentativas com espera crescente, porque o script 16 congelado não tenta de novo.
@@ -185,7 +195,7 @@ O estado vai para `/var/app/estado/estado.json`, gravado de forma atômica (arqu
    - `fc` reconstruído de `filmes_fc` com `embedding::real[]` e `vector_dims` = 943, com fãs = posições não nulas + 1. Confere `hashVetoresFC(fc)` e, em cada posição não nula, `|v − Math.fround(1/√|fãs|)| ≤ 1e-7`, além de 1.385 linhas.
 5. **Migrações e papéis**, sempre e numa só transação:
    - as migrações SQL idempotentes de `app/banco/migracoes/`;
-   - a criação ou o `ALTER ROLE … PASSWORD` dos papéis da §5.2, com as senhas geradas aleatoriamente na primeira vez e guardadas no `estado` (fora do repositório);
+   - a criação ou o `ALTER ROLE … PASSWORD` dos papéis da §5.2, com as senhas de `credenciais.json`, geradas aleatoriamente na primeira vez e fora do repositório. Como `ALTER ROLE … PASSWORD` não aceita parâmetro `$1`, o literal é montado com `client.escapeLiteral` e o nome do papel vem de uma constante. É a única exceção declarada à regra "SQL só com parâmetros". Antes do comando, na mesma transação, rodam `SET LOCAL log_statement = 'none'` e `SET LOCAL log_min_error_statement = 'panic'`, para a senha não ir ao log do `db` nem em caso de erro;
    - os GRANTs, mais `ALTER DEFAULT PRIVILEGES FOR ROLE <superusuário> IN SCHEMA v2_final GRANT SELECT ON TABLES TO app_leitura`, o que sobrevive ao `DROP`/`CREATE` do script 16.
 6. **Tabelas de referência:**
    - `ctx = criarContexto({ fase: 'v2-final', dirDados })`, com objeto literal e sem spread, seguido de `assert(ctx.alvos === null)`;
@@ -199,12 +209,14 @@ O estado vai para `/var/app/estado/estado.json`, gravado de forma atômica (arqu
 Quando o banco já está pronto, a preparação leva poucos segundos: só os passos 0, 1, 4, 5 e 7.
 
 ### 4.3 Servidor (`app/servidor/`)
-- **Inicialização:** sobe imediatamente. Enquanto `estado.json` não estiver `pronto`, `/api/saude` responde `{ estado: 'preparando' | 'falhou', etapa, mensagem, causa, comando }`, e as rotas de dados respondem `503 PREPARANDO`.
+- **Inicialização:** sobe imediatamente. Enquanto `estado.json` não estiver `pronto`, `/api/saude` responde `{ estado: 'preparando' | 'falhou', etapa, mensagem, causa, comando }`, e as rotas de dados respondem `503 PREPARANDO`. A resposta é montada **campo a campo**, nunca repassando o objeto lido.
+- **Credenciais:** o servidor lê `credenciais.json` a cada conferência (§4.3) e recria os pools se as senhas mudaram.
 - **Conferência:** quando o estado vira `pronto`, o servidor abre os pools e roda a **conferência** dos passos 4 e 7 da §4.2: hashes, `fc` reconstruído, o selo e o `current_schema()` do pool de leitura igual a `v2_final`. Se passar, ele fica **operante**. Se falhar, fica **bloqueado** com a causa.
 - **Reavaliação:** fora do estado operante, cada `GET /api/saude` (limitado a 1 a cada 2 s) refaz a conferência. Assim o servidor se recupera sozinho depois de `docker compose run --rm preparar` ou do retorno do banco, sem reiniciar.
 - **Erros:**
   - de **disponibilidade** (ECONNREFUSED, `57P01`, `57P03`, "Connection terminated"): respondem `503 BANCO_INDISPONIVEL` no pedido e **não bloqueiam**;
   - de **integridade** (hash, tabela ausente, `42501 permission denied`): passam ao bloqueio com a causa certa;
+  - de **credenciais** (`28P01`, senha recusada): passam ao bloqueio com a causa "credenciais do banco não conferem; rode `docker compose run --rm preparar`". A reconferência relê o arquivo;
   - os dois pools têm `pool.on('error', registrar)`.
 - **Conteúdo do bloqueio:** liberam só as rotas de perfil e de interações, que dependem só do schema `app`. Isso permite apagar os próprios dados. Recomendações, catálogo e detalhe respondem `503 BLOQUEADO`.
 - **`fc`:** fica em memória. A aplicação **não** lê o treino em tempo de execução.
@@ -223,7 +235,18 @@ As constantes são `M = 300`, `N_FC = 150`, `K = 10` e `MODO = 'hnsw'`, e só ex
    - `'parcial'` quando há de 1 a 9 da S1;
    - `'sem_semelhantes'` quando o perfil tem vetor mas a S1 devolveu 0 elegíveis;
    - um dos motivos do passo 4 quando a lista sai só de populares.
-9. **Explicação**, que não altera a ordem: para cada item S1, devolve até 2 filmes de `curtidos` com vetor, ordenados por `|fãs(curtido) ∩ fãs(item)|` decrescente e depois id, calculados sobre o `fc` em memória. Os populares não têm explicação.
+9. **Explicação**, que não altera a ordem.
+   - Para cada item S1 j, devolve até 2 filmes i de `curtidos` com `|F_i ∩ F_j| > 0`.
+   - A ordem é pela contribuição de i ao escore de j, `c_ij = |F_i ∩ F_j| / (√|F_i|·√|F_j|)`, decrescente, e depois por id crescente.
+   - A comparação é feita em inteiros, sem ponto flutuante: i vem antes de k quando `a_i²·|F_k| > a_k²·|F_i|`, com `a = |F ∩ F_j|`.
+   - Tudo é calculado sobre o `fc` em memória.
+   - Todo item S1 tem pelo menos 1 explicação, porque escore > 0 implica um curtido com fã em comum. Um teste confere isso nos 30 perfis da §10.5.
+   - Os populares não têm explicação.
+
+**Efeitos de cada interação:**
+- "Gostei" e notas 4–5 em filme com vetor entram no perfil.
+- **Qualquer** interação tira o próprio filme das recomendações. Isso vale para notas 1–3, "Quero assistir" e "Gostei" em filme sem vetor, e é o mesmo que a avaliação fazia com todos os filmes vistos, qualquer que fosse a nota (`vistosPorUsuario`).
+- Notas 1–3 ainda não penalizam filmes parecidos (o feedback negativo fica para a etapa 3).
 
 **O que muda em relação à S1 avaliada:** só o **conjunto de exclusão**. Ele traz as interações da aplicação no lugar dos filmes vistos no treino, mais os `OCULTOS`. Isso fica declarado na tela Sobre e no README.
 
@@ -282,7 +305,7 @@ app.interacao (perfil_id uuid REFERENCES app.perfil ON DELETE CASCADE,
 | `app_leitura` | pool de leitura, `options: '-c search_path=v2_final,public'` só neste pool, nunca via `PGOPTIONS` | `USAGE` em `v2_final` e `app`, `SELECT` em todas as tabelas dos dois schemas (com os privilégios padrão da §4.2, passo 5) |
 | `app_escrita` | pool de escrita, sem `search_path` especial | `USAGE` em `app`, `SELECT/INSERT/UPDATE/DELETE` em `app.perfil` e `app.interacao`, `SELECT` em `app.filme`. Sem acesso a `v2_final`. |
 
-As senhas dos dois papéis são aleatórias, geradas pela preparação e lidas pelo `app` no volume de estado. **Nenhuma senha de papel fica no repositório.**
+As senhas dos dois papéis são aleatórias, geradas pela preparação em `credenciais.json` (§4.2) e lidas pelo `app` no volume de estado, montado só para leitura. **Nenhuma senha de papel fica no repositório, no `estado.json`, nas respostas da API ou nos logs** (teste na §12).
 
 ### 5.3 Estatísticas
 - **MovieLens (1997–98, 943 pessoas; amostra de treino):** `n_notas`, `media` e `pct_aprovacao` (notas 4–5).
@@ -297,7 +320,7 @@ As senhas dos dois papéis são aleatórias, geradas pela preparação e lidas p
 - Erros no formato `{ codigo, mensagem }`.
 - Validação por JSON Schema (Fastify, `coerceTypes: false`), corpo de no máximo 4 KB.
 - `fastify.removeContentTypeParser('text/plain')`. As escritas exigem `Content-Type: application/json` (`415 TIPO_NAO_SUPORTADO`).
-- Hook `onRequest`: `Host` precisa estar em {`localhost:<porta>`, `127.0.0.1:<porta>`, `[::1]:<porta>`}, onde `<porta>` vem de `APP_PORTA` (e, no CI, da porta do teste). Fora disso: `421 HOST_INVALIDO`, contra DNS rebinding.
+- Hook `onRequest`: o `Host` precisa estar em {`localhost:<porta>`, `127.0.0.1:<porta>`, `[::1]:<porta>`}. A `<porta>` vem da variável de ambiente `APP_PORTA` do contêiner, que é a porta **publicada**, a que o navegador manda no `Host`. O `Host` sem porta só é aceito quando `APP_PORTA=80`. A 3000 interna **não** é aceita, salvo quando `APP_PORTA=3000`. Fora disso, `421 HOST_INVALIDO`, contra DNS rebinding.
 - Escritas com `Origin` diferente do próprio host, ou com `Sec-Fetch-Site: cross-site`, recebem `403 ORIGEM_INVALIDA`. Sem `@fastify/cors`.
 - Ids de filme inteiros de 1 a 1682. `perfilId` em UUID.
 
@@ -317,7 +340,7 @@ As senhas dos dois papéis são aleatórias, geradas pela preparação e lidas p
 ### 6.2 Rotas
 | Rota | Entrada | Saída e regras |
 |---|---|---|
-| `GET /saude` | — | **Sempre 200**: `{ estado: 'preparando'\|'falhou'\|'bloqueado'\|'operante', etapa?, total?, mensagem?, causa?, comando? }`. Refaz a conferência quando não está operante (§4.3). |
+| `GET /saude` | — | **Sempre 200 quando o `Host` é válido**, montada campo a campo e sem segredos: `{ estado: 'preparando'\|'falhou'\|'bloqueado'\|'operante', etapa?, total?, mensagem?, causa?, comando? }`. Refaz a conferência quando não está operante (§4.3). |
 | `GET /sobre` | — | versão do app, os hashes conferidos, `commitCodigo` = c048537 (constante de `app/integridade.js`), os textos de licença, a citação e os avisos de escopo |
 | `GET /perfis` | — | `[{ id, nome, exemplo, onboardingConcluido, contagens: { notas, gostei, queroAssistir, curtidos, curtidosComVetor } }]` |
 | `POST /perfis` | `{ nome }` | `201`. No máximo 20 perfis, conferido dentro de uma transação com `pg_advisory_xact_lock`. |
@@ -325,11 +348,11 @@ As senhas dos dois papéis são aleatórias, geradas pela preparação e lidas p
 | `PATCH /perfis/:id` | `{ nome?, onboardingConcluido? }` | perfil |
 | `DELETE /perfis/:id` | — | `204`, com cascata |
 | `GET /perfis/:id/onboarding` | `q?`, `genero?`, `cursor?` | Grade **curada**: na primeira página, para cada um dos 18 gêneros reais (sem "unknown"), os 2 filmes visíveis com vetor de maior `n_notas` do gênero, sem repetir, ordenados por `n_notas` decrescente e id. Depois vêm os demais filmes visíveis com vetor, por `n_notas` decrescente e id, paginados por cursor (`n_notas`, `id`), 24 por página. Os filmes **interagidos continuam na grade** com o estado. Com `q` ou `genero`, filtra o mesmo conjunto. |
-| `PUT /perfis/:id/interacoes/:filmeId` | `{ tipo: 'gostei' }` \| `{ tipo: 'quero_assistir' }` \| `{ tipo: 'nota', nota: 1..5 }` | Upsert em que a última ação vence. Devolve `{ interacao, anterior: { tipo, nota } \| null, filme: { temVetor }, influenciaRecomendacoes }`. O `anterior` alimenta o "Desfazer". `influenciaRecomendacoes = temVetor && (tipo = 'gostei' \|\| nota ≥ 4)`. |
-| `DELETE /perfis/:id/interacoes/:filmeId` | — | `200 { anterior }` (para "Desfazer"); o filme volta a "nenhum" |
+| `PUT /perfis/:id/interacoes/:filmeId` | `{ tipo: 'gostei' }` \| `{ tipo: 'quero_assistir' }` \| `{ tipo: 'nota', nota: 1..5 }` | Upsert em que a última ação vence. Devolve `{ interacao, anterior: { tipo, nota } \| null, filme: { temVetor }, efeitos }`. O `anterior` alimenta o "Desfazer". `efeitos = { contribuiParaPerfil, excluidoDasRecomendacoes, perfilMudou }`, onde `contribuiParaPerfil = temVetor && (tipo = 'gostei' \|\| nota ≥ 4)`, calculado pela **mesma função** que define `curtidos` em `s1.js`; `excluidoDasRecomendacoes = true`; e `perfilMudou = contribuiParaPerfil ≠ contribuia(anterior)`, com `contribuia(null) = false`. |
+| `DELETE /perfis/:id/interacoes/:filmeId` | — | `200 { anterior, efeitos: { contribuiParaPerfil: false, excluidoDasRecomendacoes: false, perfilMudou: contribuia(anterior) } }` (para "Desfazer"); o filme volta a "nenhum" e pode voltar às recomendações |
 | `GET /perfis/:id/interacoes` | `tipos?` (lista separada por vírgula de `nota`, `gostei`, `quero_assistir`), `pagina` | itens com `CartaoFilme` e `atualizadoEm`, do mais recente para o mais antigo |
 | `GET /perfis/:id/recomendacoes` | — | `Recomendacoes` (abaixo). Ignora qualquer parâmetro de consulta (`?modo`, `?m`). |
-| `GET /filmes` | `q?`, `genero?`, `ordem` (`mais_avaliados`, `mais_bem_avaliados`, `titulo`, `ano`), `pagina`, `perfilId?`, `soInfluenciam?` | 24 por página, só visíveis: `{ itens, total, pagina }` |
+| `GET /filmes` | `q?`, `genero?`, `ordem` (`mais_avaliados`, `mais_bem_avaliados`, `titulo`, `ano`), `pagina`, `perfilId?`, `soInfluenciam?` (= só filmes com `temVetor`) | 24 por página, só visíveis: `{ itens, total, pagina }` |
 | `GET /filmes/:id` | `perfilId?` | `DetalheFilme`. Filme oculto ou inexistente: `404`. |
 | `GET /generos` | — | os 18 gêneros com rótulo em português, mais "Desconhecido" |
 | `GET /diagnostico/busca` | `perfilId` | Só com `APP_DIAGNOSTICO=1`, senão `404 ROTA_NAO_ENCONTRADA`. Devolve as listas HNSW e exata e a sobreposição. |
@@ -348,7 +371,7 @@ Recomendacoes = { perfilId, geradoEm,
                   motivo: 'personalizado'|'parcial'|'sem_semelhantes'|'sem_curtidas'|'curtidas_sem_vetor',
                   perfil: { curtidos, curtidosComVetor, baseadoEm: [{ id, titulo }] },  // até 5 curtidos com vetor
                   itens: [{ posicao, fonte: 'S1'|'populares', escore: number|null,
-                            porque: [{ id, titulo }],    // S1: até 2; populares: []
+                            porque: [{ id, titulo }],    // S1: 1 ou 2; populares: []
                             filme: CartaoFilme }],
                   busca: { mecanismo: 'S1/HNSW', m: 300, nFc: 150,
                            linhasPedidas: number|null, empateNaoResolvido: boolean|null,
@@ -368,17 +391,42 @@ Recomendacoes = { perfilId, geradoEm,
 | `Moldura` | cabeçalho (perfil ativo, Top 10, Catálogo, Minha lista, Minhas avaliações, Sobre), que vira menu abaixo de 640 px; rodapé curto ("Projeto acadêmico · dados MovieLens 100K (GroupLens) · Sobre") |
 | `TelaPreparando` | aparece enquanto `/saude` não está `operante`: etapa N de M, a mensagem e uma barra de progresso. Em `falhou` ou `bloqueado`, mostra a causa em português, o comando e o botão **"Conferir de novo"**. Faz polling de `/saude` a cada 2 s. |
 | `TelaPerfis` | "Quem está usando?", com o aviso fixo "Os perfis ficam só neste computador e não têm senha." Campo **"Apelido"**. Botão **"Ver um exemplo"** (`POST /perfis/exemplo`). Renomear e excluir com confirmação ("Apagar remove as avaliações deste perfil"). |
-| `Onboarding` | Começa com "Marque filmes que você já viu e gostou. Com 3 ou mais, as recomendações ficam pessoais. O catálogo vai até 1998." Grade curada com o `ControleRapido` (abaixo), busca e filtro de gênero, e "Não reconheço nenhum: mostrar outros", que avança o cursor. O botão principal "Ver minhas recomendações" fica em destaque com 3 ou mais curtidos. Com menos, aparece "Faltam N para personalizar", mas pular continua possível. |
+| `Onboarding` | Começa com "Marque filmes que você já viu e gostou. Cada um já muda as suas recomendações; sugerimos pelo menos 3, para que a lista não dependa de um filme só. O catálogo vai até 1998." Grade curada com o `ControleRapido` (abaixo), busca e filtro de gênero, e "Não reconheço nenhum: mostrar outros", que avança o cursor. O botão principal "Ver minhas recomendações" fica em destaque a partir de 3 filmes curtidos com vetor (`curtidosComVetor`). Com menos, aparece "N marcados · sugerimos pelo menos 3", e o botão continua disponível. Com 0, ele diz "Pular por enquanto". O 3 é só uma orientação: nenhum limiar de qualidade foi medido. |
 | `ControleRapido` (cartão) | Um botão "Gostei" (`aria-pressed`) e um menu "…" com "Quero assistir" e "Dar nota". Isso reduz as paradas de Tab. |
-| `ControleInteracao` (detalhe) | As estrelas 1–5 (`radiogroup`, rótulo "N de 5 estrelas"; clicar na estrela atual remove a nota), "Gostei", "Quero assistir" e "Remover". Mostra o estado único atual e um texto fixo: "**Gostei** e notas **4–5** ajudam a recomendar. Notas 1–3 ficam no seu histórico, mas ainda não mudam as recomendações." |
-| `AvisoAcao` (`aria-live`) | Depois de todo PUT ou DELETE: "Salvo" e, quando havia estado anterior diferente, "Sua nota 2 foi substituída por Gostei · **Desfazer**". O aviso dura 6 s, e "Desfazer" reaplica o `anterior`. Quando `influenciaRecomendacoes` é falso, acrescenta "Este filme é raro nos dados de 1998 e não muda suas recomendações" (sem vetor) ou "Notas 1–3 não mudam suas recomendações" (nota baixa). |
-| `Catalogo` | `BarraBusca` (texto, gênero, ordem, "Só filmes que ajudam a recomendar"), uma `GradeFilmes` com "Carregar mais", o `CartaoFilme` com o selo discreto "não influencia" quando não há vetor, e a busca vazia: "Nada encontrado. O MovieLens 100K só tem filmes até 1998." |
+| `ControleInteracao` (detalhe) | As estrelas 1–5 (`radiogroup`, rótulo "N de 5 estrelas"; clicar na estrela atual remove a nota), "Gostei", "Quero assistir" e "Remover". Mostra o estado único atual e um texto fixo: "**Gostei** e notas **4–5** entram no cálculo dos seus gostos. Qualquer marcação, inclusive notas 1–3 e 'Quero assistir', tira o filme das suas recomendações. Notas 1–3 ainda não afastam filmes parecidos." |
+| `AvisoAcao` (`aria-live`, uma única região, compartilhada com o anúncio do `Top10`) | Depois de todo PUT ou DELETE: "Salvo" e, quando havia estado anterior diferente, "Sua nota 2 foi substituída por Gostei · **Desfazer**". O aviso dura 6 s e não é recriado quando o Top 10 se atualiza; "Desfazer" reaplica o `anterior`. Acrescenta uma frase escolhida por `efeitos`, `tipo`, `nota` e `temVetor`: |
+
+**Frases do `AvisoAcao`:**
+- `perfilMudou` e `contribuiParaPerfil`: "Este filme agora conta para as suas recomendações."
+- `perfilMudou` sem `contribuiParaPerfil` (PUT): "Este filme deixou de contar para as suas recomendações e não aparece nelas enquanto estiver marcado."
+- Nota 1–3 sem mudança de perfil: "Notas 1–3 tiram este filme das recomendações, mas ainda não afastam filmes parecidos."
+- Filme sem vetor, com "Gostei" ou nota 4–5: "Este filme é raro nos dados de 1998 e não entra no cálculo dos seus gostos."
+- "Quero assistir": "Ele não aparece nas recomendações enquanto estiver na Minha lista."
+- `DELETE`: "Este filme pode voltar a aparecer nas recomendações." Com `perfilMudou`, antes vem "Ele deixou de contar para os seus gostos."
+
+| Componente | Conteúdo |
+|---|---|
+| `Catalogo` | `BarraBusca` (texto, gênero, ordem, "Só filmes que ajudam a recomendar"), uma `GradeFilmes` com "Carregar mais", o `CartaoFilme` com o selo discreto "curtir não personaliza" quando não há vetor, e a busca vazia: "Nada encontrado. O MovieLens 100K só tem filmes até 1998." |
 | `DetalheFilme` | `Cartaz` grande, título de exibição (com o original abaixo quando diferente), ano, gêneros, `ControleInteracao` e `PainelEstatisticas`: "MovieLens (1997–98, 943 pessoas)" com média, número de notas e "% de notas 4–5" (com dica), e "Neste computador", recolhido até ter 5 notas, com o rótulo cinza "poucas notas ainda". "Sua nota" vem separada. Se houver gêmeo oculto, mostra a nota da §5.1. |
-| `Top10` | "Baseado em: [até 5 curtidos]" e "N dos seus M filmes curtidos estão sendo usados". `ListaRecomendacoes` numerada. Cada item S1 traz "Porque você curtiu *X*" (e *Y*), e cada popular traz o selo "**Mais avaliados nos dados de 1998**" com uma dica explicando. A `ExplicacaoMotivo` vem abaixo. **A lista não se reordena enquanto está na tela:** depois de uma interação feita nela, o item avaliado sai com uma animação e aparece a faixa "Suas recomendações mudaram · Atualizar". Ao atualizar, os itens novos ganham o selo "Novo". |
+| `Top10` | "Baseado em: [até 5 curtidos]" e "N dos seus M filmes curtidos estão sendo usados". `ListaRecomendacoes` numerada. Cada item S1 traz "Porque você curtiu *X*" (e *Y*), e cada popular traz o selo "**Mais avaliados nos dados de 1998**" com uma dica explicando. A `ExplicacaoMotivo` vem abaixo. A lista **se atualiza sozinha** depois de cada interação (ver "Atualização automática do Top 10" abaixo). |
 | `MinhaLista` | os "Quero assistir", com "Já assisti: avaliar" e "Remover da lista" |
 | `MinhasAvaliacoes` | as notas e os "Gostei", com edição e exclusão (`tipos=nota,gostei`) |
-| `Sobre` | Em camadas. **No topo, em 3 frases:** "Compara seus gostos com os de 943 pessoas que avaliaram filmes em 1997–98. A técnica foi avaliada com essas pessoas, não com você. Com poucas curtidas, a lista fica mais genérica." **"O que foi medido":** o resultado principal do Plano 3, com os números lidos de `/sobre`, o método e "o que isso não significa". **"Detalhes técnicos"**, recolhido: a S1, o HNSW, M = 300 e FC150, a exclusão da aplicação, o índice reconstruído e os hashes. Também traz os limites (catálogo até 1998, sem sinal negativo), as licenças, a citação e o link para o README da pesquisa. |
+| `Sobre` | Em camadas. **No topo, em 3 frases:** "Compara seus gostos com os de 943 pessoas que avaliaram filmes em 1997–98. A técnica foi avaliada com essas pessoas, não com você. Com poucas curtidas, a lista se apoia em poucos filmes." **"O que foi medido":** o resultado principal do Plano 3, com os números de `/sobre`. Eles vêm de constantes em `app/integridade.js` que um teste do CI confere contra `git show 6077974:resultados/avaliacao-v2.json`. A tela mostra também o método e "o que isso não significa". **"Detalhes técnicos"**, recolhido: a S1, o HNSW, M = 300 e FC150, a exclusão da aplicação, o índice reconstruído e os hashes. Também traz os limites (catálogo até 1998, sem sinal negativo), as licenças, a citação e o link para o README da pesquisa. |
 | `Cartaz` | ver abaixo |
+
+**Atualização automática do Top 10:**
+- O `Top10` sempre busca `GET /recomendacoes` ao abrir, sem cache no cliente (`cache: 'no-store'`). Qualquer escrita invalida o Top 10, de modo que uma interação feita no catálogo ou no detalhe aparece quando a pessoa volta a ele.
+- Depois de uma interação feita na própria tela:
+  1. O item marcado sai com uma animação curta (≤ 200 ms). A lista ganha `aria-busy="true"` e um indicador discreto "Atualizando…", sem esconder os outros itens.
+  2. Quando a escrita termina, o cliente pede `GET /recomendacoes` e troca a lista. Os itens que continuam mantêm a chave (`filme.id`) e deslizam até a nova posição (FLIP, ≤ 300 ms). Os que entram aparecem com fade e o selo "Novo". Com `prefers-reduced-motion: reduce`, a troca é instantânea.
+  3. **"Novo"** é o item ausente da lista que estava carregada quando a pessoa abriu a tela. Por isso um filme que volta pelo "Desfazer" não ganha o selo.
+  4. **Sequência:**
+     - as escritas do mesmo filme vão em fila, na ordem dos cliques;
+     - cada escrita incrementa um contador `seq`. O `GET` só sai quando não há escrita pendente; uma resposta com `seq` ultrapassado é descartada, e o `GET` anterior é abortado (`AbortController`);
+     - cliques rápidos produzem uma única troca final.
+  5. **Acessibilidade:** o resultado é anunciado na mesma região `aria-live` do `AvisoAcao`, por exemplo "Salvo. Recomendações atualizadas: 1 filme novo, *Título*". O foco nunca cai no `body`: se estava no item que sai, vai para o item na mesma posição (ou para o anterior, ou para o título da lista, com `tabindex="-1"`).
+  6. O **"Desfazer"** é uma escrita como as outras.
+  7. Se o `GET` falhar, a lista fica como está e aparece "Não consegui atualizar as recomendações · Tentar de novo". É a única faixa com botão.
 
 **Componente `Cartaz`:** gera um SVG 2:3 determinístico.
 - O fundo é um gradiente de 2 cores, com o matiz derivado de um hash do id dentro da família de cores do primeiro gênero, mais um padrão geométrico simples também derivado do hash.
@@ -452,6 +500,7 @@ O Playwright e o Vitest gravam só nessas pastas.
 - O `compose.dev.yml` publica o banco em `127.0.0.1:5434`.
 - O nome não é carregado automaticamente: **nunca** use `compose.override.yml`.
 - `npm run dev` em `app/` aponta para esse banco. A preparação recusa o banco da pesquisa (§4.2, passo 3).
+- O servidor de desenvolvimento do Vite faz proxy de `/api` para `http://localhost:3000`, com `changeOrigin: true` e o cabeçalho `Origin` reescrito para `http://localhost:3000`. Em desenvolvimento, `APP_PORTA=3000`. Assim, a validação de `Host` e `Origin` não precisa de exceção para desenvolvimento.
 
 **O que não é tocado:** `src/`, `scripts/`, `package.json`, `package-lock.json`, `resultados/`, `docker-compose.yml` e `.env.example` da raiz, nem o banco e os `artefatos/` da pesquisa.
 
@@ -462,7 +511,8 @@ O Playwright e o Vitest gravam só nessas pastas.
   - coleta só um apelido e as interações; sem e-mail e sem telemetria;
   - não faz requisição externa em tempo de execução;
   - excluir o perfil apaga tudo, e isso funciona até no modo bloqueado.
-- **Banco:** papéis com mínimo privilégio, senhas aleatórias fora do repositório, SQL só com parâmetros e schemas como constantes.
+- **Banco:** papéis com mínimo privilégio, senhas aleatórias fora do repositório, SQL só com parâmetros (com a única exceção declarada do `ALTER ROLE … PASSWORD`, §4.2, passo 5) e schemas como constantes.
+- **Segredos:** separados do estado (`credenciais.json`), nunca nas respostas da API nem nos logs.
 - **Imagem:** roda como `node`, sem segredos, por causa do `.dockerignore`, conferido no CI.
 - **Diagnóstico:** a rota fica desligada por padrão.
 
@@ -508,7 +558,12 @@ O Playwright e o Vitest gravam só nessas pastas.
    - baixa o ML-100K, guardado em cache pelo sha256;
    - confere o sha256 dos 5 arquivos;
    - calcula `regua.hash`, `hashAvaliacoes(treino)` e `hashVetoresFC(construirFC(treino, 943))` e os compara com as constantes.
-8. **Tag:** `pesquisa-plano3-final` em `6077974` é criada localmente antes do primeiro commit de código. O push só acontece com autorização do usuário, e o CI não depende dela.
+8. **`u1.base` e teste-2:**
+   - O `u1.base` contém as notas das quais o teste-2 foi derivado. A preparação o lê inteiro, mas `criarContexto({ fase: 'v2-final' })` separa o teste-2 em memória (`dividirTeste2`) e o retira do treino. Sem `incluirTeste2`, `alvos` vem `null`, o que é conferido por `assert` (§4.2, passo 6).
+   - Os alvos escondidos nunca chegam à aplicação como gabarito: nada deles é gravado no banco ou no estado.
+   - O volume com o `u1.base` (`app_dados_ml`) é montado só no `preparar`, nunca no `app` (§4.1).
+   - O README da aplicação traz uma frase equivalente.
+9. **Tag:** `pesquisa-plano3-final` em `6077974` é criada localmente antes do primeiro commit de código. O push só acontece com autorização do usuário, e o CI não depende dela.
 
 ## 11. Mídia: arquitetura agora, fornecedor depois
 
@@ -535,11 +590,11 @@ O Playwright e o Vitest gravam só nessas pastas.
 
 | Nível | Ferramenta | Cobertura |
 |---|---|---|
-| Unidade | `node:test` | estado único, precedência e `anterior`; `curtidos`/`interagidos`/`OCULTOS`; preenchimento; os cinco `motivo`; `porque` (ordem e desempate); suficiência (n = 4 → `null`, n = 5 → média); exclusão dos perfis de exemplo das estatísticas; `titulo_exibicao`; o `Cartaz` determinístico e o contraste calculado |
+| Unidade | `node:test` | estado único, precedência e `anterior`; `efeitos` (inclusive `perfilMudou` em "Gostei" → nota 2 e no DELETE; `contribuiParaPerfil` ⇔ o filme está em `curtidos(P)` e tem vetor); `curtidos`/`interagidos`/`OCULTOS`; preenchimento; os cinco `motivo`; `porque` (exclusão da contribuição 0, ordem pela contribuição normalizada, incluindo um caso em que a interseção crua e a normalizada discordam, desempate por id, e pelo menos 1 explicação por item S1); suficiência (n = 4 → `null`, n = 5 → média); exclusão dos perfis de exemplo das estatísticas; `titulo_exibicao`; o `Cartaz` determinístico e o contraste calculado |
 | Isolamento e congelamento | `node:test` + CI | §10.1 a §10.4 |
-| Integração (banco real) | `node:test` | migrações idempotentes; selo; papéis (`app_escrita` não escreve em `v2_final`; `app_leitura` não escreve; `current_schema()` = `v2_final` no pool de leitura; `buscarColaborativos` funciona com `app_leitura`; GRANTs sobrevivem a uma nova execução do script 16); §10.5 e §10.6; todas as rotas e o catálogo de códigos; `421`, `403` e `415`; o limite de 20 com POSTs concorrentes; o `/diagnostico` com 404 sem a variável; recomendações ignorando `?modo`/`?m`; os cabeçalhos exatos da CSP e a ausência de HSTS |
-| Componentes | Vitest + Testing Library | `ControleInteracao`, `AvisoAcao` com "Desfazer", `PainelEstatisticas`, `ExplicacaoMotivo`, `Cartaz` (o fallback de `onerror`), `TelaPreparando` |
-| Ponta a ponta | Playwright, em **Chromium e WebKit**, `baseURL http://127.0.0.1:<porta>` | O fluxo principal: criar perfil → onboarding com 3 "Gostei" → Top 10 com 10 itens S1 e "Porque você curtiu" → dar 5 estrelas a um item no Top 10 (ele sai, aparece a faixa "Atualizar", e depois de atualizar há um item "Novo") → "Quero assistir" em outro item (ele vai para a Minha lista e não volta ao Top 10) → trocar a nota 2 por "Gostei" e usar o "Desfazer" → excluir a nota (o estado volta a "nenhum"). Também: o "Ver um exemplo" mostra o Top 10; um perfil vazio recebe populares com explicação; navegação por teclado nas estrelas; **nenhuma requisição fora de localhost** em todo o fluxo. |
+| Integração (banco real) | `node:test` | migrações idempotentes; selo; papéis (`app_escrita` não escreve em `v2_final`; `app_leitura` não escreve; `current_schema()` = `v2_final` no pool de leitura; `buscarColaborativos` funciona com `app_leitura`; GRANTs sobrevivem a uma nova execução do script 16); §10.5 e §10.6; todas as rotas e o catálogo de códigos; `421`, `403` e `415`; o limite de 20 com POSTs concorrentes; o `/diagnostico` com 404 sem a variável; recomendações ignorando `?modo`/`?m`; os cabeçalhos exatos da CSP e a ausência de HSTS; **porta alternativa**: o Compose sobe com `APP_PORTA=3317`, e então `Host: localhost:3317`, `127.0.0.1:3317` e `[::1]:3317` recebem 200 em `/api/saude`, enquanto `Host: localhost:3000` recebe 421, e a linha "Pronto" da preparação mostra a 3317; **segredos**: o valor das duas senhas de `credenciais.json` não aparece em nenhuma resposta da suíte de contrato, no HAR do Playwright, no `estado.json` nem em `docker compose logs` dos três serviços (incluindo uma execução forçada com `ALTER ROLE` que falha); `28P01` (credenciais trocadas no arquivo) leva ao bloqueio com a causa certa, e a reconferência recupera depois de uma nova preparação |
+| Componentes | Vitest + Testing Library | `Top10` (resposta antiga que chega depois da nova é descartada, com fetch simulado com atrasos; foco ao remover o item focado; `prefers-reduced-motion`), `ControleInteracao`, `AvisoAcao` com "Desfazer" e as frases por `efeitos`, `PainelEstatisticas`, `ExplicacaoMotivo`, `Cartaz` (o fallback de `onerror`), `TelaPreparando` |
+| Ponta a ponta | Playwright, em **Chromium e WebKit**, `baseURL http://127.0.0.1:<porta>` | O fluxo principal: criar perfil → onboarding com 3 "Gostei" → Top 10 com 10 itens S1 e "Porque você curtiu" → dar 5 estrelas a um item no Top 10 (ele sai; **sem nenhum clique**, a lista volta a ter 10 itens, há um item com o selo "Novo" e o foco fica num item da lista) → dar notas a dois itens em seguida, sem esperar (a lista final não contém nenhum dos dois e tem 10 itens) → dar nota 2 a um item (ele sai do Top 10) → "Quero assistir" em outro item (ele vai para a Minha lista e não volta ao Top 10) → trocar a nota 2 por "Gostei" e usar o "Desfazer" → excluir a nota (o estado volta a "nenhum"). Também: o "Ver um exemplo" mostra o Top 10; um perfil vazio recebe populares com explicação; navegação por teclado nas estrelas; **nenhuma requisição fora de localhost** em todo o fluxo. |
 | Instalação limpa | GitHub Actions (Linux) | §13, critério 1 |
 | Multiplataforma | GitHub Actions | §10.7, mais o `buildx` amd64/arm64 da imagem |
 
@@ -582,8 +637,8 @@ O Playwright e o Vitest gravam só nessas pastas.
 - **Gêmeos:** só o de menor id aparece em toda a aplicação. O outro e o id 267 entram no conjunto de exclusão. Assim a única mudança em relação à S1 avaliada é o conjunto de exclusão.
 - **Onboarding curado:** os 2 mais avaliados de cada gênero, com vetor, e depois a ordem global.
 - **"Perfil de exemplo"** com 6 filmes escolhidos à mão. Ele fica fora das estatísticas "Neste computador".
-- **"Porque você curtiu X"**, calculado pelos fãs em comum. É uma explicação e não altera a ordem.
-- **O Top 10 não se reordena na tela:** a faixa "Atualizar" faz isso.
+- **"Porque você curtiu X"**, calculado pela contribuição de cada curtido ao escore (fãs em comum, normalizados pela popularidade do curtido). É uma explicação e não altera a ordem.
+- **O Top 10 se atualiza sozinho** depois de cada interação, como você pediu ("atualizado na hora"), com transição animada, o selo "Novo", o anúncio por `aria-live` e o foco preservado. A faixa "Atualizar" da v2 foi retirada porque exigia um clique e contrariava esse requisito.
 - **Os três sinais continuam,** como você decidiu, com "Desfazer" e textos que dizem o que influencia. A revisão de UX sugeriu fundir "Gostei" com as estrelas e cortar "Quero assistir"; **não acatei, porque contraria a sua decisão**.
 - **Títulos exibidos com o artigo no início;** o original aparece no detalhe e conta para a busca.
 - **Senhas dos papéis aleatórias,** geradas na preparação. O `.env` é opcional.
@@ -636,7 +691,7 @@ O Playwright e o Vitest gravam só nessas pastas.
   - perfil de exemplo, GIF e capturas no README;
   - onboarding curado e aviso de que o catálogo vai até 1998;
   - "Desfazer" e textos sobre o que influencia;
-  - Top 10 estável com "Atualizar" e "Novo";
+  - Top 10 estável com "Atualizar" e "Novo" (substituído na v3 pela atualização automática);
   - "Porque você curtiu";
   - rótulos mais claros;
   - cartaz com variação e contraste calculado;
@@ -646,3 +701,23 @@ O Playwright e o Vitest gravam só nessas pastas.
   - "Apelido" e aviso de perfil local;
   - Sobre em camadas;
   - acessibilidade e mobile.
+
+### 16.1 Mudanças da v2 para a v3 (revisão direcionada de 7 pontos)
+| Ponto | Classificação | Mudança |
+|---|---|---|
+| 1. Semântica das avaliações | Confirmado, com ajuste | `influenciaRecomendacoes` foi substituído por `efeitos: { contribuiParaPerfil, excluidoDasRecomendacoes, perfilMudou }` no PUT e no DELETE. Os textos agora dizem que **qualquer** marcação tira o filme das recomendações (igual à avaliação, que excluía todos os vistos) e que notas **1–3**, não só 1–2, ainda não afastam filmes parecidos. O selo do catálogo passou a "curtir não personaliza". O pipeline não mudou. |
+| 2. Top 10 na hora | Confirmado | A faixa "Atualizar" saiu. O Top 10 se recalcula sozinho a cada interação, com animação, fila de escritas, contador `seq`/`AbortController`, uma região `aria-live` e foco preservado. O Playwright foi atualizado. |
+| 3. Porta e Host | Confirmado | `APP_PORTA` vai em `environment:` do `app` e do `preparar`. O servidor escuta em `0.0.0.0:3000` dentro do contêiner, e o `Host` aceito é o da porta publicada. Há teste de integração com a 3317. |
+| 4. Estado e credenciais | Parcialmente procedente | As senhas foram para `credenciais.json` (0600), separado do `estado.json`. O `/saude` é montado campo a campo. O `ALTER ROLE` usa `escapeLiteral`, sem logar a senha. O `28P01` passou a ser classificado. Há teste de vazamento em respostas, HAR, estado e logs. O 0600 é declarado como de pouca proteção, porque os dois contêineres usam o mesmo UID. |
+| 5. Textos do onboarding | Confirmado | Os textos não afirmam mais um limiar: cada curtida já muda a lista, e 3 é só uma sugestão. O Sobre diz "a lista se apoia em poucos filmes". |
+| 6. "Porque você curtiu" | Confirmado | Só aparecem curtidos com fãs em comum (> 0), ordenados pela contribuição normalizada ao escore, em inteiros exatos. Fica garantida pelo menos 1 explicação por item S1, o que foi provado e é testado. |
+| 7. Build e isolamento | Parcialmente procedente | A sintaxe do `.dockerignore` estava correta. O `resultados/` saiu da imagem, e os números do Sobre viraram constantes conferidas no CI. Entraram padrões extras na lista. O lockfile citado passou a ser o de `app/web`. A §10.8 sobre o `u1.base` foi acrescentada, e o `app_dados_ml` fica montado só no `preparar`. |
+
+**Bloqueadores ligados às correções, já resolvidos:**
+- o servidor precisava escutar em `0.0.0.0` dentro do contêiner;
+- a porta impressa pela preparação;
+- o proxy do Vite no modo de desenvolvimento;
+- o lockfile do `app/web`;
+- a origem dos números do Sobre;
+- o `ALTER ROLE` sem parâmetro;
+- o código `28P01`.
