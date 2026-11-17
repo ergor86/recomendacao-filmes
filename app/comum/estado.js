@@ -23,11 +23,13 @@ function acharSegredo(v, caminho) {
   return null;
 }
 
+const AUSENTE = Symbol('ausente');
+
 function lerJson(arquivo) {
   try {
     return JSON.parse(readFileSync(arquivo, 'utf8'));
   } catch (e) {
-    if (e.code === 'ENOENT') return null;
+    if (e.code === 'ENOENT') return AUSENTE;
     if (e instanceof SyntaxError) throw new Error(`arquivo inválido (${arquivo}): ${e.message}`);
     throw e;
   }
@@ -49,12 +51,13 @@ export function gravarEstado(dir, estado) {
 }
 
 export function lerEstado(dir) {
-  return lerJson(path.join(dir, ARQ_ESTADO));
+  const e = lerJson(path.join(dir, ARQ_ESTADO));
+  return e === AUSENTE ? null : e;
 }
 
 function validarCredenciais(c, arquivo) {
   const ok = (s) => typeof s === 'string' && s.length > 0;
-  if (!c || !ok(c.app_leitura) || !ok(c.app_escrita)) {
+  if (!c || typeof c !== 'object' || Array.isArray(c) || !ok(c.app_leitura) || !ok(c.app_escrita)) {
     throw new Error(`credenciais inválidas em ${arquivo}: app_leitura e app_escrita devem ser strings não vazias; corrija ou remova o arquivo`);
   }
   return { app_leitura: c.app_leitura, app_escrita: c.app_escrita };
@@ -63,7 +66,7 @@ function validarCredenciais(c, arquivo) {
 export function lerCredenciais(dir) {
   const arquivo = path.join(dir, ARQ_CRED);
   const c = lerJson(arquivo);
-  return c === null ? null : validarCredenciais(c, arquivo);
+  return c === AUSENTE ? null : validarCredenciais(c, arquivo);
 }
 
 export function garantirCredenciais(dir) {

@@ -66,7 +66,7 @@ test('garantirCredenciais é idempotente e lerCredenciais lê', () => {
 });
 
 test('credenciais vazias ou incompletas lançam erro com o caminho, sem regenerar', () => {
-  for (const conteudo of ['', '{}', '{"app_leitura":"a","app_escrita":""}']) {
+  for (const conteudo of ['', '{}', 'null', '[]', '"x"', '5', '{"app_leitura":"a","app_escrita":""}']) {
     const dir = tmp();
     try {
       const arq = path.join(dir, 'credenciais.json');
