@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test": "node --test --test-concurrency=1 \"testes/unidade/**/*.test.js\" testes/isolamento.test.js testes/congelamento.test.js",
-    "test:integracao": "node --test --test-concurrency=1 \"testes/integracao/**/*.test.js\" testes/referencia/precisao.test.js",
+    "test:integracao": "node --test --test-concurrency=1 \"testes/integracao/**/*.test.js\" \"testes/referencia/**/*.test.js\"",
     "test:web": "npm --prefix web test",
     "e2e": "playwright test -c testes/e2e/playwright.config.js"
   },

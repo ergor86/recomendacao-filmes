@@ -57,3 +57,20 @@ export function poolComo(papel, senha, extra = {}) {
   const { host, port, database } = configSuperusuario();
   return new pg.Pool({ host, port, database, user: papel, password: senha, max: 2, ...extra });
 }
+
+// Recria (DROP + CREATE) um banco de teste proprio. Guardas: nunca 5433, nunca `recomendacao`,
+// e DROP so em banco cujo nome comece com `app_teste`.
+export async function recriarBancoTeste(nome) {
+  if (!/^app_teste/.test(nome)) throw new Error(`recusado: so recrio bancos app_teste*, nao ${nome}`);
+  const cfg = { ...configSuperusuario(), database: nome };
+  if (cfg.port === 5433 || nome === 'recomendacao') throw new Error('banco da pesquisa. Recusado.');
+  const admin = new pg.Client({ ...cfg, database: 'postgres' });
+  await admin.connect();
+  try {
+    await admin.query(`DROP DATABASE IF EXISTS ${pg.escapeIdentifier(nome)} WITH (FORCE)`);
+    await admin.query(`CREATE DATABASE ${pg.escapeIdentifier(nome)}`);
+  } finally {
+    await admin.end();
+  }
+  return cfg;
+}
