@@ -15,6 +15,14 @@ export const TOTAL_ETAPAS = 8;
 export const COMANDO_PADRAO = 'docker compose run --rm preparar';
 const TENTATIVAS_CONEXAO = 30;
 
+// Recusa que nao deve sugerir comando: repetir o mesmo comando recusaria de novo.
+export class ErroRecusa extends Error {
+  constructor(msg) {
+    super(msg);
+    this.name = 'ErroRecusa';
+  }
+}
+
 export class ErroTrava extends Error {
   constructor() {
     super('outra preparação em andamento');
@@ -27,7 +35,7 @@ const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 function recusarBancoDaPesquisa(cfg) {
   if (process.env.PREPARAR_ALVO_APP === '1') return;
   if (Number(cfg.port) === 5433 || cfg.database === 'recomendacao') {
-    throw new Error(
+    throw new ErroRecusa(
       'O alvo parece ser o banco da pesquisa (porta 5433 ou banco "recomendacao"); a preparação do app se recusa a mexer nele.',
     );
   }
@@ -75,13 +83,18 @@ async function bancoPronto(client, versaoApp) {
   return s?.versao_app === versaoApp;
 }
 
+async function invalidarSelo(client) {
+  const { rows: [t] } = await client.query(`SELECT to_regclass('app.preparacao') IS NOT NULL AS selo`);
+  if (t.selo) await client.query('DELETE FROM app.preparacao'); // autocommit: ja confirmado
+}
+
 async function recusarV2SemApp(client) {
   const { rows: [r] } = await client.query(
     `SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'v2_final') AS v2,
             EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'app') AS app`,
   );
   if (r.v2 && !r.app) {
-    throw new Error(
+    throw new ErroRecusa(
       'O banco tem o schema v2_final mas não tem o schema app: parece o banco da pesquisa; a preparação em modo de desenvolvimento se recusa a mexer nele.',
     );
   }
@@ -131,17 +144,28 @@ export async function prepararTudo({
     await obterArquivosML({ destino: dirDados, zipLocal, log, ...(baixar ? { baixar } : {}) });
 
     // Passo 3: carga congelada, so se o banco nao estiver pronto
-    const pronto = await bancoPronto(client, versaoApp);
-    if (pronto) {
-      etapa(3, 'banco já preparado; pulando a carga dos filmes');
-    } else {
+    let pronto = await bancoPronto(client, versaoApp);
+    const carregar = async () => {
       etapa(3, 'carregando filmes no banco');
+      // um selo antigo nao pode sobreviver a uma carga que falhe depois do script 16
+      await invalidarSelo(client);
       await rodarScript16({ pg: cfg, dirDados, dirTrabalho });
-    }
+      pronto = false;
+    };
+    if (pronto) etapa(3, 'banco já preparado; pulando a carga dos filmes');
+    else await carregar();
 
-    // Passo 4: integridade
+    // Passo 4: integridade. No caminho "pronto", uma divergencia se cura uma unica vez.
     etapa(4, 'conferindo a integridade dos dados');
-    await conferirIntegridade(client);
+    try {
+      await conferirIntegridade(client);
+    } catch (e) {
+      if (!pronto) throw e;
+      log('integridade divergente: recarregando os dados congelados');
+      await carregar();
+      etapa(4, 'conferindo a integridade dos dados');
+      await conferirIntegridade(client);
+    }
 
     // Passos 5 a 7: uma transacao so
     etapa(5, 'preparando tabelas e papéis do banco');
@@ -187,7 +211,7 @@ export async function prepararTudo({
         gravarEstado(dirEstado, {
           estado: 'falhou', etapa: ultimaEtapa, total: TOTAL_ETAPAS, mensagem: 'A preparação falhou.',
           causa: doProprio ? e.causa : e.message,
-          comando: doProprio ? e.comando : COMANDO_PADRAO,
+          ...(e instanceof ErroRecusa ? {} : { comando: doProprio ? e.comando : COMANDO_PADRAO }),
           atualizadoEm: new Date().toISOString(),
         });
       } catch { /* sem onde gravar o estado; o erro original segue */ }

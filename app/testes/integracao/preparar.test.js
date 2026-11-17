@@ -8,6 +8,7 @@ import path from 'node:path';
 import pg from 'pg';
 import { HASHES } from '../../integridade.js';
 import { CHAVE_TRAVA, prepararTudo } from '../../preparar/preparar.js';
+import { impressaoDigital } from '../../comum/fc-banco.js';
 import { copiarArquivosML, recriarBancoTeste } from './apoio.js';
 
 const VERSAO = '0.1.0';
@@ -24,8 +25,16 @@ describe('preparacao (banco app_teste_prep)', { timeout: 900_000, skip: semDados
   const estado = () => JSON.parse(readFileSync(path.join(dirEstado, 'estado.json'), 'utf8'));
   const baixarProibido = async () => { throw new Error('nao deveria baixar'); };
   const tempo = {};
+  const alvoAntes = process.env.PREPARAR_ALVO_APP;
+  const semSenhas = () => {
+    const cred = JSON.parse(readFileSync(path.join(dirEstado, 'credenciais.json'), 'utf8'));
+    const texto = readFileSync(path.join(dirEstado, 'estado.json'), 'utf8');
+    for (const v of Object.values(cred)) assert.ok(!texto.includes(v));
+  };
+  const oidFc = async () => (await q(`SELECT ('v2_final.filmes_fc'::regclass::oid)::text AS o`))[0].o;
 
   before(async () => {
+    delete process.env.PREPARAR_ALVO_APP;
     cfg = await recriarBancoTeste('app_teste_prep');
     tmp = mkdtempSync(path.join(os.tmpdir(), 'prep-'));
     dirDados = path.join(tmp, 'dados');
@@ -35,6 +44,8 @@ describe('preparacao (banco app_teste_prep)', { timeout: 900_000, skip: semDados
     pool = new pg.Pool({ ...cfg, max: 3 });
   });
   after(async () => {
+    if (alvoAntes === undefined) delete process.env.PREPARAR_ALVO_APP;
+    else process.env.PREPARAR_ALVO_APP = alvoAntes;
     await pool?.end();
     if (tmp) rmSync(tmp, { recursive: true, force: true });
   });
@@ -42,6 +53,9 @@ describe('preparacao (banco app_teste_prep)', { timeout: 900_000, skip: semDados
   it('recusa o banco da pesquisa sem conectar', async () => {
     await assert.rejects(preparar({ pg: { ...cfg, port: 5433 } }), /pesquisa/);
     await assert.rejects(preparar({ pg: { ...cfg, database: 'recomendacao' } }), /pesquisa/);
+    const e = estado();
+    assert.equal(e.estado, 'falhou');
+    assert.ok(!('comando' in e), 'recusa nao sugere comando');
   });
 
   it('primeira preparacao termina pronta', async () => {
@@ -81,11 +95,7 @@ describe('preparacao (banco app_teste_prep)', { timeout: 900_000, skip: semDados
     assert.equal(estado().estado, 'pronto');
   });
 
-  it('estado.json nunca contem senhas', () => {
-    const cred = JSON.parse(readFileSync(path.join(dirEstado, 'credenciais.json'), 'utf8'));
-    const texto = readFileSync(path.join(dirEstado, 'estado.json'), 'utf8');
-    for (const v of Object.values(cred)) assert.ok(!texto.includes(v));
-  });
+  it('estado.json nunca contem senhas', () => { semSenhas(); });
 
   it('duas preparacoes simultaneas: a segunda lanca e nao grava falhou', async () => {
     const outra = new pg.Client(cfg);
@@ -112,16 +122,41 @@ describe('preparacao (banco app_teste_prep)', { timeout: 900_000, skip: semDados
     assert.equal(e.estado, 'falhou');
     assert.match(e.causa, /queda simulada/);
     assert.equal(e.comando, 'docker compose run --rm preparar');
+    semSenhas();
     assert.equal(await preparar(), 'pronto');
     assert.equal((await q('SELECT 1 FROM app.preparacao')).length, 1);
   });
 
+  it('selo antigo nao sobrevive a carga que falhou depois do script 16', async () => {
+    await preparar(); // selo presente
+    assert.equal((await q('SELECT 1 FROM app.preparacao')).length, 1);
+    await pool.query(`UPDATE v2_final.metadados SET valor = 'invalido' WHERE chave IN ('hash_regua', 'hash_treino')`);
+    await assert.rejects(
+      preparar({ ganchos: { antesDoSelo: async () => { throw new Error('queda apos o script 16'); } } }),
+      /queda apos o script 16/,
+    );
+    assert.equal((await q('SELECT 1 FROM app.preparacao')).length, 0, 'selo antigo foi invalidado');
+    const saida = [];
+    assert.equal(await preparar({ log: (m) => saida.push(m) }), 'pronto');
+    assert.ok(saida.some((l) => l.includes('3/8: carregando filmes no banco')));
+    assert.ok(saida.some((l) => l.includes('6/8: preenchendo as tabelas de referência')));
+    assert.equal((await q('SELECT 1 FROM app.preparacao')).length, 1);
+  });
+
   describe('nova preparacao preserva os dados dos usuarios', () => {
+    let exemploFilmes;
     async function criarUsuarios() {
-      await pool.query('DELETE FROM app.perfil');
+      assert.equal((await q('SELECT 1 FROM app.perfil')).length, 0, 'banco recriado: sem perfis');
       const ids = (await q(`INSERT INTO app.perfil (nome, onboarding_concluido) VALUES ('Ana', true), ('Bruno', true) RETURNING id`)).map((r) => r.id);
       const filmes = (await q('SELECT id FROM app.filme ORDER BY id LIMIT 12')).map((r) => r.id);
       const linhas = [];
+      const [ex] = await q(`INSERT INTO app.perfil (nome, exemplo, onboarding_concluido) VALUES ('Exemplo', true, true) RETURNING id`);
+      const exFilmes = (await q('SELECT id FROM app.filme ORDER BY id DESC LIMIT 5')).map((r) => r.id);
+      assert.ok(exFilmes.every((f) => !filmes.includes(f)));
+      for (const [i, f] of exFilmes.entries()) {
+        await pool.query(`INSERT INTO app.interacao (perfil_id, filme_id, tipo, nota) VALUES ($1, $2, 'nota', $3)`, [ex.id, f, (i % 5) + 1]);
+      }
+      exemploFilmes = exFilmes;
       ids.forEach((p, k) => {
         filmes.slice(0, 6).forEach((f, i) => linhas.push([p, f, 'nota', ((i + k) % 5) + 1]));
         linhas.push([p, filmes[6], 'gostei', null], [p, filmes[7 + k], 'quero_assistir', null]);
@@ -145,9 +180,13 @@ describe('preparacao (banco app_teste_prep)', { timeout: 900_000, skip: semDados
     it('sem o selo (passo 6 roda de novo)', async () => {
       await criarUsuarios();
       const antes = await retrato();
-      assert.ok(antes.perfil.length === 2 && antes.interacao.length === 16 && antes.estatisticas.length > 0);
+      assert.ok(antes.perfil.some((p) => p.exemplo), 'perfil de exemplo presente');
+      assert.ok(antes.estatisticas.every((e) => !exemploFilmes.includes(e.filme_id)), 'exemplo fora das estatisticas');
+      assert.ok(antes.perfil.length === 3 && antes.interacao.length === 21 && antes.estatisticas.length > 0);
       await pool.query('DELETE FROM app.preparacao');
-      await preparar();
+      const saida = [];
+      await preparar({ log: (m) => saida.push(m) });
+      assert.ok(saida.some((l) => l.includes('6/8: preenchendo as tabelas de referência')));
       assert.deepEqual(await retrato(), antes);
     });
 
@@ -155,11 +194,29 @@ describe('preparacao (banco app_teste_prep)', { timeout: 900_000, skip: semDados
       const antes = await retrato();
       await pool.query('DELETE FROM app.preparacao');
       await pool.query(`UPDATE v2_final.metadados SET valor = 'invalido' WHERE chave IN ('hash_regua', 'hash_treino')`);
+      const oidAntes = await oidFc();
       const saida = [];
       await preparar({ log: (m) => saida.push(m) });
       assert.ok(saida.some((l) => l.includes('carregando filmes no banco')));
+      assert.ok(saida.some((l) => l.includes('6/8: preenchendo as tabelas de referência')));
+      assert.notEqual(await oidFc(), oidAntes, 'script 16 recriou filmes_fc');
       const [m] = await q(`SELECT valor FROM v2_final.metadados WHERE chave = 'hash_regua'`);
       assert.equal(m.valor, HASHES.regua);
+      assert.deepEqual(await retrato(), antes);
+    });
+
+    it('autocura: banco pronto com vetor adulterado e consertado, usuarios preservados', async () => {
+      const antes = await retrato();
+      const dig = await impressaoDigital(pool, { comConteudo: true });
+      const [a, b] = (await q('SELECT id FROM v2_final.filmes_fc ORDER BY id LIMIT 2')).map((r) => r.id);
+      await pool.query('UPDATE v2_final.filmes_fc SET embedding = (SELECT embedding FROM v2_final.filmes_fc WHERE id = $2) WHERE id = $1', [a, b]);
+      assert.notEqual((await impressaoDigital(pool, { comConteudo: true })).md5Conteudo, dig.md5Conteudo);
+      const saida = [];
+      assert.equal(await preparar({ log: (m) => saida.push(m) }), 'pronto');
+      assert.ok(saida.includes('integridade divergente: recarregando os dados congelados'));
+      assert.equal(saida.filter((l) => l.includes('carregando filmes no banco')).length, 1);
+      assert.equal(saida.filter((l) => l.includes('6/8: preenchendo as tabelas de referência')).length, 1);
+      assert.equal((await impressaoDigital(pool, { comConteudo: true })).md5Conteudo, dig.md5Conteudo);
       assert.deepEqual(await retrato(), antes);
     });
   });
@@ -168,9 +225,10 @@ describe('preparacao (banco app_teste_prep)', { timeout: 900_000, skip: semDados
     await pool.query('DROP SCHEMA app CASCADE');
     await assert.rejects(preparar({ modoDev: true }), /v2_final/);
     assert.equal(estado().estado, 'falhou');
+    semSenhas();
   });
 
-  it('tempos', () => {
-    console.log(`tempo preparacao completa: ${tempo.completa} ms; repetida: ${tempo.repetida} ms`);
+  it('tempos', (t) => {
+    t.diagnostic(`tempo preparacao completa: ${tempo.completa} ms; repetida: ${tempo.repetida} ms`);
   });
 });
