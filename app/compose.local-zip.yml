@@ -1,0 +1,9 @@
+# Override para usar um zip do MovieLens 100K já baixado, sem acesso à internet:
+#   ML100K_ZIP=/caminho/para/ml-100k.zip \
+#   docker compose -f compose.yml -f compose.local-zip.yml run --rm preparar
+services:
+  preparar:
+    environment:
+      ML100K_ZIP: /var/app/zip/ml-100k.zip
+    volumes:
+      - ${ML100K_ZIP}:/var/app/zip/ml-100k.zip:ro
