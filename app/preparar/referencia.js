@@ -28,9 +28,12 @@ export async function preencherReferencia(client, ctx) {
 
   const fc = new Set((await client.query('SELECT id FROM v2_final.filmes_fc')).rows.map((r) => r.id));
 
+  // n_notas, soma e aprovacao vem do treino (fonte independente da regua, que so confere depois)
+  const cont = new Map();
   const soma = new Map();
   const aprov = new Map();
   for (const a of ctx.treino) {
+    cont.set(a.filme, (cont.get(a.filme) ?? 0) + 1);
     soma.set(a.filme, (soma.get(a.filme) ?? 0) + a.nota);
     if (a.nota >= 4) aprov.set(a.filme, (aprov.get(a.filme) ?? 0) + 1);
   }
@@ -76,7 +79,7 @@ export async function preencherReferencia(client, ctx) {
        n_aprovacao = EXCLUDED.n_aprovacao`,
     [
       idsOrdem,
-      idsOrdem.map((id) => contagens[id] ?? 0),
+      idsOrdem.map((id) => cont.get(id) ?? 0),
       idsOrdem.map((id) => soma.get(id) ?? 0),
       idsOrdem.map((id) => aprov.get(id) ?? 0),
     ],
@@ -103,7 +106,10 @@ export async function preencherReferencia(client, ctx) {
   const est = (await client.query(
     'SELECT count(*)::int AS n, sum(n_notas)::int AS s FROM app.estatistica_historica')).rows[0];
   if (est.n !== N_FILMES) falhar(`COUNT(estatistica_historica) = ${est.n}`);
-  if (est.s !== ctx.treino.length) falhar(`SUM(n_notas) = ${est.s}, treino = ${ctx.treino.length}`);
+  const somaRegua = Object.values(contagens).reduce((x, y) => x + y, 0);
+  if (est.s !== ctx.treino.length || est.s !== somaRegua) {
+    falhar(`SUM(n_notas) = ${est.s}, treino = ${ctx.treino.length}, regua = ${somaRegua}`);
+  }
   const linhas = (await client.query(
     'SELECT filme_id, n_notas FROM app.estatistica_historica ORDER BY n_notas DESC, filme_id')).rows;
   for (const r of linhas) {

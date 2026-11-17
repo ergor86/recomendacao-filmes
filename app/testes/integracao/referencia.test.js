@@ -7,6 +7,7 @@ import path from 'node:path';
 import pg from 'pg';
 import { N_FC, N_FILMES } from '../../integridade.js';
 import { carregarContextoV2Final } from '../../preparar/contexto.js';
+import { calcularOcultos, carregarGemeosManuais, detectarGemeos } from '../../comum/gemeos.js';
 import { aplicarMigracoes } from '../../preparar/papeis.js';
 import { preencherReferencia } from '../../preparar/referencia.js';
 import { rodarScript16 } from '../../preparar/script16.js';
@@ -44,7 +45,6 @@ describe('tabelas de referencia', { timeout: 600_000 }, () => {
     await aplicarMigracoes(pool);
     ctx = carregarContextoV2Final(dirDados);
     resumo = await rodar();
-    console.log('resumo:', JSON.stringify(resumo));
   });
   after(async () => {
     await pool?.end();
@@ -59,17 +59,7 @@ describe('tabelas de referencia', { timeout: 600_000 }, () => {
 
   it('SUM(n_notas) = ctx.treino.length', async () => {
     const r = (await q('SELECT sum(n_notas)::int s FROM app.estatistica_historica'))[0].s;
-    console.log('SUM(n_notas):', r);
     assert.equal(r, ctx.treino.length);
-  });
-
-  it('ordem de populares = rankingPopularidade(regua.contagens)', async () => {
-    const ids = (await q('SELECT filme_id FROM app.estatistica_historica ORDER BY n_notas DESC, filme_id'))
-      .map((r) => r.filme_id);
-    // o teste nao importa da raiz: reimplementa a regra de rankingPopularidade (n_notas desc, id asc)
-    const c = ctx.regua.contagens;
-    const esperado = Object.keys(c).map(Number).sort((x, y) => c[y] - c[x] || x - y);
-    assert.deepEqual(ids, esperado);
   });
 
   it('somas conferem com o treino', async () => {
@@ -89,7 +79,6 @@ describe('tabelas de referencia', { timeout: 600_000 }, () => {
   it('filmes de 0 notas estao presentes', async () => {
     const r = await q('SELECT count(*)::int n FROM app.estatistica_historica WHERE n_notas = 0');
     const esperado = Object.values(ctx.regua.contagens).filter((n) => n === 0).length;
-    console.log('filmes de 0 notas:', r[0].n);
     assert.ok(esperado > 0);
     assert.equal(r[0].n, esperado);
   });
@@ -103,9 +92,10 @@ describe('tabelas de referencia', { timeout: 600_000 }, () => {
 
   it('visivel = false exatamente nos 20 ocultos', async () => {
     const ocultos = (await q('SELECT id FROM app.filme WHERE NOT visivel ORDER BY id')).map((r) => r.id);
-    console.log('ocultos:', ocultos.length, JSON.stringify(ocultos));
+    const esperado = [...calcularOcultos([...detectarGemeos(ctx.dataset.filmes), ...carregarGemeosManuais()])]
+      .sort((a, b) => a - b);
     assert.equal(ocultos.length, 20);
-    assert.ok(ocultos.includes(267) && ocultos.includes(1504));
+    assert.deepEqual(ocultos, esperado);
   });
 
   it('generos sem unknown e titulos preenchidos', async () => {
@@ -157,15 +147,38 @@ describe('tabelas de referencia', { timeout: 600_000 }, () => {
     assert.deepEqual(await snap(), a);
   });
 
-  it('id fora do dataset em app.filme falha sem alterar nada', async () => {
+  it('id fora do dataset falha antes de qualquer escrita', async () => {
     await pool.query(`INSERT INTO app.filme VALUES (9999, 'x', 'x', NULL, '{}', false, true, 'x')`);
+    const retrato = async (c) => (await c.query(`SELECT
+      (SELECT md5(string_agg(f::text, '|' ORDER BY id)) FROM app.filme f) AS f,
+      (SELECT md5(string_agg(e::text, '|' ORDER BY filme_id)) FROM app.estatistica_historica e) AS e,
+      (SELECT md5(coalesce(string_agg(g::text, '|' ORDER BY filme_id, gemeo_id), '')) FROM app.filme_gemeo g) AS g,
+      (SELECT count(*)::int FROM app.filme) AS nf,
+      (SELECT count(*)::int FROM app.filme_gemeo) AS ng`)).rows[0];
+    const c = await pool.connect();
     try {
-      const antes = await q('SELECT * FROM app.filme ORDER BY id');
-      await assert.rejects(rodar(), /9999/);
-      assert.deepEqual(await q('SELECT * FROM app.filme ORDER BY id'), antes);
+      const antes = await retrato(c);
+      await c.query('BEGIN');
+      await assert.rejects(preencherReferencia(c, ctx), /9999/);
+      // ainda dentro da transacao: nada foi escrito
+      assert.deepEqual(await retrato(c), antes);
+      await c.query('ROLLBACK');
     } finally {
+      c.release();
       await pool.query('DELETE FROM app.filme WHERE id = 9999');
     }
+  });
+
+  it('conferencia dispara com contagens da regua adulteradas (soma mantida)', async () => {
+    const c = { ...ctx.regua.contagens };
+    const [a, b] = Object.keys(c).filter((k) => c[k] > 0).slice(0, 2);
+    assert.notEqual(c[a], c[b]);
+    [c[a], c[b]] = [c[b], c[a]];
+    await assert.rejects(rodarCom({ ...ctx, regua: { ...ctx.regua, contagens: c } }, { commit: false }), /diverge/);
+  });
+
+  it('conferencia dispara com treino encurtado (SUM)', async () => {
+    await assert.rejects(rodarCom({ ...ctx, treino: ctx.treino.slice(1) }, { commit: false }), /SUM/);
   });
 
   it('recusa ctx com alvos', async () => {
