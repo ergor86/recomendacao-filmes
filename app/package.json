@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22 <23" },
+  "engines": {
+    "node": ">=22 <23"
+  },
   "scripts": {
     "test": "node --test --test-concurrency=1 \"testes/unidade/**/*.test.js\" testes/isolamento.test.js testes/congelamento.test.js",
     "test:integracao": "node --test --test-concurrency=1 \"testes/integracao/**/*.test.js\" testes/referencia/precisao.test.js",
@@ -11,6 +13,8 @@
     "e2e": "playwright test -c testes/e2e/playwright.config.js"
   },
   "dependencies": {
+    "acorn": "^8.19.0",
+    "acorn-jsx": "^5.3.2",
     "es-module-lexer": "^1.7.0"
   }
 }

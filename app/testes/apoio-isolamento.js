@@ -1,4 +1,8 @@
 import { init, parse } from 'es-module-lexer';
+import { Parser } from 'acorn';
+import jsx from 'acorn-jsx';
+
+const ParserJsx = Parser.extend(jsx());
 
 await init;
 
@@ -8,7 +12,54 @@ await init;
  * - dinamicosNaoLiterais: quantidade de `import(x)` com especificador não literal;
  * - criação de require e uso de require: busca textual.
  */
-export function analisarFonte(texto) {
+export function analisarFonte(texto, nome = 'texto.js') {
+  try {
+    return /\.jsx$/.test(nome) ? analisarComAcorn(texto) : analisarComLexer(texto);
+  } catch (e) {
+    throw new Error(`${nome} não analisável: ${e.message}`, { cause: e });
+  }
+}
+
+/** Parser que entende JSX (acorn + acorn-jsx): percorre a AST inteira. */
+function analisarComAcorn(texto) {
+  const ast = ParserJsx.parse(texto, { ecmaVersion: 'latest', sourceType: 'module' });
+  const importacoes = [];
+  const exportados = [];
+  let dinamicosNaoLiterais = 0;
+  const visitar = (no) => {
+    if (!no || typeof no.type !== 'string') return;
+    if (no.type === 'ImportDeclaration') importacoes.push({ tipo: 'import', especificador: no.source.value });
+    else if ((no.type === 'ExportNamedDeclaration' || no.type === 'ExportAllDeclaration') && no.source) {
+      importacoes.push({ tipo: 'export-from', especificador: no.source.value });
+    } else if (no.type === 'ImportExpression') {
+      if (no.source.type === 'Literal' && typeof no.source.value === 'string') {
+        importacoes.push({ tipo: 'dinamico', especificador: no.source.value });
+      } else dinamicosNaoLiterais += 1;
+    }
+    for (const v of Object.values(no)) {
+      if (Array.isArray(v)) v.forEach(visitar);
+      else if (v && typeof v === 'object') visitar(v);
+    }
+  };
+  visitar(ast);
+  for (const n of ast.body) {
+    if (n.type === 'ExportNamedDeclaration' && !n.source) {
+      if (n.declaration?.declarations) for (const d of n.declaration.declarations) exportados.push(d.id.name);
+      else if (n.declaration?.id) exportados.push(n.declaration.id.name);
+      for (const s of n.specifiers) exportados.push(s.exported.name ?? s.exported.value);
+    } else if (n.type === 'ExportDefaultDeclaration') exportados.push('default');
+  }
+  return { importacoes, exportados, dinamicosNaoLiterais, ...buscaTextual(texto) };
+}
+
+function buscaTextual(texto) {
+  return {
+    criaRequire: new RegExp('\\bcreate' + 'Require\\b').test(texto),
+    usaRequire: /(?<![\w$.])require\s*\(/.test(texto),
+  };
+}
+
+function analisarComLexer(texto) {
   const [imports, exports] = parse(texto);
   const importacoes = [];
   let dinamicosNaoLiterais = 0;
@@ -26,8 +77,7 @@ export function analisarFonte(texto) {
     importacoes,
     exportados: exports.map((e) => e.n),
     dinamicosNaoLiterais,
-    criaRequire: new RegExp('\\bcreate' + 'Require\\b').test(texto),
-    usaRequire: /(?<![\w$.])require\s*\(/.test(texto),
+    ...buscaTextual(texto),
   };
 }
 

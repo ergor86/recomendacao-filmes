@@ -30,6 +30,8 @@ const permitidosPara = (rel) => PERMISSOES.find(([pasta]) => rel.startsWith(past
 
 // ---- varredura de app/ (menos node_modules e dist) ----
 const EXT = /\.(js|jsx|mjs|cjs)$/;
+// TypeScript não é analisado: a presença de qualquer arquivo assim faz um teste falhar
+const EXT_TS = /\.(ts|tsx|mts|cts)$/;
 function listar(dirRel) {
   const out = [];
   let ents = [];
@@ -42,11 +44,22 @@ function listar(dirRel) {
     if (e.name === 'node_modules' || e.name === 'dist') continue;
     const rel = `${dirRel}/${e.name}`;
     if (e.isDirectory()) out.push(...listar(rel));
-    else if (EXT.test(e.name)) out.push(rel);
+    else if (EXT.test(e.name) || EXT_TS.test(e.name)) out.push(rel);
   }
   return out;
 }
-const arquivos = listar('app').map((rel) => ({ rel, texto: readFileSync(path.join(raiz, rel), 'utf8') }));
+const todos = listar('app').map((rel) => ({ rel, texto: readFileSync(path.join(raiz, rel), 'utf8') }));
+const arquivosTs = todos.filter((a) => EXT_TS.test(a.rel));
+const arquivos = todos.filter((a) => EXT.test(a.rel));
+// cada arquivo é analisado uma vez; o que não puder ser analisado é acusado por um teste próprio
+for (const a of arquivos) {
+  try {
+    a.analise = analisarFonte(a.texto, a.rel);
+  } catch (e) {
+    a.erro = e.message;
+  }
+}
+const analisaveis = arquivos.filter((a) => a.analise);
 const emPastas = (pastas) => arquivos.filter((a) => pastas.some((p) => a.rel.startsWith(p)));
 const ehTesteJsx = (a) => a.rel.endsWith('.test.jsx');
 
@@ -64,7 +77,7 @@ const PADROES_PRODUCAO = [
 
 function violacoesImports(rel, texto) {
   const v = [];
-  const a = analisarFonte(texto);
+  const a = analisarFonte(texto, rel);
   for (const { especificador } of a.importacoes) {
     if (/^@tensorflow\//.test(especificador)) v.push(`${rel}: importa ${especificador}`);
   }
@@ -132,6 +145,31 @@ describe('isolamento: verificador (textos sintéticos)', () => {
     assert.equal(violacoesImports('app/testes/unidade/x.js', "import { f } from '../../../src/contexto.js';").length, 1);
   });
 
+  test('JSX: o import depois do JSX é detectado (o lexer sozinho errava)', () => {
+    const texto = ['import x from "y"; export const A = () => (<div>{1}</div>);', 'import z from "../../../src/modelo/rede.js";'].join('\n');
+    assert.deepEqual(
+      analisarFonte(texto, 'app/web/src/A.jsx').importacoes.map((i) => i.especificador),
+      ['y', '../../../src/modelo/rede.js'],
+    );
+    const antes = ['const a = <div/>;', 'import z from "../../../src/contexto.js";'].join('\n');
+    assert.deepEqual(analisarFonte(antes, 'app/web/src/B.jsx').importacoes.map((i) => i.especificador), [
+      '../../../src/contexto.js',
+    ]);
+  });
+
+  test('JSX: import proibido num .jsx é acusado; import() não literal também', () => {
+    const texto = ['export const A = () => <p/>;', 'export { f } from "../../../src/modelo/rede.js";'].join('\n');
+    const v = violacoesImports('app/web/src/A.jsx', texto);
+    assert.equal(v.length, 1);
+    assert.match(v[0], /src\/modelo\/rede\.js \(proibido\)/);
+    assert.equal(analisarFonte('export const A = () => <p>{import(nome)}</p>;', 'app/web/src/C.jsx').dinamicosNaoLiterais, 1);
+  });
+
+  test('arquivo não analisável vira erro claro, nunca é ignorado', () => {
+    assert.throws(() => analisarFonte('const = <div', 'app/web/src/D.jsx'), /app\/web\/src\/D\.jsx não analisável: /);
+    assert.throws(() => analisarFonte('import {', 'app/servidor/x.js'), /app\/servidor\/x\.js não analisável: /);
+  });
+
   test('imports dentro de app/ e pacotes não contam como raiz', () => {
     const texto = "import a from '../comum/estado.js'; import b from 'pg'; import c from 'node:fs';";
     assert.deepEqual(violacoesImports('app/servidor/x.js', texto), []);
@@ -144,23 +182,29 @@ describe('isolamento: verificador (textos sintéticos)', () => {
   });
 });
 
+test('isolamento: todos os arquivos são analisáveis e não há TypeScript', () => {
+  assert.deepEqual(
+    arquivos.filter((a) => a.erro).map((a) => a.erro),
+    [],
+  );
+  assert.deepEqual(
+    arquivosTs.map((a) => `${a.rel}: TypeScript não é analisado pelo verificador`),
+    [],
+  );
+});
+
 test('isolamento: sem import() dinâmico não literal', () => {
-  const ruins = arquivos.filter((a) => analisarFonte(a.texto).dinamicosNaoLiterais > 0).map((a) => a.rel);
+  const ruins = analisaveis.filter((a) => a.analise.dinamicosNaoLiterais > 0).map((a) => a.rel);
   assert.deepEqual(ruins, []);
 });
 
 test('isolamento: sem create' + 'Require', () => {
-  const ruins = arquivos
-    .filter((a) => {
-      const r = analisarFonte(a.texto);
-      return r.criaRequire || r.usaRequire;
-    })
-    .map((a) => a.rel);
+  const ruins = analisaveis.filter((a) => a.analise.criaRequire || a.analise.usaRequire).map((a) => a.rel);
   assert.deepEqual(ruins, []);
 });
 
 test('isolamento: imports da raiz só os permitidos', () => {
-  assert.deepEqual(arquivos.flatMap((a) => violacoesImports(a.rel, a.texto)), []);
+  assert.deepEqual(analisaveis.flatMap((a) => violacoesImports(a.rel, a.texto)), []);
 });
 
 test('isolamento: strings proibidas ausentes no código de produção', () => {
@@ -186,7 +230,7 @@ test('isolamento: nos testes, nomes proibidos só no fixture declarado', () => {
 });
 
 test('isolamento: o fixture não lê arquivos', () => {
-  const a = analisarFonte(arquivos.find((x) => x.rel === FIXTURE).texto);
+  const a = analisarFonte(arquivos.find((x) => x.rel === FIXTURE).texto, FIXTURE);
   assert.deepEqual(a.importacoes, []);
   assert.equal(a.dinamicosNaoLiterais, 0);
   assert.equal(a.criaRequire || a.usaRequire, false);
@@ -195,7 +239,7 @@ test('isolamento: o fixture não lê arquivos', () => {
 
 test('isolamento: recomendacao não importa midia', () => {
   const alvosMidia = (rel, texto) =>
-    analisarFonte(texto)
+    analisarFonte(texto, rel)
       .importacoes.filter((i) => i.especificador.startsWith('.'))
       .map((i) => path.posix.normalize(path.posix.join(path.posix.dirname(rel), i.especificador)))
       .filter((alvo) => alvo === 'app/servidor/midia' || alvo.startsWith('app/servidor/midia/'));
