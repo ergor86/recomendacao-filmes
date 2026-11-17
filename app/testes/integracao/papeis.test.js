@@ -7,6 +7,7 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
@@ -136,28 +137,57 @@ describe('migracao e papeis (banco app_teste)', () => {
     } finally { await pool.end(); }
   });
 
-  it('senha nao vai ao log', async (t) => {
+  it('transacao:false sem BEGIN do chamador lanca erro e nao toca nos papeis', async () => {
+    await prepararTudo();
+    await assert.rejects(
+      aplicarPapeis(su, { senhas: { [PAPEL_LEITURA]: SENHA_B, [PAPEL_ESCRITA]: SENHA_B }, superusuario: cfg.user, transacao: false }),
+      /exige uma transação aberta/);
+    const pool = poolComo(PAPEL_LEITURA, SENHA_A); // a senha antiga continua valendo
+    try { await pool.query('SELECT 1'); } finally { await pool.end(); }
+  });
+
+  it('transacao:false com BEGIN do chamador funciona', async () => {
+    await aplicarMigracoes(su);
+    await su.query('BEGIN');
+    try {
+      await aplicarPapeis(su, { senhas: { [PAPEL_LEITURA]: SENHA_B, [PAPEL_ESCRITA]: SENHA_B }, superusuario: cfg.user, transacao: false });
+      await su.query('COMMIT');
+    } catch (e) { await su.query('ROLLBACK'); throw e; }
+    const pool = poolComo(PAPEL_LEITURA, SENHA_B);
+    try { await pool.query('SELECT 1'); } finally { await pool.end(); }
+  });
+
+  it('senha nao vai ao log (aplicarPapeis real, com controle)', async (t) => {
     const comando = comandoCompose();
     if (!comando) return t.skip('docker/wsl indisponivel; o CI da Tarefa 16 roda este teste');
 
-    await prepararTudo({ [PAPEL_LEITURA]: SENHA_A, [PAPEL_ESCRITA]: SENHA_B });
-    // execucao forcada a falhar, no mesmo esquema de SET LOCAL
-    await su.query('BEGIN');
-    try {
-      await su.query(`SET LOCAL log_statement = 'none'`);
-      await su.query(`SET LOCAL log_min_error_statement = 'panic'`);
-      const codigo = await codigoDoErro(() =>
-        su.query(`ALTER ROLE papel_que_nao_existe PASSWORD ${pg.escapeLiteral(SENHA_A)}`));
-      assert.equal(codigo, '42704');
-    } finally { await su.query('ROLLBACK'); }
+    await aplicarMigracoes(su);
+    const marca = randomBytes(8).toString('hex');
+    const ficha = (rotulo) => `tok${rotulo}${marca}`;
+    const desde = new Date(Date.now() - 2000).toISOString();
+    // Falha no ALTER ROLE ... PASSWORD de dentro de aplicarPapeis (papel inexistente).
+    const falhar = (prefixo) => (papel, literal) => `${prefixo}ALTER ROLE papel_que_nao_existe PASSWORD ${literal}`;
+    const executar = (rotulo, prefixo) => {
+      const senha = `x'${ficha(rotulo)}\\"$1 ;--é`;
+      return assert.rejects(
+        aplicarPapeis(su, {
+          senhas: { [PAPEL_LEITURA]: senha, [PAPEL_ESCRITA]: senha },
+          superusuario: cfg.user,
+          _alterarPapel: falhar(prefixo),
+        }),
+        (e) => e.code === '42704');
+    };
+    await executar('protegido', '');
+    // controle: protecao desligada logo antes do comando com a senha => a senha vai ao log
+    await executar('controle', `SET LOCAL log_min_error_statement = 'error'; `);
 
-    const r = spawnSync(comando.bin, [...comando.args, 'logs', 'db'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    const r = spawnSync(comando.bin, [...comando.args, 'logs', '--since', desde, 'db'],
+      { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
     assert.equal(r.status, 0, `compose logs falhou: ${r.stderr}`);
     const log = `${r.stdout}\n${r.stderr}`;
-    assert.ok(log.includes('database system is ready'), 'o log do db deveria ser legivel');
-    for (const senha of [SENHA_A, SENHA_B, "a''b", 'd$1 ;--']) {
-      assert.ok(!log.includes(senha), `senha apareceu no log do db: ${senha}`);
-    }
+    assert.ok(log.includes('papel_que_nao_existe'), 'o erro forcado deveria aparecer no log');
+    assert.ok(log.includes(ficha('controle')), 'controle: sem protecao a senha deveria aparecer (a busca no log e cega?)');
+    assert.ok(!log.includes(ficha('protegido')), 'senha apareceu no log do db apesar da protecao');
   });
 });
 

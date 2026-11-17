@@ -45,7 +45,11 @@ export async function aplicarMigracoes(client, { transacao = true, diretorio = D
 // ALTER ROLE ... PASSWORD nao aceita parametro: o literal vem de pg.escapeLiteral e o nome do papel
 // de uma constante (unica excecao a regra "SQL so com parametros"). Antes do comando, SET LOCAL
 // impede que a senha va ao log do servidor, inclusive em caso de erro.
-export async function aplicarPapeis(client, { senhas, superusuario, transacao = true }) {
+// `_alterarPapel` e uma costura so para testes (fabricar falha no comando com a senha).
+export async function aplicarPapeis(client, {
+  senhas, superusuario, transacao = true,
+  _alterarPapel = (papel, literal) => `ALTER ROLE ${papel} PASSWORD ${literal}`,
+}) {
   for (const papel of [PAPEL_LEITURA, PAPEL_ESCRITA]) {
     if (typeof senhas?.[papel] !== 'string' || senhas[papel].length === 0) {
       throw new Error(`senha ausente para ${papel}`);
@@ -57,10 +61,16 @@ export async function aplicarPapeis(client, { senhas, superusuario, transacao = 
   const executar = async () => {
     await client.query(`SET LOCAL log_statement = 'none'`);
     await client.query(`SET LOCAL log_min_error_statement = 'panic'`);
+    // Fora de transacao, SET LOCAL so emite aviso e a protecao some: confirma o efeito antes de usar a senha.
+    const { rows: [cfg] } = await client.query(
+      `SELECT current_setting('log_statement') AS ls, current_setting('log_min_error_statement') AS lm`);
+    if (cfg.ls !== 'none' || cfg.lm !== 'panic') {
+      throw new Error('aplicarPapeis exige uma transação aberta');
+    }
     for (const papel of [PAPEL_LEITURA, PAPEL_ESCRITA]) {
       const { rowCount } = await client.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [papel]);
       if (rowCount === 0) await client.query(`CREATE ROLE ${papel} LOGIN`);
-      await client.query(`ALTER ROLE ${papel} PASSWORD ${pg.escapeLiteral(senhas[papel])}`);
+      await client.query(_alterarPapel(papel, pg.escapeLiteral(senhas[papel])));
     }
     await client.query(`
       GRANT USAGE ON SCHEMA v2_final, app TO ${PAPEL_LEITURA};
