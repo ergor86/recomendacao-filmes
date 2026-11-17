@@ -1,0 +1,22 @@
+name: recomendacao-app
+
+services:
+  db:
+    image: pgvector/pgvector:0.8.1-pg17@sha256:3e8b3adfd27b5707128f60956f62a793c3c9326ea8cfaf0eab7adccb5d700b21
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-recomendacao_app}
+      # Valor padrao aceitavel: o banco nao publica porta. So vale na primeira
+      # inicializacao do volume; trocar exige `down -v` ou ALTER ROLE.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app-local-sem-porta-publicada}
+      POSTGRES_DB: ${POSTGRES_DB:-recomendacao_app}
+    volumes:
+      - app_dados_pg:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 2s
+      retries: 30
+      start_period: 30s
+
+volumes:
+  app_dados_pg:

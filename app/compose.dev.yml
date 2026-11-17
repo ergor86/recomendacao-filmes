@@ -1,0 +1,5 @@
+# Somente desenvolvimento e testes: publica o banco apenas no loopback.
+services:
+  db:
+    ports:
+      - "127.0.0.1:5434:5432"
