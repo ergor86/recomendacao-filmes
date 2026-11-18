@@ -340,7 +340,7 @@ As senhas dos dois papéis são aleatórias, geradas pela preparação em `crede
 ### 6.1 Convenções e segurança
 - Erros no formato `{ codigo, mensagem }`.
 - Validação por JSON Schema (Fastify, `coerceTypes: false`), corpo de no máximo 4 KB.
-- `fastify.removeContentTypeParser('text/plain')`. As escritas exigem `Content-Type: application/json` (`415 TIPO_NAO_SUPORTADO`).
+- `fastify.removeContentTypeParser('text/plain')`. As escritas com corpo exigem `Content-Type: application/json` (`415 TIPO_NAO_SUPORTADO`); escritas sem corpo não precisam do cabeçalho (e o aceitam com corpo vazio).
 - Hook `onRequest`: o `Host` precisa estar em {`localhost:<porta>`, `127.0.0.1:<porta>`, `[::1]:<porta>`}. A `<porta>` vem da variável de ambiente `APP_PORTA` do contêiner, que é a porta **publicada**, a que o navegador manda no `Host`. O `Host` sem porta só é aceito quando `APP_PORTA=80`. A 3000 interna **não** é aceita, salvo quando `APP_PORTA=3000`. Fora disso, `421 HOST_INVALIDO`, contra DNS rebinding.
 - Escritas com `Origin` diferente do próprio host, ou com `Sec-Fetch-Site: cross-site`, recebem `403 ORIGEM_INVALIDA`. Sem `@fastify/cors`.
 - Ids de filme inteiros de 1 a 1682. `perfilId` em UUID.
@@ -433,7 +433,7 @@ Recomendacoes = { perfilId, geradoEm,
 | `Top10` | "Baseado em: [até 5 curtidos]" e "N dos seus M filmes curtidos estão sendo usados". `ListaRecomendacoes` numerada. Cada item S1 traz "Porque você curtiu *X*" (e *Y*), e cada popular traz o selo "**Mais avaliados nos dados de 1998**" com uma dica explicando. A `ExplicacaoMotivo` vem abaixo. A lista **se atualiza sozinha** depois de cada interação (ver "Atualização automática do Top 10" abaixo). |
 | `MinhaLista` | os "Quero assistir", com "Já assisti: avaliar" e "Remover da lista" |
 | `MinhasAvaliacoes` | as notas e os "Gostei", com edição e exclusão (`tipos=nota,gostei`) |
-| `Sobre` | Em camadas. **No topo, em 3 frases:** "Compara seus gostos com os de 943 pessoas que avaliaram filmes em 1997–98. A técnica foi avaliada com essas pessoas, não com você. Com poucas curtidas, a lista se apoia em poucos filmes." **"O que foi medido":** o resultado principal do Plano 3, com os números de `/sobre`. Eles vêm de constantes em `app/integridade.js` que um teste do CI confere contra `git show 6077974:resultados/avaliacao-v2.json`. A tela mostra também o método e "o que isso não significa". **"Detalhes técnicos"**, recolhido: a S1, o HNSW, M = 300 e FC150, a exclusão da aplicação, o índice reconstruído e os hashes. Também traz os limites (catálogo até 1998, sem sinal negativo), as licenças, a citação e o link para o README da pesquisa. |
+| `Sobre` | Em camadas. **No topo, em 3 frases:** "O sistema compara seus gostos com avaliações de 943 pessoas feitas em 1997–98. Para testar a técnica, foram separadas algumas avaliações históricas de 445 dessas pessoas. Os resultados medidos não garantem a mesma qualidade para novos usuários." **"O que foi medido":** o resultado principal do Plano 3, com os números de `/sobre`. Eles vêm de constantes em `app/integridade.js` que um teste do CI confere contra `git show 6077974:resultados/avaliacao-v2.json`. A tela mostra também o método e "o que isso não significa". **"Detalhes técnicos"**, recolhido: a S1, o HNSW, M = 300 e FC150, a exclusão da aplicação, o índice reconstruído e os hashes. Também traz os limites (catálogo até 1998, sem sinal negativo), as licenças, a citação e o link para o README da pesquisa. |
 | `Cartaz` | ver abaixo |
 
 **Atualização automática do Top 10:**
