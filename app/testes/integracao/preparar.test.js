@@ -2,7 +2,7 @@
 // Precisa de ML100K_DIR (so os 5 arquivos permitidos sao copiados).
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import pg from 'pg';
@@ -53,23 +53,23 @@ describe('preparacao (banco app_teste_prep)', { timeout: 900_000, skip: semDados
   });
 
   it('recusa o banco da pesquisa sem conectar', async () => {
-    const arquivoEstado = path.join(dirEstado, 'estado.json');
-    assert.equal(existsSync(arquivoEstado), false, 'ainda sem estado');
-    const saida = [];
-    await assert.rejects(preparar({ pg: { ...cfg, port: 5433 }, log: (m) => saida.push(m) }), /pesquisa/);
+    await assert.rejects(preparar({ pg: { ...cfg, port: 5433 } }), /pesquisa/);
     await assert.rejects(preparar({ pg: { ...cfg, database: 'recomendacao' } }), /pesquisa/);
-    assert.equal(existsSync(arquivoEstado), false, 'recusa sem trava nao grava estado');
-    assert.ok(saida.some((l) => /pesquisa/.test(l)), 'a recusa fica no log');
+    const e = estado();
+    assert.equal(e.estado, 'falhou');
+    assert.match(e.causa, /pesquisa/);
+    assert.ok(!('comando' in e), 'recusa nao sugere comando');
   });
 
-  it('banco inalcancavel: nao grava estado, so registra no log', async () => {
-    const saida = [];
+  it('banco inalcancavel: grava falhou com o comando padrao', async () => {
     await assert.rejects(
-      preparar({ pg: { ...cfg, port: 1 }, log: (m) => saida.push(m), espera: async () => {} }),
+      preparar({ pg: { ...cfg, port: 1 }, espera: async () => {} }),
       /Não consegui conectar/,
     );
-    assert.equal(existsSync(path.join(dirEstado, 'estado.json')), false);
-    assert.ok(saida.some((l) => /Não consegui conectar/.test(l)));
+    const e = estado();
+    assert.equal(e.estado, 'falhou');
+    assert.match(e.causa, /Não consegui conectar/);
+    assert.equal(e.comando, 'docker compose run --rm preparar');
   });
 
   it('primeira preparacao termina pronta', async () => {
@@ -256,6 +256,28 @@ describe('preparacao (banco app_teste_prep)', { timeout: 900_000, skip: semDados
       assert.equal((await impressaoDigital(pool, { comConteudo: true })).md5Conteudo, dig.md5Conteudo);
       assert.deepEqual(await retrato(), antes);
     });
+  });
+
+  it('erro de consulta na conferencia nao dispara a autocura', async () => {
+    const original = pg.Client.prototype.query;
+    let vezes = 0;
+    pg.Client.prototype.query = function (texto, ...resto) {
+      // 1a consulta aos metadados: bancoPronto; 2a: a conferencia do passo 4
+      if (typeof texto === 'string' && texto.includes('FROM v2_final.metadados') && ++vezes === 2) {
+        return Promise.reject(Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }));
+      }
+      return original.call(this, texto, ...resto);
+    };
+    const saida = [];
+    try {
+      await assert.rejects(preparar({ log: (m) => saida.push(m) }), (e) => e.code === 'ECONNREFUSED');
+    } finally {
+      pg.Client.prototype.query = original;
+    }
+    assert.ok(!saida.some((l) => l.includes('integridade divergente')));
+    assert.ok(!saida.some((l) => l.includes('carregando filmes no banco')));
+    assert.equal(estado().estado, 'falhou');
+    assert.equal(await preparar(), 'pronto');
   });
 
   it('banco pronto nao obtem os dados: dirDados vazio e baixar que lanca', async () => {

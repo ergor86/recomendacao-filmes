@@ -1,11 +1,24 @@
 // Executa o script 16 congelado (carga de v2_final) num subprocesso, sem importá-lo.
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SCRIPT = path.join(RAIZ, 'scripts', '16-carregar-v2.js');
+
+// Caminho real: resolve links no trecho que ja existe e acrescenta o resto (que ainda sera criado).
+function caminhoReal(caminho) {
+  let existente = path.resolve(caminho);
+  const resto = [];
+  while (!existsSync(existente)) {
+    resto.unshift(path.basename(existente));
+    const pai = path.dirname(existente);
+    if (pai === existente) break;
+    existente = pai;
+  }
+  return path.join(realpathSync(existente), ...resto);
+}
 
 const TIMEOUT_MS = 120_000;
 
@@ -21,7 +34,7 @@ function causaDoErro(stderr) {
 // `dirDados` é a pasta que contém `ml-100k/`. O cwd é `dirTrabalho`, onde cai `artefatos/`.
 export function rodarScript16({ pg, dirDados, dirTrabalho }) {
   // o script grava artefatos/ no cwd: nunca dentro do repositório (poluiria a árvore congelada)
-  const rel = path.relative(RAIZ, path.resolve(dirTrabalho));
+  const rel = path.relative(realpathSync(RAIZ), caminhoReal(dirTrabalho));
   if (rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))) {
     return Promise.reject(new Error(
       `dirTrabalho (${dirTrabalho}) está dentro do repositório (${RAIZ}); use uma pasta fora dele para os artefatos do script 16`,

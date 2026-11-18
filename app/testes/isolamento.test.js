@@ -5,7 +5,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  analisarFonte, especificadoresAbsolutos, importsDaRaiz, PROIBIDOS_RAIZ, violacoesDeFecho,
+  analisarFonte, especificadoresAbsolutos, especificadoresInvalidos, importsDaRaiz, PROIBIDOS_RAIZ, resolverRelativo,
+  violacoesDeFecho,
 } from './apoio-isolamento.js';
 import { NOMES_PROIBIDOS } from './fixtures/nomes-proibidos.js';
 
@@ -34,6 +35,22 @@ const permitidosPara = (rel) => PERMISSOES.find(([pasta]) => rel.startsWith(past
 const EXT = /\.(js|jsx|mjs|cjs)$/;
 // TypeScript não é analisado: a presença de qualquer arquivo assim faz um teste falhar
 const EXT_TS = /\.(ts|tsx|mts|cts)$/;
+function listarTodos(dirRel) {
+  const out = [];
+  let ents = [];
+  try {
+    ents = readdirSync(path.join(raiz, dirRel), { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const e of ents) {
+    if (e.name === 'node_modules' || e.name === 'dist') continue;
+    const rel = `${dirRel}/${e.name}`;
+    if (e.isDirectory()) out.push(...listarTodos(rel));
+    else out.push(rel);
+  }
+  return out;
+}
 function listar(dirRel) {
   const out = [];
   let ents = [];
@@ -50,6 +67,7 @@ function listar(dirRel) {
   }
   return out;
 }
+const todosOsArquivos = listarTodos('app');
 const todos = listar('app').map((rel) => ({ rel, texto: readFileSync(path.join(raiz, rel), 'utf8') }));
 const arquivosTs = todos.filter((a) => EXT_TS.test(a.rel));
 const arquivos = todos.filter((a) => EXT.test(a.rel));
@@ -84,7 +102,7 @@ function violacoesImports(rel, texto) {
     if (/^@tensorflow\//.test(especificador)) v.push(`${rel}: importa ${especificador}`);
   }
   const permitidos = permitidosPara(rel);
-  for (const alvo of importsDaRaiz(a, rel, path)) {
+  for (const alvo of importsDaRaiz(a, rel)) {
     if (permitidos.includes(alvo)) continue;
     const sempre = PROIBIDOS_RAIZ.some((r) => r.test(alvo));
     v.push(`${rel}: import da raiz não permitido: ${alvo}${sempre ? ' (proibido)' : ''}`);
@@ -94,8 +112,11 @@ function violacoesImports(rel, texto) {
 
 const ORIGENS_FECHO = ['app/servidor/', 'app/comum/'];
 const PROIBIDOS_FECHO = ['app/preparar/', 'app/testes/'];
-const violacoesFecho = (textos) =>
-  violacoesDeFecho({ textos, origens: ORIGENS_FECHO, proibidos: PROIBIDOS_FECHO, permitidosPara, path });
+const violacoesFecho = (textos, existentes = new Set()) =>
+  violacoesDeFecho({
+    textos, origens: ORIGENS_FECHO, proibidos: PROIBIDOS_FECHO, permitidosPara,
+    existentes,
+  });
 const violacoesAbsolutos = (rel, texto) =>
   especificadoresAbsolutos(analisarFonte(texto, rel)).map((e) => `${rel}: especificador absoluto ${e}`);
 
@@ -225,6 +246,39 @@ describe('isolamento: verificador (textos sintéticos)', () => {
     assert.deepEqual(violacoesAbsolutos('app/servidor/x.js', "import a from './x.js'; import b from 'node:fs'; import c from 'pg';"), []);
   });
 
+  test('fecho: barra invertida e percent-encoding não escondem preparar/', () => {
+    const casos = [
+      "import y from './..\\\\preparar\\\\y.js';",
+      "import y from './%2e%2e/%70reparar/x.js';",
+      "import y from '../preparar/../preparar/x.js';",
+    ];
+    for (const texto of casos) {
+      const v = violacoesFecho(new Map([['app/servidor/a.js', texto], ['app/preparar/y.js', ''], ['app/preparar/x.js', '']]));
+      assert.ok(v.some((x) => x.includes('pasta proibida')), texto + ' => ' + v.join('|'));
+    }
+  });
+
+  test('fecho: relativo que não resolve para arquivo listado é acusado', () => {
+    const v = violacoesFecho(new Map([['app/servidor/a.js', "import y from './nao-existe.js';"]]));
+    assert.equal(v.length, 1);
+    assert.ok(v[0].includes('não resolve para um arquivo listado'));
+    const ruim = violacoesFecho(new Map([['app/servidor/a.js', "import y from './%E0%A4%A.js';"]]));
+    assert.ok(ruim[0].includes('não pôde ser resolvido'));
+    assert.deepEqual(violacoesFecho(new Map([['app/servidor/a.js', "import d from './d.json';"]]), new Set(['app/servidor/d.json'])), []);
+  });
+
+  test('resolverRelativo e especificadores aceitos', () => {
+    assert.equal(resolverRelativo('./..\\preparar\\y.js', 'app/servidor/a.js'), 'app/preparar/y.js');
+    assert.equal(resolverRelativo('./%2e%2e/%70reparar/x.js', 'app/servidor/a.js'), 'app/preparar/x.js');
+    assert.equal(resolverRelativo('../../src/contexto.js', 'app/servidor/a.js'), 'src/contexto.js');
+    assert.equal(resolverRelativo('pg', 'app/servidor/a.js'), null);
+    const ruins = (texto) => especificadoresInvalidos(analisarFonte(texto, 'app/servidor/x.js'));
+    assert.deepEqual(ruins("import a from './x.js'; import b from '../y.js'; import c from 'node:fs'; import d from 'pg'; import e from '@scope/pkg/sub';"), []);
+    for (const e of ['data:text/javascript,1', 'http://x.org/a.js', 'https://x.org/a.js', 'node:../x', 'a%5Cb','%2e%2e/x.js']) {
+      assert.deepEqual(ruins(`import a from '${e}';`), [e], e);
+    }
+  });
+
   test('os padrões de strings proibidas detectam o que devem e poupam a prosa', () => {
     const casos = [`x = '${INCLUIR}2'`, NOMES_PROIBIDOS[0], NOMES_PROIBIDOS[1], "'x.test'", NOMES_PROIBIDOS[6], NOMES_PROIBIDOS[7], "'ua.base'"];
     for (const c of casos) assert.ok(PADROES_PRODUCAO.some(([, re]) => re.test(c)), c);
@@ -257,12 +311,16 @@ test('isolamento: imports da raiz só os permitidos', () => {
   assert.deepEqual(analisaveis.flatMap((a) => violacoesImports(a.rel, a.texto)), []);
 });
 
+test('isolamento: todos os especificadores de app/ são interpretáveis (./, ../, node: ou pacote)', () => {
+  assert.deepEqual(analisaveis.flatMap((a) => especificadoresInvalidos(a.analise).map((e) => `${a.rel}: ${e}`)), []);
+});
+
 test('isolamento: nenhum especificador absoluto em app/', () => {
   assert.deepEqual(analisaveis.flatMap((a) => violacoesAbsolutos(a.rel, a.texto)), []);
 });
 
 test('isolamento: servidor/ e comum/ não alcançam preparar/ nem testes/ e o fecho respeita as permissões', () => {
-  assert.deepEqual(violacoesFecho(new Map(arquivos.map((a) => [a.rel, a.texto]))), []);
+  assert.deepEqual(violacoesFecho(new Map(arquivos.map((a) => [a.rel, a.texto])), new Set(todosOsArquivos)), []);
 });
 
 test('isolamento: strings proibidas ausentes no código de produção', () => {
@@ -298,8 +356,8 @@ test('isolamento: o fixture não lê arquivos', () => {
 test('isolamento: recomendacao não importa midia', () => {
   const alvosMidia = (rel, texto) =>
     analisarFonte(texto, rel)
-      .importacoes.filter((i) => i.especificador.startsWith('.'))
-      .map((i) => path.posix.normalize(path.posix.join(path.posix.dirname(rel), i.especificador)))
+      .importacoes.map((i) => resolverRelativo(i.especificador, rel))
+      .filter(Boolean)
       .filter((alvo) => alvo === 'app/servidor/midia' || alvo.startsWith('app/servidor/midia/'));
   // o verificador, sobre texto sintético
   assert.deepEqual(alvosMidia('app/servidor/recomendacao/s1.js', "import m from '../midia/index.js';"), [

@@ -225,8 +225,8 @@ export async function prepararTudo({
     log(`Pronto: abra http://localhost:${porta}`);
     return 'pronto';
   } catch (e) {
-    if (!travado) {
-      // Sem a trava, outra preparacao pode estar em andamento: nao sobrescreve o estado, so registra.
+    // So a trava ocupada fica silenciosa: a outra preparacao e quem escreve o estado.
+    if (e instanceof ErroTrava) {
       log(`A preparação não começou: ${e.message}`);
     } else {
       const doProprio = e instanceof ErroPreparacao;

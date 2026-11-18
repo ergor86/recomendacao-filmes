@@ -92,15 +92,43 @@ export const PROIBIDOS_RAIZ = [
  * Os especificadores relativos de um arquivo (caminho relativo à raiz do repositório,
  * com `/`) que saem de app/ e caem na raiz, como caminhos relativos à raiz.
  */
-export function importsDaRaiz(analise, arquivoRel, path) {
-  const dir = path.posix.dirname(arquivoRel);
+export function importsDaRaiz(analise, arquivoRel) {
   const saida = [];
   for (const { especificador } of analise.importacoes) {
-    if (!especificador.startsWith('.')) continue;
-    const alvo = path.posix.normalize(path.posix.join(dir, especificador));
-    if (!alvo.startsWith('app/') && !alvo.startsWith('..')) saida.push(alvo);
+    const alvo = resolverRelativo(especificador, arquivoRel);
+    if (alvo && !alvo.startsWith('app/') && !alvo.startsWith('..')) saida.push(alvo);
   }
   return saida;
+}
+
+const RELATIVO = /^\.\.?[\\/]/;
+// nome de pacote: sem esquema, barra invertida, % nem ponto inicial
+const PACOTE = /^(@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*(\/[\w.-]+)*$/i;
+
+/**
+ * Resolve um especificador relativo (./ ou ../) contra o arquivo importador, ambos relativos à raiz
+ * do repositório: decodifica %xx, trata a barra invertida como /, e normaliza com URL. Devolve null se não for
+ * relativo ou não resolver (percent-encoding inválido).
+ */
+export function resolverRelativo(especificador, arquivoRel) {
+  if (!RELATIVO.test(especificador)) return null;
+  try {
+    const decodificado = decodeURIComponent(especificador).replaceAll('\\', '/');
+    const url = new URL(decodificado, 'file:///' + arquivoRel);
+    return url.pathname.replace(/^\//, '');
+  } catch {
+    return null;
+  }
+}
+
+/** Especificadores que o verificador não sabe interpretar: só ./, ../, node: e nomes de pacote valem. */
+export function especificadoresInvalidos(analise) {
+  return analise.importacoes.map((i) => i.especificador).filter((e) => {
+    if (ABSOLUTO.test(e)) return false; // acusado por especificadoresAbsolutos
+    if (RELATIVO.test(e)) return resolverRelativo(e, 'app/x.js') === null;
+    if (e.startsWith('node:')) return !/^node:[a-z0-9_/]+$/.test(e);
+    return !PACOTE.test(e);
+  });
 }
 
 /** Especificador absoluto: caminho absoluto POSIX ou Windows, ou `file:`. */
@@ -117,7 +145,7 @@ const dentroDe = (rel, pastas) => pastas.some((p) => rel.startsWith(p));
  * - origem alcança arquivo de uma pasta proibida (preparar/testes);
  * - arquivo do fecho importa da raiz algo que a pasta de origem não permite.
  */
-export function violacoesDeFecho({ textos, origens, proibidos, permitidosPara, path }) {
+export function violacoesDeFecho({ textos, origens, proibidos, permitidosPara, existentes }) {
   const analises = new Map();
   const analise = (rel) => {
     if (!analises.has(rel)) {
@@ -142,14 +170,23 @@ export function violacoesDeFecho({ textos, origens, proibidos, permitidosPara, p
       const atual = fila.shift();
       const a = analise(atual);
       if (!a) continue;
-      for (const alvo of importsDaRaiz(a, atual, path)) {
+      for (const alvo of importsDaRaiz(a, atual)) {
         if (permitidos.includes(alvo)) continue;
         violacoes.push(`${origem}: alcança import da raiz não permitido ${alvo} (${cadeia(atual)} → ${alvo})`);
       }
       for (const { especificador } of a.importacoes) {
-        if (!especificador.startsWith('.')) continue;
-        const alvo = path.posix.normalize(path.posix.join(path.posix.dirname(atual), especificador));
-        if (!alvo.startsWith('app/') || pai.has(alvo) || !textos.has(alvo)) continue;
+        if (!RELATIVO.test(especificador)) continue;
+        const alvo = resolverRelativo(especificador, atual);
+        if (alvo === null) {
+          violacoes.push(`${origem}: ${atual} importa ${especificador}, que não pôde ser resolvido`);
+          continue;
+        }
+        if (!alvo.startsWith('app/') || pai.has(alvo)) continue;
+        if (!textos.has(alvo) && !(existentes?.has(alvo))) {
+          violacoes.push(`${origem}: ${atual} importa ${especificador}, que não resolve para um arquivo listado (${alvo})`);
+          continue;
+        }
+        if (!textos.has(alvo)) continue;
         pai.set(alvo, atual);
         if (dentroDe(alvo, proibidos) && !alvo.startsWith(pastaOrigem)) {
           violacoes.push(`${origem}: alcança ${alvo}, pasta proibida (${cadeia(alvo)})`);
