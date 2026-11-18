@@ -22,6 +22,8 @@ function gravarPerfilAtivo(id) {
 export default function App() {
   const [saude, setSaude] = useState(null);
   const [erroSaude, setErroSaude] = useState(null);
+  const [erroPerfil, setErroPerfil] = useState(null);
+  const [tentativa, setTentativa] = useState(0);
   const [perfil, setPerfil] = useState(() => {
     const id = lerPerfilAtivo();
     return id ? { id } : null;
@@ -58,14 +60,15 @@ export default function App() {
   useEffect(() => {
     if (!operante || !semNome) return undefined;
     let ativo = true;
+    setErroPerfil(null);
     chamar('GET', '/api/perfis').then((lista) => {
       if (!ativo) return;
       const achado = lista.find((p) => p.id === perfil.id);
       if (achado) setPerfil({ id: achado.id, nome: achado.nome });
       else { gravarPerfilAtivo(null); setPerfil(null); }
-    }).catch(() => {});
+    }).catch((e) => { if (ativo) setErroPerfil(e); });
     return () => { ativo = false; };
-  }, [operante, semNome, perfil?.id]);
+  }, [operante, semNome, perfil?.id, tentativa]);
 
   const entrar = (p) => {
     gravarPerfilAtivo(p.id);
@@ -88,7 +91,9 @@ export default function App() {
   }
   return (
     <Moldura perfil={perfil} onTrocarPerfil={trocar}>
-      {perfil
+      {perfil && erroPerfil && semNome
+        ? <Falha erro={erroPerfil} onTentar={() => setTentativa((n) => n + 1)} />
+        : perfil
         ? <p>As telas de recomendação chegam nas próximas tarefas.</p>
         : <TelaPerfis onEntrar={entrar} />}
     </Moldura>

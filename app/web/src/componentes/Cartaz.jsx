@@ -12,26 +12,18 @@ export function hashFnv1a(texto) {
   return h >>> 0;
 }
 
-// matiz-base por gênero (graus); gênero desconhecido ou ausente usa um matiz derivado do hash do nome
-const FAMILIAS = {
-  action: 8, adventure: 28, animation: 48, children: 70, comedy: 45, crime: 345, documentary: 170,
+// matiz-base por id de gênero (os mesmos 18 + unknown de GENEROS em servidor/rotas/comum.js), em graus
+export const FAMILIAS = {
+  action: 8, adventure: 28, animation: 48, "children's": 70, comedy: 45, crime: 345, documentary: 170,
   drama: 265, fantasy: 290, 'film-noir': 220, horror: 355, musical: 320, mystery: 250, romance: 330,
   'sci-fi': 195, thriller: 235, war: 100, western: 25, unknown: 210,
 };
-const ROTULOS_PT = {
-  acao: 'action', aventura: 'adventure', animacao: 'animation', infantil: 'children', comedia: 'comedy',
-  crime: 'crime', documentario: 'documentary', drama: 'drama', fantasia: 'fantasy', 'film noir': 'film-noir',
-  terror: 'horror', musical: 'musical', misterio: 'mystery', romance: 'romance', 'ficcao cientifica': 'sci-fi',
-  suspense: 'thriller', guerra: 'war', faroeste: 'western', desconhecido: 'unknown',
-};
-const normalizar = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 
-function matizBase(generos) {
+export function matizBase(generos) {
   const g = generos?.[0];
-  if (!g) return 210;
-  const n = normalizar(String(g));
-  const chave = FAMILIAS[n] !== undefined ? n : ROTULOS_PT[n];
-  return chave !== undefined ? FAMILIAS[chave] : hashFnv1a(n) % 360;
+  if (!g) return FAMILIAS.unknown;
+  const n = String(g).toLowerCase().trim();
+  return FAMILIAS[n] !== undefined ? FAMILIAS[n] : hashFnv1a(n) % 360;
 }
 
 // ---- cor e contraste (WCAG 2.x) ----

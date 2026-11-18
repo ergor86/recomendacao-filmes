@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import Cartaz, { paletaDoCartaz, hashFnv1a } from './Cartaz.jsx';
+import Cartaz, { paletaDoCartaz, hashFnv1a, FAMILIAS } from './Cartaz.jsx';
 
 const filme = (id, extra = {}) => ({
   id,
@@ -48,5 +48,19 @@ describe('Cartaz', () => {
     fireEvent.error(img);
     expect(container.querySelector('img')).toBeNull();
     expect(container.querySelector('svg[role="img"]')).toBeTruthy();
+  });
+
+  test('cada id de gênero real (18 + unknown) cai na faixa da sua família', () => {
+    const ids = ['Action', 'Adventure', 'Animation', "Children's", 'Comedy', 'Crime', 'Documentary', 'Drama', 'Fantasy',
+      'Film-Noir', 'Horror', 'Musical', 'Mystery', 'Romance', 'Sci-Fi', 'Thriller', 'War', 'Western', 'unknown'];
+    expect(Object.keys(FAMILIAS).sort()).toEqual(ids.map((i) => i.toLowerCase()).sort());
+    for (const g of ids) {
+      for (let id = 1; id <= 30; id++) {
+        const base = FAMILIAS[g.toLowerCase()];
+        const { matiz } = paletaDoCartaz(filme(id, { generos: [g] }));
+        const dist = Math.min((matiz - base + 360) % 360, (base - matiz + 360) % 360);
+        expect(dist, `${g} id ${id}`).toBeLessThanOrEqual(20);
+      }
+    }
   });
 });

@@ -1,5 +1,5 @@
 import { describe, test, expect, vi } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import App from './App.jsx';
 import { simularFetch, perfilExemplo } from './apoio-testes.js';
 
@@ -37,5 +37,21 @@ describe('App', () => {
     render(<App />);
     await waitFor(() => expect(screen.getByText('Não consegui falar com o servidor local. Ele está rodando?')).toBeTruthy());
     expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeTruthy();
+  });
+
+  test('falha ao resolver o nome do perfil guardado mostra a mensagem e Tentar de novo refaz', async () => {
+    const p = perfilExemplo();
+    window.localStorage.setItem('perfilAtivo', p.id);
+    let n = 0;
+    simularFetch([
+      ['GET', '/api/saude', operante],
+      ['GET', '/api/perfis', () => (n++ === 0 ? new Response('x', { status: 500 }) : [p])],
+    ]);
+    render(<App />);
+    const botao = await screen.findByRole('button', { name: 'Tentar de novo' });
+    expect(screen.getByRole('alert')).toBeTruthy();
+    fireEvent.click(botao);
+    expect(await screen.findByText(/Perfil: Ana/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Tentar de novo' })).toBeNull();
   });
 });
