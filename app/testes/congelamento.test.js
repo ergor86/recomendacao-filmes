@@ -94,6 +94,19 @@ test('congelamento: a função de conferência detecta uma modificação', () =>
     assert.deepEqual(conferirCongelamento(dir, base, ['src']), { ok: false, alterados: ['src/protegido.js'] });
 
     assert.throws(() => conferirCongelamento(dir, base, ['src-inexistente']), /inexistente/);
+
+    // arquivo novo NAO rastreado em caminho protegido tambem e acusado
+    g('reset', '-q', '--hard', base);
+    assert.deepEqual(conferirCongelamento(dir, base, ['src']), { ok: true, alterados: [] });
+    writeFileSync(path.join(dir, 'src', 'intruso.js'), 'export const b = 1;\n');
+    assert.deepEqual(conferirCongelamento(dir, base, ['src']), { ok: false, alterados: ['src/intruso.js'] });
+    // a conferencia a partir de uma subpasta tambem devolve caminhos a partir da raiz
+    mkdirSync(path.join(dir, 'app'));
+    assert.deepEqual(conferirCongelamento(path.join(dir, 'app'), base, ['src']), { ok: false, alterados: ['src/intruso.js'] });
+    rmSync(path.join(dir, 'app'), { recursive: true });
+    rmSync(path.join(dir, 'src', 'intruso.js'));
+    writeFileSync(path.join(dir, 'fora.js'), 'x\n'); // fora dos caminhos protegidos: ignorado
+    assert.deepEqual(conferirCongelamento(dir, base, ['src']), { ok: true, alterados: [] });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -18,7 +18,12 @@ export function conferirCongelamento(raiz, commit, caminhos) {
       throw new Error(`caminho protegido inexistente em ${commit}: ${c}`, { cause: e });
     }
   }
-  const saida = git(raiz, ['diff', '--name-only', commit, '--', ...caminhos.map((c) => `:/${c}`)]);
-  const alterados = saida.split('\n').map((l) => l.trim()).filter(Boolean);
+  const pathspecs = caminhos.map((c) => `:/${c}`);
+  const linhas = (saida) => saida.split('\n').map((l) => l.trim()).filter(Boolean);
+  const alterados = linhas(git(raiz, ['diff', '--name-only', commit, '--', ...pathspecs]));
+  // arquivos novos, ainda não rastreados (e não ignorados), nos caminhos protegidos
+  for (const novo of linhas(git(raiz, ['ls-files', '--others', '--exclude-standard', '--full-name', '--', ...pathspecs]))) {
+    if (!alterados.includes(novo)) alterados.push(novo);
+  }
   return { ok: alterados.length === 0, alterados };
 }
