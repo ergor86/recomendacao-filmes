@@ -1,6 +1,9 @@
 // Tarefa 8, camada (b) da spec 10.5: os 30 perfis contra o banco em modo exato, pelas regras de
 // conferirExataUsuario (τ = 1e-5), e as invariantes da busca HNSW. Banco próprio `app_teste_s1`.
 // Divergência além de τ é falha: este teste nunca é ajustado para aceitá-la.
+// Ruling 14: um gancho de carregamento troca o TensorFlow, alcançado por fidelidade.js → … →
+// src/modelo/rede.js, por um módulo vazio. fidelidade.js só é importado depois do gancho.
+import { register } from 'node:module';
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -11,7 +14,6 @@ import {
   construirFC, escoreOficial, hashVetoresFC, perfilFC, rankingReferencia, vetorDeBusca,
 } from '../../../src/fc/referencia.js';
 import { rankingPopularidade } from '../../../src/candidatos/populares.js';
-import { conferirExataUsuario, TAU } from '../../../src/avaliacao/fidelidade.js';
 import { prepararTudo } from '../../preparar/preparar.js';
 import { carregarContextoV2Final } from '../../preparar/contexto.js';
 import { calcularOcultos, carregarGemeosManuais, detectarGemeos } from '../../comum/gemeos.js';
@@ -20,7 +22,14 @@ import { criarBuscarBanco, K, recomendar } from '../../servidor/recomendacao/s1.
 import { copiarArquivosML, recriarBancoTeste } from '../integracao/apoio.js';
 import { curtidosDe, gerarPerfis, N_PERFIS } from './perfis-sinteticos.js';
 
+register(new URL('./ganchos-sem-tf.js', import.meta.url));
+const { conferirExataUsuario, TAU } = await import('../../../src/avaliacao/fidelidade.js');
+
 const semDados = !process.env.ML100K_DIR;
+
+it('o TensorFlow real não é carregado: o gancho o substituiu pelo módulo vazio', () => {
+  assert.equal(globalThis.__tfSubstituido, true);
+});
 const BANCO = 'app_teste_s1';
 const M_TESTE = 300;
 const TOL_ESCORE = 1e-6 + 1e-12;

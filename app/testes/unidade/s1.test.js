@@ -57,6 +57,10 @@ describe('efeitos', () => {
     assert.equal(contribui({ tipo: 'gostei', nota: null }, false), false);
     assert.equal(contribui({ tipo: 'nota', nota: 4 }, true), true);
     assert.equal(contribui({ tipo: 'quero_assistir', nota: null }, true), false);
+    // sempre booleano, mesmo com temVetor não booleano
+    assert.strictEqual(contribui({ tipo: 'gostei', nota: null }, undefined), false);
+    assert.strictEqual(contribui({ tipo: 'gostei', nota: null }, 0), false);
+    assert.strictEqual(contribui({ tipo: 'gostei', nota: null }, 1), true);
   });
 
   const TODAS = [

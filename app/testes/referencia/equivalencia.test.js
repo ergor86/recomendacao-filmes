@@ -2,7 +2,7 @@
 // referência independente escrita aqui (rankingReferencia → 150 → 10, mais populares sem `excluir`).
 import { before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { construirFC, hashVetoresFC, perfilFC, rankingReferencia } from '../../../src/fc/referencia.js';
+import { construirFC, hashVetoresFC, perfilFC, rankingReferencia, vetorDeBusca } from '../../../src/fc/referencia.js';
 import { rankingPopularidade } from '../../../src/candidatos/populares.js';
 import { carregarContextoV2Final } from '../../preparar/contexto.js';
 import { calcularOcultos, carregarGemeosManuais, detectarGemeos } from '../../comum/gemeos.js';
@@ -63,10 +63,18 @@ describe('equivalência S1 × referência (camada a)', { skip: !dirDados && 'ML1
     const motivos = new Set();
     for (const { nome, interacoes } of perfis) {
       const curtidos = curtidosDe(interacoes);
+      const perfilEsperado = curtidos.length > 0 ? perfilFC(fc, curtidos) : null;
+      const excluirEsperado = [...new Set([...interacoes.map((i) => i.filmeId), ...OCULTOS])].sort((a, b) => a - b);
       const chamadas = [];
-      // busca injetada: rankingReferencia em memória sobre o mesmo perfil (spec 10.5 a)
+      // busca injetada: rankingReferencia em memória sobre o mesmo perfil (spec 10.5 a); confere
+      // que o s1.js montou exatamente o vetor, o excluir, o m e o modo da referência
       const buscar = async (vetor, excluirOrdenado, m, modo) => {
         chamadas.push({ m, modo });
+        assert.ok(perfilEsperado !== null, `${nome}: busca sem perfil`);
+        assert.deepStrictEqual(vetor, vetorDeBusca(perfilEsperado), `${nome}: vetor`);
+        assert.deepStrictEqual(excluirOrdenado, excluirEsperado, `${nome}: excluir`);
+        assert.equal(m, REF_M, `${nome}: m`);
+        assert.equal(modo, 'hnsw', `${nome}: modo`);
         const lista = rankingReferencia(fc, perfilFC(fc, curtidos), new Set(excluirOrdenado), m)
           .map(({ id, escore }) => ({ id, escore }));
         return { lista, linhasPedidas: null, empateNaoResolvido: false };
@@ -78,8 +86,7 @@ describe('equivalência S1 × referência (camada a)', { skip: !dirDados && 'ML1
         esperado,
         nome,
       );
-      for (const c of chamadas) assert.deepEqual(c, { m: REF_M, modo: 'hnsw' }, nome);
-      assert.ok(chamadas.length <= 1, nome);
+      assert.equal(chamadas.length, perfilEsperado === null ? 0 : 1, `${nome}: número de buscas`);
       for (const x of r.itens) {
         if (x.fonte === 'S1') assert.ok(x.porque.length >= 1 && x.porque.length <= 2, `${nome}: ${x.id}`);
         else assert.deepEqual(x.porque, [], `${nome}: ${x.id}`);
@@ -99,6 +106,12 @@ describe('equivalência S1 × referência (camada a)', { skip: !dirDados && 'ML1
     });
     const r = await recomendar({ interacoes: p.interacoes, fc, ocultos: OCULTOS, rankingPopulares: POPULARES, buscar });
     assert.ok(p.interacoes.length > 0);
+    // o caso não é vazio: sem a exclusão dos OCULTOS, ao menos um deles entraria no top 10
+    const semOcultos = rankingReferencia(
+      fc, perfilFC(fc, curtidosDe(p.interacoes)), new Set(p.interacoes.map((i) => i.filmeId)), REF_M,
+    ).slice(0, REF_K).map((x) => x.id);
+    const ocultosNoTop = semOcultos.filter((id) => OCULTOS.has(id));
+    assert.ok(ocultosNoTop.length > 0, `nenhum oculto no top 10 sem exclusão: ${semOcultos.join(', ')}`);
     for (const x of r.itens) assert.ok(!OCULTOS.has(x.id), String(x.id));
   });
 });

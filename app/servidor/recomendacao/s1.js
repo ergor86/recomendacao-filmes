@@ -25,7 +25,7 @@ function ehCurtida({ tipo, nota }) {
 
 /** A interação entra no perfil: curtida em filme com vetor. Define `curtidosComVetor` e os efeitos. */
 export function contribui(interacao, temVetor) {
-  return temVetor && ehCurtida(interacao);
+  return Boolean(temVetor) && ehCurtida(interacao);
 }
 
 /**
