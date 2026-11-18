@@ -20,6 +20,13 @@ function causaDoErro(stderr) {
 
 // `dirDados` é a pasta que contém `ml-100k/`. O cwd é `dirTrabalho`, onde cai `artefatos/`.
 export function rodarScript16({ pg, dirDados, dirTrabalho }) {
+  // o script grava artefatos/ no cwd: nunca dentro do repositório (poluiria a árvore congelada)
+  const rel = path.relative(RAIZ, path.resolve(dirTrabalho));
+  if (rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))) {
+    return Promise.reject(new Error(
+      `dirTrabalho (${dirTrabalho}) está dentro do repositório (${RAIZ}); use uma pasta fora dele para os artefatos do script 16`,
+    ));
+  }
   mkdirSync(dirTrabalho, { recursive: true });
   const env = {
     PGHOST: String(pg.host),

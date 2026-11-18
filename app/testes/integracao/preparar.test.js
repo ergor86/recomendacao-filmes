@@ -2,12 +2,14 @@
 // Precisa de ML100K_DIR (so os 5 arquivos permitidos sao copiados).
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import pg from 'pg';
 import { HASHES } from '../../integridade.js';
 import { CHAVE_TRAVA, prepararTudo } from '../../preparar/preparar.js';
+import { conferirIntegridade } from '../../comum/conferencia.js';
+import { ErroPreparacao } from '../../preparar/dados.js';
 import { impressaoDigital } from '../../comum/fc-banco.js';
 import { copiarArquivosML, recriarBancoTeste } from './apoio.js';
 
@@ -51,11 +53,23 @@ describe('preparacao (banco app_teste_prep)', { timeout: 900_000, skip: semDados
   });
 
   it('recusa o banco da pesquisa sem conectar', async () => {
-    await assert.rejects(preparar({ pg: { ...cfg, port: 5433 } }), /pesquisa/);
+    const arquivoEstado = path.join(dirEstado, 'estado.json');
+    assert.equal(existsSync(arquivoEstado), false, 'ainda sem estado');
+    const saida = [];
+    await assert.rejects(preparar({ pg: { ...cfg, port: 5433 }, log: (m) => saida.push(m) }), /pesquisa/);
     await assert.rejects(preparar({ pg: { ...cfg, database: 'recomendacao' } }), /pesquisa/);
-    const e = estado();
-    assert.equal(e.estado, 'falhou');
-    assert.ok(!('comando' in e), 'recusa nao sugere comando');
+    assert.equal(existsSync(arquivoEstado), false, 'recusa sem trava nao grava estado');
+    assert.ok(saida.some((l) => /pesquisa/.test(l)), 'a recusa fica no log');
+  });
+
+  it('banco inalcancavel: nao grava estado, so registra no log', async () => {
+    const saida = [];
+    await assert.rejects(
+      preparar({ pg: { ...cfg, port: 1 }, log: (m) => saida.push(m), espera: async () => {} }),
+      /Não consegui conectar/,
+    );
+    assert.equal(existsSync(path.join(dirEstado, 'estado.json')), false);
+    assert.ok(saida.some((l) => /Não consegui conectar/.test(l)));
   });
 
   it('primeira preparacao termina pronta', async () => {
@@ -73,6 +87,29 @@ describe('preparacao (banco app_teste_prep)', { timeout: 900_000, skip: semDados
     assert.equal(selo.hash_vetores_fc, HASHES.vetoresFC);
     assert.ok(readFileSync(path.join(dirEstado, 'credenciais.json'), 'utf8').length > 0);
     assert.ok(logs.some((l) => l.startsWith('3/8: carregando filmes no banco')));
+    for (const [k, v] of [['hash_regua', HASHES.regua], ['hash_treino', HASHES.treino], ['hash_vetores_fc', HASHES.vetoresFC]]) {
+      assert.ok(logs.includes(`${k}=${v}`), `log sem ${k}`);
+    }
+  });
+
+  it('conferirIntegridade: pronto devolve fc e hashes; selo adulterado e acusado', async () => {
+    const r = await conferirIntegridade(pool);
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.hashes, { regua: HASHES.regua, treino: HASHES.treino, vetoresFC: HASHES.vetoresFC });
+    assert.ok(r.fc.fasPorFilme.size > 0);
+    await pool.query(`UPDATE app.preparacao SET n_fc = n_fc + 1`);
+    const ruim = await conferirIntegridade(pool);
+    assert.equal(ruim.ok, false);
+    assert.match(ruim.causa, /selo/);
+    assert.equal((await conferirIntegridade(pool, { comSelo: false })).ok, true);
+    await pool.query('UPDATE app.preparacao SET n_fc = n_fc - 1');
+    await pool.query("UPDATE app.preparacao SET hash_regua = 'x'");
+    assert.match((await conferirIntegridade(pool)).causa, /selo/);
+    await pool.query('UPDATE app.preparacao SET hash_regua = $1', [HASHES.regua]);
+    await pool.query('DELETE FROM app.preparacao');
+    assert.match((await conferirIntegridade(pool)).causa, /selo/);
+    await preparar();
+    assert.equal((await conferirIntegridade(pool)).ok, true);
   });
 
   it('linha Pronto usa a porta', async () => {
@@ -221,11 +258,61 @@ describe('preparacao (banco app_teste_prep)', { timeout: 900_000, skip: semDados
     });
   });
 
+  it('banco pronto nao obtem os dados: dirDados vazio e baixar que lanca', async () => {
+    const vazio = mkdtempSync(path.join(os.tmpdir(), 'prep-vazio-'));
+    try {
+      const saida = [];
+      assert.equal(await preparar({ dirDados: vazio, baixar: baixarProibido, log: (m) => saida.push(m) }), 'pronto');
+      assert.ok(!saida.some((l) => l.startsWith('2/8: conferindo os arquivos')));
+    } finally {
+      rmSync(vazio, { recursive: true, force: true });
+    }
+  });
+
+  it('credenciais.json de formato invalido: ErroPreparacao com causa e comando', async () => {
+    const estadoRuim = mkdtempSync(path.join(os.tmpdir(), 'prep-cred-'));
+    try {
+      writeFileSync(path.join(estadoRuim, 'credenciais.json'), JSON.stringify({ app_leitura: 1 }));
+      await assert.rejects(preparar({ dirEstado: estadoRuim }), (e) => {
+        assert.ok(e instanceof ErroPreparacao);
+        assert.equal(e.causa, 'O arquivo de credenciais está corrompido.');
+        assert.equal(
+          e.comando,
+          'apague credenciais.json no volume de estado (docker compose down -v apaga tudo) e rode docker compose run --rm preparar',
+        );
+        return true;
+      });
+      const e = JSON.parse(readFileSync(path.join(estadoRuim, 'estado.json'), 'utf8'));
+      assert.equal(e.estado, 'falhou');
+      assert.equal(e.causa, 'O arquivo de credenciais está corrompido.');
+    } finally {
+      rmSync(estadoRuim, { recursive: true, force: true });
+    }
+  });
+
   it('modo dev recusa v2_final sem o schema app', async () => {
     await pool.query('DROP SCHEMA app CASCADE');
     await assert.rejects(preparar({ modoDev: true }), /v2_final/);
     assert.equal(estado().estado, 'falhou');
     semSenhas();
+  });
+
+  it('modo dev: 1a preparacao interrompida depois do script 16 nao trava a 2a', async () => {
+    const cfgDev = await recriarBancoTeste('app_teste_prep_dev');
+    const tmpDev = mkdtempSync(path.join(os.tmpdir(), 'prep-dev-'));
+    try {
+      const comum = {
+        pg: cfgDev, dirDados, dirTrabalho: path.join(tmpDev, 'trabalho'), dirEstado: path.join(tmpDev, 'estado'),
+        versaoApp: VERSAO, porta: 3000, log, modoDev: true,
+      };
+      await assert.rejects(
+        prepararTudo({ ...comum, ganchos: { antesDoSelo: async () => { throw new Error('queda no modo dev'); } } }),
+        /queda no modo dev/,
+      );
+      assert.equal(await prepararTudo(comum), 'pronto');
+    } finally {
+      rmSync(tmpDev, { recursive: true, force: true });
+    }
   });
 
   it('tempos', (t) => {

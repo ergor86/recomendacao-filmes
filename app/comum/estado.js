@@ -30,7 +30,9 @@ function lerJson(arquivo) {
     return JSON.parse(readFileSync(arquivo, 'utf8'));
   } catch (e) {
     if (e.code === 'ENOENT') return AUSENTE;
-    if (e instanceof SyntaxError) throw new Error(`arquivo inválido (${arquivo}): ${e.message}`);
+    if (e instanceof SyntaxError) {
+      throw Object.assign(new Error(`arquivo inválido (${arquivo}): ${e.message}`), { code: 'JSON_INVALIDO' });
+    }
     throw e;
   }
 }
@@ -58,7 +60,10 @@ export function lerEstado(dir) {
 function validarCredenciais(c, arquivo) {
   const ok = (s) => typeof s === 'string' && s.length > 0;
   if (!c || typeof c !== 'object' || Array.isArray(c) || !ok(c.app_leitura) || !ok(c.app_escrita)) {
-    throw new Error(`credenciais inválidas em ${arquivo}: app_leitura e app_escrita devem ser strings não vazias; corrija ou remova o arquivo`);
+    throw Object.assign(
+      new Error(`credenciais inválidas em ${arquivo}: app_leitura e app_escrita devem ser strings não vazias; corrija ou remova o arquivo`),
+      { code: 'CREDENCIAIS_INVALIDAS' },
+    );
   }
   return { app_leitura: c.app_leitura, app_escrita: c.app_escrita };
 }

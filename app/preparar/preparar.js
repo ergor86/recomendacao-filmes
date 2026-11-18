@@ -2,7 +2,7 @@
 import path from 'node:path';
 import pg from 'pg';
 import { garantirCredenciais, gravarEstado } from '../comum/estado.js';
-import { carregarFcDoBanco, conferirVetores } from '../comum/fc-banco.js';
+import { conferirIntegridade } from '../comum/conferencia.js';
 import { DIM_FC, HASHES, N_FC, N_FILMES } from '../integridade.js';
 import { carregarContextoV2Final } from './contexto.js';
 import { ErroPreparacao, obterArquivosML } from './dados.js';
@@ -20,6 +20,20 @@ export class ErroRecusa extends Error {
   constructor(msg) {
     super(msg);
     this.name = 'ErroRecusa';
+  }
+}
+
+const COMANDO_CREDENCIAIS =
+  'apague credenciais.json no volume de estado (docker compose down -v apaga tudo) e rode docker compose run --rm preparar';
+
+function lerOuCriarCredenciais(dirEstado) {
+  try {
+    return garantirCredenciais(dirEstado);
+  } catch (e) {
+    if (e.code === 'CREDENCIAIS_INVALIDAS' || e.code === 'JSON_INVALIDO') {
+      throw new ErroPreparacao('O arquivo de credenciais está corrompido.', COMANDO_CREDENCIAIS);
+    }
+    throw e;
   }
 }
 
@@ -100,18 +114,6 @@ async function recusarV2SemApp(client) {
   }
 }
 
-async function conferirIntegridade(client) {
-  const { rows } = await client.query(
-    `SELECT chave, valor FROM v2_final.metadados WHERE chave IN ('hash_regua', 'hash_treino')`,
-  );
-  const m = Object.fromEntries(rows.map((r) => [r.chave, r.valor]));
-  if (m.hash_regua !== HASHES.regua) throw new Error('régua do banco difere da congelada');
-  if (m.hash_treino !== HASHES.treino) throw new Error('treino do banco difere do congelado');
-  const fc = await carregarFcDoBanco(client);
-  const r = conferirVetores(fc);
-  if (!r.ok) throw new Error(`conferência dos vetores falhou: ${r.causa}`);
-}
-
 export async function prepararTudo({
   pg: cfg, dirDados, dirTrabalho, dirEstado, zipLocal, versaoApp, porta,
   modoDev = false, log = console.log, baixar, ganchos = {}, espera = dormir,
@@ -135,17 +137,30 @@ export async function prepararTudo({
     if (!l.ok) throw new ErroTrava();
     travado = true;
     etapa(1, 'conectando ao banco');
-    if (modoDev) await recusarV2SemApp(client);
+    if (modoDev) {
+      // A recusa vem antes de criar o schema: um v2_final sem app ja existente e a pesquisa. Depois dela,
+      // o schema app nasce numa transacao propria, para que uma queda apos o script 16 nao deixe
+      // v2_final sem app e trave as proximas preparacoes.
+      await recusarV2SemApp(client);
+      await aplicarMigracoes(client);
+    }
 
-    const credenciais = garantirCredenciais(dirEstado);
+    const credenciais = lerOuCriarCredenciais(dirEstado);
 
-    // Passo 2: arquivos do MovieLens
-    etapa(2, 'conferindo os arquivos do MovieLens 100K');
-    await obterArquivosML({ destino: dirDados, zipLocal, log, ...(baixar ? { baixar } : {}) });
+    // Passo 2: arquivos do MovieLens, so quando forem necessarios (carga ou preenchimento da referencia)
+    let arquivosObtidos = false;
+    const obterArquivos = async () => {
+      if (arquivosObtidos) return;
+      etapa(2, 'conferindo os arquivos do MovieLens 100K');
+      await obterArquivosML({ destino: dirDados, zipLocal, log, ...(baixar ? { baixar } : {}) });
+      arquivosObtidos = true;
+    };
 
     // Passo 3: carga congelada, so se o banco nao estiver pronto
     let pronto = await bancoPronto(client, versaoApp);
+    if (pronto) log(`2/${TOTAL_ETAPAS}: banco já preparado; os arquivos do MovieLens não são necessários`);
     const carregar = async () => {
+      await obterArquivos();
       etapa(3, 'carregando filmes no banco');
       // um selo antigo nao pode sobreviver a uma carga que falhe depois do script 16
       await invalidarSelo(client);
@@ -157,15 +172,19 @@ export async function prepararTudo({
 
     // Passo 4: integridade. No caminho "pronto", uma divergencia se cura uma unica vez.
     etapa(4, 'conferindo a integridade dos dados');
-    try {
-      await conferirIntegridade(client);
-    } catch (e) {
-      if (!pronto) throw e;
+    // O selo ainda nao existe neste ponto (passo 7): aqui se conferem so os dados.
+    let conferencia = await conferirIntegridade(client, { comSelo: false });
+    if (!conferencia.ok) {
+      if (!pronto) throw new Error(conferencia.causa);
       log('integridade divergente: recarregando os dados congelados');
       await carregar();
       etapa(4, 'conferindo a integridade dos dados');
-      await conferirIntegridade(client);
+      conferencia = await conferirIntegridade(client, { comSelo: false });
+      if (!conferencia.ok) throw new Error(conferencia.causa);
     }
+    log(`hash_regua=${conferencia.hashes.regua}`);
+    log(`hash_treino=${conferencia.hashes.treino}`);
+    log(`hash_vetores_fc=${conferencia.hashes.vetoresFC}`);
 
     // Passos 5 a 7: uma transacao so
     etapa(5, 'preparando tabelas e papéis do banco');
@@ -174,6 +193,7 @@ export async function prepararTudo({
       await aplicarMigracoes(client, { transacao: false });
       await aplicarPapeis(client, { senhas: credenciais, superusuario: cfg.user, transacao: false });
       if (!pronto) {
+        await obterArquivos();
         etapa(6, 'preenchendo as tabelas de referência');
         await preencherReferencia(client, carregarContextoV2Final(path.join(dirDados, 'ml-100k')));
       } else {
@@ -205,7 +225,10 @@ export async function prepararTudo({
     log(`Pronto: abra http://localhost:${porta}`);
     return 'pronto';
   } catch (e) {
-    if (!(e instanceof ErroTrava)) {
+    if (!travado) {
+      // Sem a trava, outra preparacao pode estar em andamento: nao sobrescreve o estado, so registra.
+      log(`A preparação não começou: ${e.message}`);
+    } else {
       const doProprio = e instanceof ErroPreparacao;
       try {
         gravarEstado(dirEstado, {
