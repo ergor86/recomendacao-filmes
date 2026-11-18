@@ -10,6 +10,8 @@ import { rotasFilmes } from './rotas/filmes.js';
 import { rotasOnboarding } from './rotas/onboarding.js';
 import { rotasPerfis } from './rotas/perfis.js';
 import { rotasInteracoes } from './rotas/interacoes.js';
+import { rotasRecomendacoes } from './rotas/recomendacoes.js';
+import { rotasDiagnostico } from './rotas/diagnostico.js';
 import { criarFornecedorMidia } from './midia/index.js';
 
 /**
@@ -17,7 +19,9 @@ import { criarFornecedorMidia } from './midia/index.js';
  * @param porta a porta PUBLICADA (APP_PORTA), que o navegador manda no Host
  * @param dirWeb pasta com o build do frontend; sem ela, só a API é servida
  */
-export function construirApp({ ciclo, porta, dirWeb, logger = false, midia = criarFornecedorMidia() }) {
+export function construirApp({
+  ciclo, porta, dirWeb, logger = false, midia = criarFornecedorMidia(), diagnostico = process.env.APP_DIAGNOSTICO === '1',
+}) {
   const app = Fastify({
     logger,
     bodyLimit: LIMITE_CORPO,
@@ -45,6 +49,9 @@ export function construirApp({ ciclo, porta, dirWeb, logger = false, midia = cri
   app.register(rotasOnboarding, { prefix: '/api', ciclo, midia });
   app.register(rotasPerfis, { prefix: '/api', ciclo });
   app.register(rotasInteracoes, { prefix: '/api', ciclo, midia });
+  app.register(rotasRecomendacoes, { prefix: '/api', ciclo, midia });
+  // só com APP_DIAGNOSTICO=1; sem ela a rota não existe e cai em 404 ROTA_NAO_ENCONTRADA
+  if (diagnostico) app.register(rotasDiagnostico, { prefix: '/api', ciclo });
 
   const temWeb = Boolean(dirWeb) && existsSync(path.join(dirWeb, 'index.html'));
   if (temWeb) app.register(fastifyStatic, { root: path.resolve(dirWeb), wildcard: false });
