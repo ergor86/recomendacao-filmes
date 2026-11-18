@@ -14,3 +14,13 @@ O fecho real de app/preparar/preparar.js é um subconjunto disso (não carrega b
 
 ## Testes
 npm test: 183 (182 pass, 0 fail, 1 skip). npm run test:integracao: 134 pass, 0 fail.
+
+## Correção 1
+1. index.js lê APP_PORTA_INTERNA (padrão 3000; só para testes, comentado) e imprime a porta real de app.server.address(); o teste do fecho usa porta 0, confere `/api/saude` = `preparando` via http.get com Host localhost:3000 e limpa o tmp no finally externo.
+2. O teste do preparar fixa a lista EXATA de 12 arquivos de src/ do fecho real (igualdade) e confere que ela cabe em fecho do script 16 + populares + download; mantido o teste da lista de 16 contra o script 16. Spec §10.2 corrigida em commit separado.
+3. s1.js exporta `prepararConsulta({ curtidos, excluir, fc })` (vetor + exclusão ordenada, ou null), usada por `recomendar` e pelo diagnóstico, que usa `MODO`. Semântica de recomendar inalterada (equivalencia e precisao passam).
+Menor: recomendacoes.test.js usa a opção `diagnostico` de construirApp em vez de process.env.
+Comandos e saídas (em app/, ML100K_DIR definido):
+- `node --test fecho.test.js recomendacoes.test.js equivalencia.test.js precisao.test.js`: 23 tests, 23 pass, 0 fail.
+- `npm test`: 183 tests, 182 pass, 0 fail, 1 skip.
+- `npm run test:integracao`: 134 tests, 134 pass, 0 fail.

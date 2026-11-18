@@ -2,6 +2,7 @@
 // toda URL resolvida por um processo filho, e o teste confere o fecho transitivo.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
@@ -35,13 +36,23 @@ const FECHO_SCRIPT_16 = Object.freeze([
   'src/util/hash-avaliacoes.js',
   'src/util/json-estavel.js',
 ]);
-// Lista permitida da preparação: o fecho do script 16 mais o que a spec 10.1 deixa a `app/preparar/` importar
-// direto da raiz fora dele (rankingPopularidade) e o download.
-const PERMITIDOS_PREPARAR = Object.freeze([
-  ...FECHO_SCRIPT_16,
+// Fecho EXATO de app/preparar/preparar.js em src/ (spec 10.2, Ruling 19): qualquer import novo ou removido falha.
+const FECHO_PREPARAR = Object.freeze([
   'src/candidatos/populares.js',
-  'src/dados/download.js',
+  'src/contexto.js',
+  'src/dados/carregar.js',
+  'src/dados/divisoes.js',
+  'src/dados/estatisticas.js',
+  'src/dados/leitura.js',
+  'src/dados/teste2.js',
+  'src/fc/referencia.js',
+  'src/features/regua.js',
+  'src/util/aleatorio.js',
+  'src/util/hash-avaliacoes.js',
+  'src/util/json-estavel.js',
 ]);
+// Esse conjunto tem de caber no fecho do script 16 mais o que a spec 10.1 deixa a preparação importar.
+const AUDITADO_PREPARAR = Object.freeze([...FECHO_SCRIPT_16, 'src/candidatos/populares.js', 'src/dados/download.js']);
 
 const PROIBIDOS_SERVIDOR = ['src/contexto.js', 'src/dados/', 'src/avaliacao/', 'src/modelo/', '@tensorflow'];
 
@@ -70,28 +81,45 @@ function executar(args, env) {
 describe('fecho de imports em tempo de execução (spec 10.2)', { timeout: 120_000 }, () => {
   it('servidor (sem banco, estado preparando): o fecho não contém contexto, dados, avaliacao, modelo nem TensorFlow', async () => {
     const { tmp, saida } = novoTemp();
-    const filho = spawn(process.execPath, ['--import', pathToFileURL(REGISTRAR).href, SERVIDOR], {
-      env: { ...process.env, FECHO_SAIDA: saida, APP_DIR_ESTADO: path.join(tmp, 'estado'), APP_PORTA: '3000', PGHOST: '127.0.0.1', PGPORT: '1' },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
     try {
-      let log = '';
-      await new Promise((resolve, reject) => {
-        const t = setTimeout(() => reject(new Error(`servidor não escutou em 30 s; saída: ${log}`)), 30_000);
-        const ler = (b) => {
-          log += b.toString();
-          if (log.includes('servidor ouvindo')) { clearTimeout(t); resolve(); }
-        };
-        filho.stdout.on('data', ler);
-        filho.stderr.on('data', (b) => { log += b.toString(); });
-        filho.on('exit', (c) => { clearTimeout(t); reject(new Error(`servidor saiu (${c}) antes de escutar: ${log}`)); });
+      // porta interna 0: o sistema escolhe uma livre, sem conflito com outros processos (APP_PORTA_INTERNA é só de teste)
+      const filho = spawn(process.execPath, ['--import', pathToFileURL(REGISTRAR).href, SERVIDOR], {
+        env: {
+          ...process.env, FECHO_SAIDA: saida, APP_DIR_ESTADO: path.join(tmp, 'estado'), APP_PORTA: '3000',
+          APP_PORTA_INTERNA: '0', PGHOST: '127.0.0.1', PGPORT: '1',
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
       });
-    } finally {
-      filho.kill();
-      await new Promise((r) => setTimeout(r, 200));
-    }
-    const { urls, srcs } = lerFecho(saida);
-    try {
+      let porta;
+      try {
+        let log = '';
+        await new Promise((resolve, reject) => {
+          const t = setTimeout(() => reject(new Error(`servidor não escutou em 30 s; saída: ${log}`)), 30_000);
+          const ler = (b) => {
+            log += b.toString();
+            const m = /servidor ouvindo em 0\.0\.0\.0:(\d+)/.exec(log);
+            if (m) { porta = Number(m[1]); clearTimeout(t); resolve(); }
+          };
+          filho.stdout.on('data', ler);
+          filho.stderr.on('data', (b) => { log += b.toString(); });
+          filho.on('exit', (c) => { clearTimeout(t); reject(new Error(`servidor saiu (${c}) antes de escutar: ${log}`)); });
+        });
+        assert.ok(porta > 0, 'porta real impressa');
+        const r = await new Promise((resolve, reject) => {
+          // o fetch não deixa trocar o Host; o servidor só aceita localhost:<porta publicada>
+          http.get({ host: '127.0.0.1', port: porta, path: '/api/saude', headers: { host: 'localhost:3000' } }, (res) => {
+            let corpo = '';
+            res.on('data', (c) => { corpo += c; });
+            res.on('end', () => resolve({ status: res.statusCode, json: () => JSON.parse(corpo) }));
+          }).on('error', reject);
+        });
+        assert.equal(r.status, 200);
+        assert.equal(r.json().estado, 'preparando', 'sem banco nem estado.json o servidor fica preparando');
+      } finally {
+        filho.kill();
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      const { urls, srcs } = lerFecho(saida);
       assert.ok(urls.some((u) => u.endsWith('/app/servidor/app.js')), 'o gancho viu o app.js do servidor');
       assert.ok(srcs.includes('src/banco/busca-fc.js'), `o servidor usa src/banco/busca-fc.js; fecho: ${srcs.join(', ')}`);
       for (const proibido of PROIBIDOS_SERVIDOR) {
@@ -103,18 +131,16 @@ describe('fecho de imports em tempo de execução (spec 10.2)', { timeout: 120_0
     }
   });
 
-  it('preparar.js importado (sem executar): o fecho em src/ está dentro da lista permitida (script 16 + populares + download)', () => {
+  it('preparar.js importado (sem executar): o fecho em src/ é exatamente a lista registrada, contida no auditado', () => {
     const { tmp, saida } = novoTemp();
     try {
       const r = executar(['--input-type=module', '-e', `await import(${JSON.stringify(PREPARAR)})`], { FECHO_SAIDA: saida });
       assert.equal(r.status, 0, r.stderr);
       const { urls, srcs } = lerFecho(saida);
-      assert.ok(srcs.length > 0, 'o preparar alcança src/');
-      const fora = srcs.filter((s) => !PERMITIDOS_PREPARAR.includes(s));
-      assert.deepEqual(fora, [], 'arquivos de src/ fora da lista permitida');
+      assert.deepEqual(srcs, [...FECHO_PREPARAR].sort(), 'o fecho de preparar mudou: atualize a lista só depois de auditar');
+      const fora = FECHO_PREPARAR.filter((s) => !AUDITADO_PREPARAR.includes(s));
+      assert.deepEqual(fora, [], 'a lista registrada tem de caber no fecho do script 16 + populares + download');
       assert.equal(urls.filter((u) => u.includes('@tensorflow')).length, 0, 'sem TensorFlow');
-      assert.equal(PERMITIDOS_PREPARAR.length, 18);
-      assert.equal(new Set(PERMITIDOS_PREPARAR).size, 18);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

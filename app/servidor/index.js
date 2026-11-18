@@ -5,7 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { construirApp } from './app.js';
 import { criarCiclo, intervalosDoAmbiente } from './ciclo.js';
 
-const PORTA_INTERNA = 3000;
+// APP_PORTA_INTERNA existe só para testes (o fecho de imports sobe o servidor na porta 0); o Compose nunca a
+// define, então no contêiner o servidor escuta sempre em 0.0.0.0:3000 (spec 4.1).
+const PORTA_INTERNA = Number(process.env.APP_PORTA_INTERNA ?? 3000);
 const env = process.env;
 const porta = Number(env.APP_PORTA ?? 3000);
 const dirEstado = env.APP_DIR_ESTADO ?? '/var/app/estado';
@@ -23,7 +25,7 @@ const ciclo = criarCiclo({
 const app = construirApp({ ciclo, porta, dirWeb });
 
 await app.listen({ host: '0.0.0.0', port: PORTA_INTERNA });
-console.log(`servidor ouvindo em 0.0.0.0:${PORTA_INTERNA}; abra http://localhost:${porta}`);
+console.log(`servidor ouvindo em 0.0.0.0:${app.server.address().port}; abra http://localhost:${porta}`);
 ciclo.iniciar().catch((e) => log(`início do ciclo: ${e.message}`));
 
 let encerrando = false;

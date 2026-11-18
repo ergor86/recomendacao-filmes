@@ -59,6 +59,17 @@ export function derivarConjuntos(interacoes, fc, ocultos) {
 }
 
 /**
+ * Passos 4 e 5 antes da busca: o vetor de consulta e a exclusão em array ordenado, ou null quando não há
+ * curtidos ou nenhum tem vetor. Compartilhada por `recomendar` e pelo diagnóstico.
+ */
+export function prepararConsulta({ curtidos, excluir, fc }) {
+  if (curtidos.length === 0) return null;
+  const perfil = perfilFC(fc, curtidos);
+  if (perfil === null) return null;
+  return { vetor: vetorDeBusca(perfil), excluirOrdenado: [...excluir].sort((a, b) => a - b) };
+}
+
+/**
  * Passos 1 a 9 da spec 4.4.
  * @param rankingPopulares ids em ordem de n_notas decrescente, depois id
  * @param buscar (vetor, excluirOrdenado, m, modo) → Promise<{ lista, linhasPedidas, empateNaoResolvido }>
@@ -68,15 +79,12 @@ export async function recomendar({ interacoes, fc, ocultos, rankingPopulares, bu
 
   let semS1; // motivo quando a S1 não traz nenhum item
   let h = null;
+  const consulta = prepararConsulta({ curtidos, excluir, fc });
   if (curtidos.length === 0) semS1 = 'sem_curtidas';
+  else if (consulta === null) semS1 = 'curtidas_sem_vetor';
   else {
-    const perfil = perfilFC(fc, curtidos);
-    if (perfil === null) semS1 = 'curtidas_sem_vetor';
-    else {
-      semS1 = 'sem_semelhantes';
-      const excluirOrdenado = [...excluir].sort((a, b) => a - b);
-      h = await buscar(vetorDeBusca(perfil), excluirOrdenado, M, MODO);
-    }
+    semS1 = 'sem_semelhantes';
+    h = await buscar(consulta.vetor, consulta.excluirOrdenado, M, MODO);
   }
 
   // Passo 6: S1 = prefixo de K da FC150, que é o prefixo de N_FC de uma única busca H com M.

@@ -73,10 +73,8 @@ describe('recomendações e diagnóstico (banco app_teste_recomendacoes)', { tim
       dirEstado, pg: { host: cfg.host, port: cfg.port, database: cfg.database },
       intervalos: { vigiaSegundos: 3600, conteudoACada: 1000 },
     });
-    delete process.env.APP_DIAGNOSTICO;
-    app = construirApp({ ciclo, porta: PORTA });
-    process.env.APP_DIAGNOSTICO = '1';
-    try { appDiag = construirApp({ ciclo, porta: PORTA }); } finally { delete process.env.APP_DIAGNOSTICO; }
+    app = construirApp({ ciclo, porta: PORTA, diagnostico: false });
+    appDiag = construirApp({ ciclo, porta: PORTA, diagnostico: true });
     await app.ready();
     await appDiag.ready();
     await ciclo.iniciar();
