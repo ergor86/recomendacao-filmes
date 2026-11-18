@@ -36,7 +36,8 @@ describe('ciclo de estados (unidade)', () => {
   const fcFalso = { nUsuarios: 943, fasPorFilme: new Map([[1, [1, 2]]]) };
   const ok = () => ({ ok: true, fc: fcFalso, ocultos: new Set([267]), rankingPopulares: [50, 100], temVetor: new Set([1]), retrato: { ...RETRATO } });
 
-  const novo = (extra = {}) => criarCiclo({
+  const novo = (extra = {}, opcoes = {}) => criarCiclo({
+    ...opcoes,
     dirEstado: dir,
     pg: { host: 'h', port: 1, database: 'd' },
     intervalos: { vigiaSegundos: 60, conteudoACada: 10 },
@@ -243,6 +244,37 @@ describe('ciclo de estados (unidade)', () => {
     await c.saude();
     assert.equal(pools.criados, 2);
     assert.deepEqual(pools.ultimo.credenciais, { app_leitura: 'outra', app_escrita: 'outra2' });
+  });
+
+  it('perfis: erro que não é de disponibilidade nem de credenciais não vira banco_indisponivel (M-5) e é logado sem o objeto', async () => {
+    gravar({ estado: 'preparando', etapa: 1, total: 8, atualizadoEm: 'a' });
+    gravarCred();
+    for (const code of ['42501', '42P01']) {
+      pools.escritaErro = erroPg(code, `permissão negada ${code}`);
+      const logs = [];
+      const c = novo({}, { log: (...a) => logs.push(a) });
+      const p = (await c.saude()).perfis;
+      assert.equal(p.disponivel, false);
+      assert.notEqual(p.motivo, 'banco_indisponivel', code);
+      assert.ok(logs.some((l) => l.every((x) => typeof x === 'string') && l.join(' ').includes(`permissão negada ${code}`)), `log de ${code}`);
+    }
+  });
+
+  it('pedido em voo na troca de pools: "pool encerrado" é disponibilidade (503), não erro interno (M-8)', async () => {
+    gravarCred();
+    gravar({ estado: 'pronto', atualizadoEm: 'a' });
+    const c = novo();
+    await c.saude();
+    const velho = c.operante();
+    assert.ok(velho);
+    gravarCred({ app_leitura: 'outra', app_escrita: 'outra2' });
+    rel.avancar(2000);
+    await c.saude();
+    await c.vigiar();
+    assert.equal(pools.criados, 2, 'a vigia recriou os pools');
+    const erro = new Error('Cannot use a pool after calling end on the pool');
+    assert.equal(c.registrarErro(erro), 'disponibilidade');
+    assert.equal(c.estado().estado, 'operante', 'não bloqueia');
   });
 
   it('perfis: motivos da gestão restrita', async () => {

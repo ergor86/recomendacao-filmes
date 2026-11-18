@@ -29,6 +29,7 @@ for (const [msg, esperado] of [
   ['régua do banco difere da fase em uso: rode npm run carregar-v2', 'integridade'],
   ['treino do banco difere da fase em uso: rode npm run carregar-v2', 'integridade'],
   ['banco sem filmes_fc: rode npm run carregar-v2', 'integridade'],
+  ['Cannot use a pool after calling end on the pool', 'disponibilidade'],
   ['qualquer outra coisa', 'outro'],
 ]) {
   test(`mensagem "${msg}" -> ${esperado}`, () => assert.equal(classificarErroPg(new Error(msg)), esperado));

@@ -36,9 +36,10 @@ describe('perfis e interações (banco app_teste_perfis)', { timeout: 900_000, s
   let cfg, tmp, su, ciclo, app, dirEstado;
   let comVetor, semVetor; // ids visíveis, com e sem vetor
 
-  const pedir = async (metodo, url, corpo) => {
+  // `comCabecalho` força Content-Type: application/json mesmo sem corpo (como um cliente que sempre o manda, §6.1)
+  const pedir = async (metodo, url, corpo, { comCabecalho = false } = {}) => {
     const r = await app.inject({
-      method: metodo, url, headers: corpo === undefined ? HOST : JSON_H, payload: corpo === undefined ? undefined : JSON.stringify(corpo),
+      method: metodo, url, headers: corpo === undefined && !comCabecalho ? HOST : JSON_H, payload: corpo === undefined ? undefined : JSON.stringify(corpo),
     });
     return { status: r.statusCode, corpo: r.body ? r.json() : null };
   };
@@ -215,6 +216,38 @@ describe('perfis e interações (banco app_teste_perfis)', { timeout: 900_000, s
       const { rows } = await su.query('SELECT perfil_id, count(*)::int AS n FROM app.interacao GROUP BY 1');
       assert.deepEqual(rows, [{ perfil_id: b.id, n: 2 }]);
       assert.equal(await contagem(), 1);
+    });
+  });
+
+  describe('escritas sem corpo, com e sem Content-Type: application/json (I-1)', () => {
+    for (const comCabecalho of [false, true]) {
+      const rot = comCabecalho ? 'com' : 'sem';
+      it(`DELETE /perfis/:id ${rot} o cabeçalho → 204; DELETE de interação ${rot} o cabeçalho → 200`, async () => {
+        const p = await criar(`SemCorpo-${rot}`);
+        await put(p.id, comVetor[3], { tipo: 'gostei' });
+        const di = await pedir('DELETE', `/api/perfis/${p.id}/interacoes/${comVetor[3]}`, undefined, { comCabecalho });
+        assert.equal(di.status, 200, JSON.stringify(di.corpo));
+        assert.equal(di.corpo.anterior.tipo, 'gostei');
+        const dp = await pedir('DELETE', `/api/perfis/${p.id}`, undefined, { comCabecalho });
+        assert.equal(dp.status, 204, JSON.stringify(dp.corpo));
+        assert.equal((await pedir('DELETE', `/api/perfis/${p.id}`, undefined, { comCabecalho })).status, 404);
+      });
+
+      it(`POST /perfis/exemplo ${rot} o cabeçalho → 201 e depois 200`, async () => {
+        await su.query('DELETE FROM app.perfil WHERE exemplo');
+        const a = await pedir('POST', '/api/perfis/exemplo', undefined, { comCabecalho });
+        assert.equal(a.status, 201, JSON.stringify(a.corpo));
+        const b = await pedir('POST', '/api/perfis/exemplo', undefined, { comCabecalho });
+        assert.equal(b.status, 200);
+        await su.query('DELETE FROM app.perfil WHERE exemplo');
+      });
+    }
+
+    it('corpo não vazio inválido continua 400 e outro tipo continua 415', async () => {
+      const r = await app.inject({ method: 'POST', url: '/api/perfis', headers: JSON_H, payload: '{nome' });
+      assert.equal(r.statusCode, 400);
+      const v = await app.inject({ method: 'POST', url: '/api/perfis', headers: JSON_H });
+      assert.equal(v.statusCode, 400, 'POST /perfis sem corpo continua exigindo o corpo');
     });
   });
 
@@ -438,10 +471,12 @@ describe('perfis e interações (banco app_teste_perfis)', { timeout: 900_000, s
           assert.equal(r.corpo.codigo, 'BLOQUEADO', `${m} ${u}`);
         }
         const apagou = await app.inject({ method: 'DELETE', url: `/api/perfis/${a.id}`, headers: HOST });
-        assert.ok([200, 204].includes(apagou.statusCode), `status ${apagou.statusCode}`);
+        assert.equal(apagou.statusCode, 204);
         const { rows } = await su.query('SELECT perfil_id FROM app.interacao');
         assert.deepEqual(rows, [{ perfil_id: b.id }], 'as interações do perfil apagado sumiram');
         assert.equal((await pedir('DELETE', `/api/perfis/${PERFIL_FANTASMA}`)).status, 404);
+        const b2 = await pedir('DELETE', `/api/perfis/${b.id}`, undefined, { comCabecalho: true });
+        assert.equal(b2.status, 204, 'bloqueado, com Content-Type e sem corpo: a exclusão (LGPD) funciona');
       } finally {
         await su.query(`UPDATE v2_final.metadados SET valor = $1 WHERE chave = 'hash_treino'`, [HASHES.treino]);
       }

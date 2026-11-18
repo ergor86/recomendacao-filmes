@@ -221,4 +221,31 @@ describe('segurança (spec 6.1)', () => {
     assert.ok(r.body.includes(`diferença média de ${n(R.media)} no NDCG@10, IC 95% [${n(R.ic95[0])}; ${n(R.ic95[1])}]`));
     assert.match(r.body, /943 pessoas do MovieLens 100K, sem as notas escondidas do teste-2/);
   });
+
+  it('escrita sem corpo com Content-Type application/json: corpo vazio vale como ausente (I-1)', async () => {
+    const app = await novo();
+    for (const payload of [undefined, '', '   ']) {
+      const r = await app.inject({ method: 'POST', url: '/api/teste-eco', headers: { host: 'localhost:3317', 'content-type': 'application/json' }, payload });
+      assert.equal(r.statusCode, 200, JSON.stringify(payload));
+      assert.deepEqual(r.json(), { recebido: null });
+    }
+    const d = await app.inject({ method: 'DELETE', url: '/api/teste-del', headers: { host: 'localhost:3317', 'content-type': 'application/json' } });
+    assert.equal(d.statusCode, 404, 'chega ao tratador de rota inexistente, sem 400');
+    assert.equal(d.json().codigo, 'ROTA_NAO_ENCONTRADA');
+  });
+
+  it('corpo vazio ou JSON inválido continuam recusados quando devem (400 VALIDACAO; 415 para outros tipos)', async () => {
+    const app = await novo();
+    const H = { host: 'localhost:3317', 'content-type': 'application/json' };
+    const ruim = await app.inject({ method: 'POST', url: '/api/teste-eco', headers: H, payload: '{nome' });
+    assert.equal(ruim.statusCode, 400);
+    assert.equal(ruim.json().codigo, 'VALIDACAO');
+    const proto = await app.inject({ method: 'POST', url: '/api/teste-eco', headers: H, payload: '{"__proto__":{"x":1}}' });
+    assert.equal(proto.statusCode, 400);
+    const ok = await app.inject({ method: 'POST', url: '/api/teste-eco', headers: H, payload: '{"a":1}' });
+    assert.deepEqual(ok.json(), { recebido: { a: 1 } });
+    const txt = await app.inject({ method: 'POST', url: '/api/teste-eco', headers: { host: 'localhost:3317', 'content-type': 'text/plain' }, payload: '' });
+    assert.equal(txt.statusCode, 415);
+    assert.equal(txt.json().codigo, 'TIPO_NAO_SUPORTADO');
+  });
 });

@@ -50,16 +50,18 @@ export function exigirPoolEscrita(ciclo) {
 /** Roda `fn(cliente)` numa transação; o COMMIT/ROLLBACK e a devolução do cliente são garantidos. */
 export async function comTransacao(pool, fn) {
   const cliente = await pool.connect();
+  let falha;
   try {
     await cliente.query('BEGIN');
     const r = await fn(cliente);
     await cliente.query('COMMIT');
     return r;
   } catch (erro) {
+    falha = erro;
     await cliente.query('ROLLBACK').catch(() => {});
     throw erro;
   } finally {
-    cliente.release();
+    cliente.release(falha); // com erro, o cliente é descartado em vez de voltar ao pool
   }
 }
 

@@ -16,11 +16,12 @@ export function montarSaude(s) {
 }
 
 export async function rotasSaude(app, { ciclo }) {
-  app.get('/saude', async () => {
+  app.get('/saude', async (req) => {
     try {
       return montarSaude(await ciclo.saude());
-    } catch {
-      // nunca repassa a mensagem do erro: pode trazer detalhes internos
+    } catch (erro) {
+      // a resposta nunca repassa a mensagem (pode trazer detalhes internos); o log traz só o texto, sem o objeto
+      req.log.error({ msg: String(erro?.message ?? erro).slice(0, 400) }, 'falha ao montar /saude');
       return montarSaude({ estado: 'preparando', mensagem: 'Não consegui conferir o estado agora; tentando de novo.' });
     }
   });

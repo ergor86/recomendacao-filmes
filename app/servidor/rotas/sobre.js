@@ -87,10 +87,12 @@ export function montarSobre() {
       m: M,
       nFc: N_FC,
       modo: MODO,
-      descricao: 'Filtragem colaborativa item a item (S1) com busca HNSW no pgvector: uma busca com M = 300, '
-        + 'FC150 = os 150 primeiros, top 10 = prefixo da FC150, completado pelos mais avaliados. '
+      descricao: `Filtragem colaborativa item a item (S1) com busca HNSW no pgvector: uma busca com M = ${M}, `
+        + `FC${N_FC} = os ${N_FC} primeiros, top 10 = prefixo da FC${N_FC}, completado pelos mais avaliados. `
         + 'A única mudança em relação à pesquisa é a exclusão: as interações do perfil e os filmes ocultos. '
-        + 'O índice é reconstruído na preparação e os hashes abaixo são conferidos antes de servir.',
+        + 'O índice é reconstruído na preparação e os hashes abaixo são conferidos antes de servir. '
+        + 'Como o índice HNSW é reconstruído em cada instalação, com níveis aleatórios, a lista aproximada pode diferir, '
+        + 'em casos raros, da que o índice da pesquisa daria; a fidelidade publicada entre HNSW e busca exata foi medida no índice da pesquisa.',
     },
     avisos: [...LIMITES],
     licencas: LICENCAS.map((l) => ({ nome: l.nome, texto: l.texto, url: l.url })),

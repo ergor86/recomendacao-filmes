@@ -324,7 +324,11 @@ export function criarCiclo({
       perfis = r?.existe ? { disponivel: true } : { disponivel: false, motivo: 'sem_dados' };
     } catch (erro) {
       const tipo = classificarErroPg(erro);
-      perfis = { disponivel: false, motivo: tipo === 'credenciais' ? 'credenciais' : 'banco_indisponivel' };
+      // motivos admitidos: banco_indisponivel, credenciais, sem_dados. 42501/42P01 = o schema app não está
+      // acessível (nada a apagar): sem_dados; só a queda do banco (ou erro desconhecido) vira banco_indisponivel.
+      const motivo = { credenciais: 'credenciais', integridade: 'sem_dados' }[tipo] ?? 'banco_indisponivel';
+      if (tipo !== 'disponibilidade') log(`sonda de perfis (${tipo}): ${String(erro?.message ?? erro).slice(0, MAX_CAUSA)}`);
+      perfis = { disponivel: false, motivo };
     }
   }
 

@@ -36,9 +36,14 @@ export function construirApp({
     if (erro.code === 'FST_ERR_CTP_INVALID_MEDIA_TYPE' || erro.statusCode === 415) return enviarErro(reply, 'TIPO_NAO_SUPORTADO');
     if (erro.validation || (erro.statusCode >= 400 && erro.statusCode < 500)) return enviarErro(reply, 'VALIDACAO');
     // erros do banco: disponibilidade não bloqueia; integridade e credenciais bloqueiam (spec 4.3)
+    // fora do operante o estado vem do ciclo (coerente com /saude): GET /perfis e DELETE /perfis/:id chegam aqui
+    const estavaOperante = Boolean(ciclo.operante());
     const tipo = ciclo.registrarErro(erro);
     if (tipo === 'disponibilidade') return enviarErro(reply, 'BANCO_INDISPONIVEL');
-    if (tipo === 'integridade' || tipo === 'credenciais') return enviarErro(reply, 'BLOQUEADO');
+    if (tipo === 'integridade' || tipo === 'credenciais') {
+      const bloqueado = estavaOperante || ciclo.estado?.()?.estado === 'bloqueado';
+      return enviarErro(reply, bloqueado ? 'BLOQUEADO' : 'PREPARANDO');
+    }
     req.log.error({ msg: erro.message }, 'erro interno');
     return reply.code(500).send({ codigo: 'ERRO_INTERNO', mensagem: 'Erro interno do servidor.' });
   });

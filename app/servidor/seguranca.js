@@ -82,6 +82,16 @@ export function registrarSeguranca(app, { porta }) {
   // sem o parser text/plain: um formulário HTML de outro site não consegue mandar um corpo aceito
   app.removeContentTypeParser('text/plain');
 
+  // Corpo vazio com Content-Type: application/json vale como corpo ausente (DELETE, POST /perfis/exemplo):
+  // o parser padrão o recusaria com 400. Corpo não vazio segue o parser padrão (JSON inválido e
+  // __proto__/constructor continuam 400); rotas com schema de body continuam exigindo o corpo.
+  const jsonPadrao = app.getDefaultJsonParser('error', 'error');
+  app.removeContentTypeParser('application/json');
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, corpo, done) => {
+    if (corpo.trim() === '') return done(null, undefined);
+    return jsonPadrao(req, corpo, done);
+  });
+
   app.addHook('onRequest', async (req, reply) => {
     const host = String(req.headers.host ?? '').toLowerCase();
     if (!permitidos.has(host)) return enviarErro(reply, 'HOST_INVALIDO');

@@ -12,7 +12,7 @@ export function classificarErroPg(erro) {
     if (INTEGRIDADE.has(code)) return 'integridade';
   }
   const msg = String(erro.message ?? erro);
-  if (msg.includes('Connection terminated') || msg.includes('timeout exceeded when trying to connect')) return 'disponibilidade';
+  if (msg.includes('Connection terminated') || msg.includes('Cannot use a pool after calling end') || msg.includes('timeout exceeded when trying to connect')) return 'disponibilidade';
   if (MSG_INTEGRIDADE.some((p) => msg.startsWith(p))) return 'integridade';
   return 'outro';
 }
