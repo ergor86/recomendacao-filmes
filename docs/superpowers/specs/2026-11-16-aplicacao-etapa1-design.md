@@ -554,7 +554,7 @@ O Playwright e o Vitest gravam só nessas pastas.
      - `app/servidor/recomendacao/` não importa `app/servidor/midia/`.
 2. **Auditoria do fecho em tempo de execução:**
    - Um teste sobe o servidor com um hook `module.register` que registra toda URL resolvida e confere que o fecho **transitivo** do servidor **não** contém `src/contexto.js`, `src/dados/*`, `src/avaliacao/*`, `src/modelo/*` nem `@tensorflow`.
-   - Para a preparação, o fecho tem de ser exatamente o conjunto auditado (o do script 16 mais `download.js`), registrado como lista no teste.
+   - Para a preparação, o fecho tem de ser exatamente o conjunto auditado, registrado como lista no teste, e esse conjunto tem de estar contido no fecho do script 16 (16 arquivos de `src/`) mais `src/candidatos/populares.js` e `src/dados/download.js`.
 3. **Exceções nomeadas para testes:**
    - `app/testes/referencia/` pode importar `src/contexto.js` e `src/avaliacao/fidelidade.js`;
    - `app/testes/determinismo/` pode importar `src/contexto.js` e `src/util/hash-avaliacoes.js`.
