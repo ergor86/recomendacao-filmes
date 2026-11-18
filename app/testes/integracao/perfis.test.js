@@ -2,12 +2,11 @@
 // Banco próprio `app_teste_perfis`, preparado com prepararTudo; servidor real (construirApp + criarCiclo).
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
-import { lerCredenciais } from '../../comum/estado.js';
 import { HASHES } from '../../integridade.js';
 import { prepararTudo } from '../../preparar/preparar.js';
 import { construirApp } from '../../servidor/app.js';
@@ -451,10 +450,10 @@ describe('perfis e interações (banco app_teste_perfis)', { timeout: 900_000, s
 
     it('credenciais adulteradas: /saude.perfis = { disponivel: false, motivo: credenciais }', async () => {
       await operante();
-      const { app_escrita: senha } = lerCredenciais(dirEstado);
-      await su.query(`ALTER ROLE app_escrita PASSWORD 'adulterada'`);
-      // derruba as conexões abertas: o pool reconecta com a senha antiga e é recusado
-      await su.query(`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename = 'app_escrita'`);
+      // adultera só o credenciais.json do dirEstado temporário (nada do cluster: sem ALTER ROLE nem terminate)
+      const arquivo = path.join(dirEstado, 'credenciais.json');
+      const original = readFileSync(arquivo, 'utf8');
+      writeFileSync(arquivo, '{"app_leitura": 1}\n');
       try {
         const s = await esperar(async () => {
           const x = await saude();
@@ -462,7 +461,7 @@ describe('perfis e interações (banco app_teste_perfis)', { timeout: 900_000, s
         }, { ms: 15_000, passo: 500, msg: 'perfis indisponíveis por credenciais' });
         assert.deepEqual(s.perfis, { disponivel: false, motivo: 'credenciais' });
       } finally {
-        await su.query(`ALTER ROLE app_escrita PASSWORD '${senha.replace(/'/g, "''")}'`);
+        writeFileSync(arquivo, original);
       }
       await esperar(async () => (await saude()).perfis.disponivel === true, { ms: 15_000, passo: 500, msg: 'perfis de volta' });
       await operante();
