@@ -55,7 +55,7 @@ O projeto é acadêmico (pós-graduação, unidade de Deep Learning e Sistemas d
   - faz `import 'dotenv/config'`, que lê o `.env` do diretório atual;
   - faz `DROP` e `CREATE` das tabelas a cada execução;
   - tenta conectar uma única vez, sem nova tentativa;
-  - tem uma cadeia de 17 módulos que não importa o TF.js nem pacotes com script de instalação. Ela inclui `src/contexto.js` → `dados/teste2.js` e `dados/divisoes.js`.
+  - tem uma cadeia de 16 módulos que não importa o TF.js nem pacotes com script de instalação. Ela inclui `src/contexto.js` → `dados/teste2.js` e `dados/divisoes.js`.
 - **Hashes congelados:** em `resultados/configuracao-v2.json` (o mesmo de `6077974`):
   - `regua` = `12119b16edab32568ad1e3e147d793da98b07ec17c46b5f8d695187f91c1521a`;
   - `treino` = `ac6c0eacd7ab52a956a07dd948105aee86b354651e106b0a41a0652661ba377a`;
@@ -209,7 +209,7 @@ O estado vai para `/var/app/estado/estado.json`, gravado de forma atômica (arqu
 Quando o banco já está pronto, a preparação leva poucos segundos: só os passos 0, 1, 4, 5 e 7.
 
 ### 4.3 Servidor (`app/servidor/`)
-- **Inicialização:** sobe imediatamente. Enquanto `estado.json` não estiver `pronto`, `/api/saude` responde `{ estado: 'preparando' | 'falhou', etapa, mensagem, causa, comando }`, e as rotas de dados respondem `503 PREPARANDO`. A resposta é montada **campo a campo**, nunca repassando o objeto lido.
+- **Inicialização:** sobe imediatamente. Enquanto `estado.json` não estiver `pronto`, `/api/saude` responde `{ estado: 'preparando' | 'falhou', etapa, mensagem, causa, comando }`, e as rotas de dados respondem `503 PREPARANDO`. `GET /api/sobre` responde em qualquer estado, por ser conteúdo estático, montado só de constantes (útil na tela de bloqueio). A resposta é montada **campo a campo**, nunca repassando o objeto lido.
 - **Credenciais:** o servidor lê `credenciais.json` a cada conferência (§4.3) e recria os pools se as senhas mudaram.
 - **Conferência:** quando o estado vira `pronto`, o servidor abre os pools e roda a **conferência** dos passos 4 e 7 da §4.2: hashes, `fc` reconstruído, o selo e o `current_schema()` do pool de leitura igual a `v2_final`. Se passar, ele fica **operante**. Se falhar, fica **bloqueado** com a causa.
 - **Reavaliação:** fora do estado operante, cada `GET /api/saude` (limitado a 1 a cada 2 s) refaz a conferência. Assim o servidor se recupera sozinho depois de `docker compose run --rm preparar` ou do retorno do banco, sem reiniciar.
@@ -232,7 +232,7 @@ Quando o banco já está pronto, a preparação leva poucos segundos: só os pas
   - de **credenciais** (`28P01`, senha recusada): passam ao bloqueio com a causa "credenciais do banco não conferem; rode `docker compose run --rm preparar`". A reconferência relê o arquivo;
   - os dois pools têm `pool.on('error', registrar)`.
 - **Gestão de perfis fora do estado operante** (`preparando`, `falhou` ou `bloqueado`):
-  - **Rotas liberadas:** só `GET /perfis` e `DELETE /perfis/:id`, que usam só o pool de escrita e o schema `app`. Todas as outras respondem `503 PREPARANDO` ou `503 BLOQUEADO`.
+  - **Rotas liberadas:** só `GET /perfis` e `DELETE /perfis/:id`, que usam só o pool de escrita e o schema `app`. Todas as outras rotas de dados respondem `503 PREPARANDO` ou `503 BLOQUEADO` (`GET /sobre` é a exceção estática descrita acima).
   - **Disponibilidade:** o servidor tenta abrir o pool de escrita sempre que `credenciais.json` existe, e o `/saude` informa `perfis: { disponivel: boolean, motivo? }`. A gestão está disponível quando o pool conecta e `app.perfil` existe.
   - **Quando a exclusão não pode ser garantida:**
     - banco indisponível (`motivo: 'banco_indisponivel'`);
@@ -578,7 +578,7 @@ O Playwright e o Vitest gravam só nessas pastas.
    - **(d) Padrões:** um teste de unidade confere que os padrões são 60 s e 10 ciclos.
    - Depois de (a) e (b), restaurar os valores, chamar "Conferir de novo" (`/saude`) e conferir `operante`.
    - **Exclusão de perfis fora do estado operante:**
-     - no estado `bloqueado` de (a), `GET /perfis` responde 200, e `DELETE /perfis/:id` responde 200 e apaga as interações em cascata;
+     - no estado `bloqueado` de (a), `GET /perfis` responde 200, e `DELETE /perfis/:id` responde 204 e apaga as interações em cascata;
      - com o `db` parado, `/saude` traz `perfis.disponivel = false` e `motivo = 'banco_indisponivel'`, e o `DELETE` responde `503 BANCO_INDISPONIVEL`;
      - com `credenciais.json` adulterado, o motivo é `'credenciais'`;
      - o Playwright cobre o caminho na interface: bloqueado → "Apagar perfis e avaliações" → excluir → o perfil some.
