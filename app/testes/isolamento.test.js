@@ -4,7 +4,9 @@ import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { analisarFonte, importsDaRaiz, PROIBIDOS_RAIZ } from './apoio-isolamento.js';
+import {
+  analisarFonte, especificadoresAbsolutos, importsDaRaiz, PROIBIDOS_RAIZ, violacoesDeFecho,
+} from './apoio-isolamento.js';
 import { NOMES_PROIBIDOS } from './fixtures/nomes-proibidos.js';
 
 const aqui = path.dirname(fileURLToPath(import.meta.url));
@@ -89,6 +91,13 @@ function violacoesImports(rel, texto) {
   }
   return v;
 }
+
+const ORIGENS_FECHO = ['app/servidor/', 'app/comum/'];
+const PROIBIDOS_FECHO = ['app/preparar/', 'app/testes/'];
+const violacoesFecho = (textos) =>
+  violacoesDeFecho({ textos, origens: ORIGENS_FECHO, proibidos: PROIBIDOS_FECHO, permitidosPara, path });
+const violacoesAbsolutos = (rel, texto) =>
+  especificadoresAbsolutos(analisarFonte(texto, rel)).map((e) => `${rel}: especificador absoluto ${e}`);
 
 describe('isolamento: verificador (textos sintéticos)', () => {
   test('detecta import() não literal e aceita o literal', () => {
@@ -175,6 +184,47 @@ describe('isolamento: verificador (textos sintéticos)', () => {
     assert.deepEqual(violacoesImports('app/servidor/x.js', texto), []);
   });
 
+  test('fecho: a cadeia servidor → preparar → src/contexto.js é acusada', () => {
+    const v = violacoesFecho(new Map([
+      ['app/servidor/a.js', "import p from '../preparar/p.js';"],
+      ['app/preparar/p.js', "import c from '../../src/contexto.js';"],
+    ]));
+    assert.ok(v.some((x) => x.includes('app/servidor/a.js: alcança app/preparar/p.js, pasta proibida')), v.join('\n'));
+    assert.ok(v.some((x) => x.includes('src/contexto.js') && x.includes('app/servidor/a.js → app/preparar/p.js')), v.join('\n'));
+  });
+
+  test('fecho: transitivo por vários saltos e por testes/', () => {
+    const v = violacoesFecho(new Map([
+      ['app/comum/a.js', "import b from './b.js';"],
+      ['app/comum/b.js', "import t from '../testes/apoio.js';"],
+      ['app/testes/apoio.js', "import m from '../../src/modelo/rede.js';"],
+    ]));
+    assert.ok(v.some((x) => x.includes('alcança app/testes/apoio.js, pasta proibida')));
+    assert.ok(v.some((x) => x.includes('src/modelo/rede.js')));
+  });
+
+  test('fecho: o que é permitido passa, inclusive servidor → comum → populares', () => {
+    assert.deepEqual(violacoesFecho(new Map([
+      ['app/servidor/a.js', "import c from '../comum/c.js'; import r from '../../src/fc/referencia.js';"],
+      ['app/comum/c.js', "import p from '../../src/candidatos/populares.js'; import e from './d.js';"],
+      ['app/comum/d.js', "import pg from 'pg';"],
+    ])), []);
+  });
+
+  test('fecho: busca-fc só vale na origem que a permite (servidor sim, comum não)', () => {
+    const textos = (origem) => new Map([[`app/${origem}/a.js`, "import b from '../../src/banco/busca-fc.js';"]]);
+    assert.deepEqual(violacoesFecho(textos('servidor')), []);
+    assert.equal(violacoesFecho(textos('comum')).length, 1);
+  });
+
+  test('especificador absoluto é acusado (POSIX, Windows e file:)', () => {
+    assert.equal(violacoesAbsolutos('app/servidor/x.js', "import a from '/etc/x.js';").length, 1);
+    assert.equal(violacoesAbsolutos('app/servidor/x.js', "import a from 'C:\\\\dev\\\\x.js';").length, 1);
+    assert.equal(violacoesAbsolutos('app/servidor/x.js', "import a from 'C:/dev/x.js';").length, 1);
+    assert.equal(violacoesAbsolutos('app/servidor/x.js', "import a from 'file:///c:/x.js';").length, 1);
+    assert.deepEqual(violacoesAbsolutos('app/servidor/x.js', "import a from './x.js'; import b from 'node:fs'; import c from 'pg';"), []);
+  });
+
   test('os padrões de strings proibidas detectam o que devem e poupam a prosa', () => {
     const casos = [`x = '${INCLUIR}2'`, NOMES_PROIBIDOS[0], NOMES_PROIBIDOS[1], "'x.test'", NOMES_PROIBIDOS[6], NOMES_PROIBIDOS[7], "'ua.base'"];
     for (const c of casos) assert.ok(PADROES_PRODUCAO.some(([, re]) => re.test(c)), c);
@@ -205,6 +255,14 @@ test('isolamento: sem create' + 'Require', () => {
 
 test('isolamento: imports da raiz só os permitidos', () => {
   assert.deepEqual(analisaveis.flatMap((a) => violacoesImports(a.rel, a.texto)), []);
+});
+
+test('isolamento: nenhum especificador absoluto em app/', () => {
+  assert.deepEqual(analisaveis.flatMap((a) => violacoesAbsolutos(a.rel, a.texto)), []);
+});
+
+test('isolamento: servidor/ e comum/ não alcançam preparar/ nem testes/ e o fecho respeita as permissões', () => {
+  assert.deepEqual(violacoesFecho(new Map(arquivos.map((a) => [a.rel, a.texto]))), []);
 });
 
 test('isolamento: strings proibidas ausentes no código de produção', () => {

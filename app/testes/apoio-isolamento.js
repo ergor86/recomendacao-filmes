@@ -102,3 +102,61 @@ export function importsDaRaiz(analise, arquivoRel, path) {
   }
   return saida;
 }
+
+/** Especificador absoluto: caminho absoluto POSIX ou Windows, ou `file:`. */
+const ABSOLUTO = /^(\/|[A-Za-z]:[\\/]|\\\\|file:)/;
+export const especificadoresAbsolutos = (analise) =>
+  analise.importacoes.map((i) => i.especificador).filter((e) => ABSOLUTO.test(e));
+
+const dentroDe = (rel, pastas) => pastas.some((p) => rel.startsWith(p));
+
+/**
+ * Fecho transitivo dentro de app/ a partir de cada arquivo das pastas de origem.
+ * `textos`: Map caminho-relativo-à-raiz → texto. Arquivos não analisáveis são ignorados aqui
+ * (outro teste os acusa). Devolve as violações:
+ * - origem alcança arquivo de uma pasta proibida (preparar/testes);
+ * - arquivo do fecho importa da raiz algo que a pasta de origem não permite.
+ */
+export function violacoesDeFecho({ textos, origens, proibidos, permitidosPara, path }) {
+  const analises = new Map();
+  const analise = (rel) => {
+    if (!analises.has(rel)) {
+      let a = null;
+      try { a = analisarFonte(textos.get(rel), rel); } catch { /* acusado por outro teste */ }
+      analises.set(rel, a);
+    }
+    return analises.get(rel);
+  };
+  const violacoes = [];
+  for (const origem of [...textos.keys()].filter((r) => dentroDe(r, origens))) {
+    const pastaOrigem = origens.find((p) => origem.startsWith(p));
+    const permitidos = permitidosPara(origem);
+    const pai = new Map([[origem, null]]);
+    const fila = [origem];
+    const cadeia = (rel) => {
+      const c = [];
+      for (let r = rel; r; r = pai.get(r)) c.unshift(r);
+      return c.join(' → ');
+    };
+    while (fila.length) {
+      const atual = fila.shift();
+      const a = analise(atual);
+      if (!a) continue;
+      for (const alvo of importsDaRaiz(a, atual, path)) {
+        if (permitidos.includes(alvo)) continue;
+        violacoes.push(`${origem}: alcança import da raiz não permitido ${alvo} (${cadeia(atual)} → ${alvo})`);
+      }
+      for (const { especificador } of a.importacoes) {
+        if (!especificador.startsWith('.')) continue;
+        const alvo = path.posix.normalize(path.posix.join(path.posix.dirname(atual), especificador));
+        if (!alvo.startsWith('app/') || pai.has(alvo) || !textos.has(alvo)) continue;
+        pai.set(alvo, atual);
+        if (dentroDe(alvo, proibidos) && !alvo.startsWith(pastaOrigem)) {
+          violacoes.push(`${origem}: alcança ${alvo}, pasta proibida (${cadeia(alvo)})`);
+        }
+        fila.push(alvo);
+      }
+    }
+  }
+  return violacoes;
+}
