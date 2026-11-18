@@ -487,6 +487,22 @@ describe('ciclo de estados (unidade)', () => {
     assert.equal(pools.criados, 1);
   });
 
+  it('parar() durante uma conferência em curso: ela não volta a pôr o servidor em operante', async () => {
+    gravarCred();
+    gravar({ estado: 'pronto', atualizadoEm: 'a' });
+    let liberar;
+    const portao = new Promise((r) => { liberar = r; });
+    const c = novo({ conferirIntegral: async () => { await portao; return ok(); } });
+    const s = c.saude();
+    await new Promise((r) => setImmediate(r));
+    const p = c.parar();
+    liberar();
+    await s;
+    await p;
+    assert.notEqual(c.estado().estado, 'operante');
+    assert.equal(c.operante(), null);
+  });
+
   it('padrões da vigia são 60 s e 10 ciclos (§10.6 d)', () => {
     const antes = { s: process.env.APP_VIGIA_SEGUNDOS, n: process.env.APP_VIGIA_CONTEUDO_A_CADA };
     delete process.env.APP_VIGIA_SEGUNDOS;

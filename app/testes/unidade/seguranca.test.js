@@ -212,5 +212,13 @@ describe('segurança (spec 6.1)', () => {
     assert.ok(r.body.includes('não entra no cálculo dos seus gostos'));
     assert.doesNotMatch(r.body, /não muda as suas recomendações/);
     assert.match(r.body, /retrospectiva/);
+    // S2 é a v1 retreinada no Plano 3; a comparação é do sistema completo; sem juízo sobre o tamanho do ganho
+    assert.match(r.body, /retreinada no treino do Plano 3/);
+    assert.match(r.body, /sistema completo/);
+    assert.doesNotMatch(r.body, /pequen/i);
+    const { RESULTADO_PLANO3: R } = await import('../../integridade.js');
+    const n = (x) => x.toFixed(4).replace('.', ',');
+    assert.ok(r.body.includes(`diferença média de ${n(R.media)} no NDCG@10, IC 95% [${n(R.ic95[0])}; ${n(R.ic95[1])}]`));
+    assert.match(r.body, /943 pessoas do MovieLens 100K, sem as notas escondidas do teste-2/);
   });
 });

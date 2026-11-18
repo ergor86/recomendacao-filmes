@@ -22,19 +22,21 @@ const R = RESULTADO_PLANO3;
 // dos vetores, não as pessoas avaliadas.
 const METODO = 'O que foi medido: no teste-2 do Plano 3, 20% das notas dos usuários 1 a 462 do MovieLens 100K foram escondidas; '
   + '445 deles foram avaliados (17 ficaram de fora por não terem nenhuma curtida escondida). '
-  + 'Para cada um, a lista da S1 e a da versão anterior (S2) foram comparadas pelo NDCG@10, '
-  + 'com intervalo de confiança de 95% por bootstrap pareado (5.000 reamostragens). '
-  + 'Os vetores que a S1 usa vêm das notas de treino das 943 pessoas do MovieLens 100K.';
+  + 'Para cada um, a lista da S1 (filtragem colaborativa sozinha) foi comparada com a da S2: a configuração da v1 '
+  + '(150 populares + rede), retreinada no treino do Plano 3, e não o modelo avaliado no Plano 2. '
+  + 'A comparação S1 × S2 mede o sistema completo, sem atribuir a diferença a um componente. '
+  + 'A medida é o NDCG@10, com intervalo de confiança de 95% por bootstrap pareado (5.000 reamostragens). '
+  + 'Os vetores que a S1 usa vêm das notas de treino das 943 pessoas do MovieLens 100K, sem as notas escondidas do teste-2.';
 
-const CONCLUSAO = `Nesta avaliação retrospectiva, com essas ${R.nUsuarios} pessoas, a S1 teve NDCG@10 maior que a versão anterior `
-  + `(diferença média ${num(R.media)}, IC 95% [${num(R.ic95[0])}; ${num(R.ic95[1])}]).`;
+const CONCLUSAO = `Nesta avaliação retrospectiva, com essas ${R.nUsuarios} pessoas, a S1 teve NDCG@10 maior que a S2 `
+  + `(diferença média de ${num(R.media)} no NDCG@10, IC 95% [${num(R.ic95[0])}; ${num(R.ic95[1])}]).`;
 
 const NAO_SIGNIFICA = Object.freeze([
   // spec §4.4, literal
   'A qualidade medida no teste-2 (usuários históricos com ≥ 20 notas, avaliação retrospectiva) não se transfere para perfis novos.',
   'A avaliação é retrospectiva: as notas avaliadas já pertenciam aos dados usados no projeto, ainda que isoladas no Plano 3. '
     + 'Não é uma validação externa independente.',
-  'O ganho é pequeno em valor absoluto, e os níveis de NDCG não são comparáveis entre conjuntos de avaliação diferentes.',
+  'Os níveis absolutos de NDCG não são comparáveis entre conjuntos de avaliação diferentes.',
 ]);
 
 const LIMITES = Object.freeze([

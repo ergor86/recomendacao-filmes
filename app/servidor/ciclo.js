@@ -381,6 +381,7 @@ export function criarCiclo({
     // Depois de parar(), nenhuma chamada abre pools ou conexões (avaliar, sonda e vigia voltam sem efeito).
     async parar() {
       parado = true;
+      geracao += 1; // uma conferência em curso não volta a pôr o servidor em operante
       clearTimeout(timer);
       fase = { estado: 'preparando', mensagem: 'servidor encerrando' };
       await emCurso?.catch(() => {});
