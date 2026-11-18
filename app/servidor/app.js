@@ -8,6 +8,8 @@ import { rotasSaude } from './rotas/saude.js';
 import { rotasSobre } from './rotas/sobre.js';
 import { rotasFilmes } from './rotas/filmes.js';
 import { rotasOnboarding } from './rotas/onboarding.js';
+import { rotasPerfis } from './rotas/perfis.js';
+import { rotasInteracoes } from './rotas/interacoes.js';
 import { criarFornecedorMidia } from './midia/index.js';
 
 /**
@@ -41,6 +43,8 @@ export function construirApp({ ciclo, porta, dirWeb, logger = false, midia = cri
   app.register(rotasSobre, { prefix: '/api' });
   app.register(rotasFilmes, { prefix: '/api', ciclo, midia });
   app.register(rotasOnboarding, { prefix: '/api', ciclo, midia });
+  app.register(rotasPerfis, { prefix: '/api', ciclo });
+  app.register(rotasInteracoes, { prefix: '/api', ciclo, midia });
 
   const temWeb = Boolean(dirWeb) && existsSync(path.join(dirWeb, 'index.html'));
   if (temWeb) app.register(fastifyStatic, { root: path.resolve(dirWeb), wildcard: false });
