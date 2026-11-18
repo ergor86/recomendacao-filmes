@@ -199,14 +199,16 @@ describe('segurança (spec 6.1)', () => {
     assert.ok(Array.isArray(s.licencas) && s.licencas.length > 0);
     assert.ok(s.licencas.some((l) => /MovieLens/.test(l.texto)));
     assert.deepEqual(s.resumo, [
-      'Compara seus gostos com os de 943 pessoas que avaliaram filmes em 1997–98.',
-      'A técnica foi avaliada com essas pessoas, não com você.',
-      'Com poucas curtidas, a lista se apoia em poucos filmes.',
+      'O sistema compara seus gostos com avaliações de 943 pessoas feitas em 1997–98.',
+      'Para testar a técnica, foram separadas algumas avaliações históricas de 445 dessas pessoas.',
+      'Os resultados medidos não garantem a mesma qualidade para novos usuários.',
     ]);
     assert.ok(s.avisos.some((a) => /1998/.test(a)));
     // população certa: 445 avaliados entre os usuários 1 a 462; as 943 pessoas são a base dos vetores
     assert.match(r.body, /445/);
     assert.match(r.body, /462/);
+    assert.match(s.metodo, /considerados inicialmente 462 usuários/);
+    assert.match(s.metodo, /17 ficaram fora da métrica por não terem avaliações relevantes escondidas/);
     assert.doesNotMatch(r.body, /avaliad[ao]s? (com|n?as) (as )?943/i);
     assert.ok(r.body.includes('A qualidade medida no teste-2 (usuários históricos com ≥ 20 notas, avaliação retrospectiva) não se transfere para perfis novos.'));
     assert.ok(r.body.includes('não entra no cálculo dos seus gostos'));
@@ -247,5 +249,17 @@ describe('segurança (spec 6.1)', () => {
     const txt = await app.inject({ method: 'POST', url: '/api/teste-eco', headers: { host: 'localhost:3317', 'content-type': 'text/plain' }, payload: '' });
     assert.equal(txt.statusCode, 415);
     assert.equal(txt.json().codigo, 'TIPO_NAO_SUPORTADO');
+  });
+
+  it('escritas sem corpo e sem Content-Type funcionam; a mensagem do 415 fala de escritas com corpo (spec 6.1)', async () => {
+    const app = await novo();
+    const H = { host: 'localhost:3317' };
+    for (const metodo of ['DELETE', 'POST', 'PUT', 'PATCH']) {
+      const r = await app.inject({ method: metodo, url: '/api/teste-eco', headers: H });
+      assert.notEqual(r.statusCode, 415, metodo);
+      assert.notEqual(r.statusCode, 400, metodo);
+    }
+    const txt = await app.inject({ method: 'POST', url: '/api/teste-eco', headers: { ...H, 'content-type': 'text/plain' }, payload: 'x' });
+    assert.equal(txt.json().mensagem, 'As escritas com corpo exigem Content-Type: application/json.');
   });
 });

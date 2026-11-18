@@ -6,11 +6,11 @@ import { M, MODO, N_FC } from '../recomendacao/s1.js';
 
 const VERSAO = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
 
-// spec §7 (Sobre): "No topo, em 3 frases", copiadas literalmente
+// spec §7 (Sobre): "No topo, em 3 frases" (texto decidido pelo usuário), copiadas literalmente
 const RESUMO = Object.freeze([
-  'Compara seus gostos com os de 943 pessoas que avaliaram filmes em 1997–98.',
-  'A técnica foi avaliada com essas pessoas, não com você.',
-  'Com poucas curtidas, a lista se apoia em poucos filmes.',
+  'O sistema compara seus gostos com avaliações de 943 pessoas feitas em 1997–98.',
+  'Para testar a técnica, foram separadas algumas avaliações históricas de 445 dessas pessoas.',
+  'Os resultados medidos não garantem a mesma qualidade para novos usuários.',
 ]);
 
 // Números do Plano 3 com 4 casas e vírgula decimal, sempre a partir de RESULTADO_PLANO3.
@@ -21,7 +21,7 @@ const R = RESULTADO_PLANO3;
 // dos usuários 1 a 462; 445 foram avaliados (17 sem nenhuma curtida escondida). As 943 pessoas são a base
 // dos vetores, não as pessoas avaliadas.
 const METODO = 'O que foi medido: no teste-2 do Plano 3, 20% das notas dos usuários 1 a 462 do MovieLens 100K foram escondidas; '
-  + '445 deles foram avaliados (17 ficaram de fora por não terem nenhuma curtida escondida). '
+  + 'foram considerados inicialmente 462 usuários, e 445 entraram na métrica (17 ficaram fora da métrica por não terem avaliações relevantes escondidas). '
   + 'Para cada um, a lista da S1 (filtragem colaborativa sozinha) foi comparada com a da S2: a configuração da v1 '
   + '(150 populares + rede), retreinada no treino do Plano 3, e não o modelo avaliado no Plano 2. '
   + 'A comparação S1 × S2 mede o sistema completo, sem atribuir a diferença a um componente. '

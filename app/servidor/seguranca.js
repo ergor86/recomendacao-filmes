@@ -26,7 +26,7 @@ const MENSAGENS = Object.freeze({
   ORIGEM_INVALIDA: 'Origem do pedido não permitida.',
   ROTA_NAO_ENCONTRADA: 'Rota não encontrada.',
   CORPO_GRANDE: 'Corpo do pedido maior que 4 KB.',
-  TIPO_NAO_SUPORTADO: 'As escritas exigem Content-Type: application/json.',
+  TIPO_NAO_SUPORTADO: 'As escritas com corpo exigem Content-Type: application/json.',
   HOST_INVALIDO: 'Host não permitido. Abra a aplicação por http://localhost:<porta>.',
   PREPARANDO: 'A aplicação ainda está se preparando.',
   BLOQUEADO: 'A aplicação está bloqueada: a conferência de integridade falhou.',
