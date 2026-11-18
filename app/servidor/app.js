@@ -6,13 +6,16 @@ import fastifyStatic from '@fastify/static';
 import { enviarErro, LIMITE_CORPO, registrarSeguranca } from './seguranca.js';
 import { rotasSaude } from './rotas/saude.js';
 import { rotasSobre } from './rotas/sobre.js';
+import { rotasFilmes } from './rotas/filmes.js';
+import { rotasOnboarding } from './rotas/onboarding.js';
+import { criarFornecedorMidia } from './midia/index.js';
 
 /**
  * @param ciclo o ciclo de estados (ciclo.js)
  * @param porta a porta PUBLICADA (APP_PORTA), que o navegador manda no Host
  * @param dirWeb pasta com o build do frontend; sem ela, só a API é servida
  */
-export function construirApp({ ciclo, porta, dirWeb, logger = false }) {
+export function construirApp({ ciclo, porta, dirWeb, logger = false, midia = criarFornecedorMidia() }) {
   const app = Fastify({
     logger,
     bodyLimit: LIMITE_CORPO,
@@ -36,6 +39,8 @@ export function construirApp({ ciclo, porta, dirWeb, logger = false }) {
 
   app.register(rotasSaude, { prefix: '/api', ciclo });
   app.register(rotasSobre, { prefix: '/api' });
+  app.register(rotasFilmes, { prefix: '/api', ciclo, midia });
+  app.register(rotasOnboarding, { prefix: '/api', ciclo, midia });
 
   const temWeb = Boolean(dirWeb) && existsSync(path.join(dirWeb, 'index.html'));
   if (temWeb) app.register(fastifyStatic, { root: path.resolve(dirWeb), wildcard: false });
