@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { criarCiclo } from '../../servidor/ciclo.js';
+import { criarCiclo, intervalosDoAmbiente } from '../../servidor/ciclo.js';
 
 const CRED = { app_leitura: 'senha-l', app_escrita: 'senha-e' };
 
@@ -387,6 +387,104 @@ describe('ciclo de estados (unidade)', () => {
       assert.equal(c.estado().estado, 'bloqueado');
       assert.match(c.estado().causa, /régua/);
     });
+  });
+
+  it('intervalosDoAmbiente: inteiros positivos, senão o padrão 60/10', () => {
+    assert.deepEqual(intervalosDoAmbiente({}), { vigiaSegundos: 60, conteudoACada: 10 });
+    for (const ruim of ['abc', '0', '-3', '1.5', '', ' ']) {
+      assert.deepEqual(
+        intervalosDoAmbiente({ APP_VIGIA_SEGUNDOS: ruim, APP_VIGIA_CONTEUDO_A_CADA: ruim }),
+        { vigiaSegundos: 60, conteudoACada: 10 }, `valor ${JSON.stringify(ruim)}`,
+      );
+    }
+    assert.deepEqual(intervalosDoAmbiente({ APP_VIGIA_SEGUNDOS: '5', APP_VIGIA_CONTEUDO_A_CADA: '2' }), { vigiaSegundos: 5, conteudoACada: 2 });
+  });
+
+  it('registrarErro só bloqueia no operante; fora dele, só registra', async () => {
+    gravar({ estado: 'preparando', etapa: 1, total: 8, atualizadoEm: 'a' });
+    const c = novo();
+    await c.saude();
+    assert.equal(c.registrarErro(new Error('régua do banco difere da fase em uso')), 'integridade');
+    assert.equal(c.registrarErro(Object.assign(new Error('x'), { code: '28P01' })), 'credenciais');
+    assert.equal(c.estado().estado, 'preparando');
+  });
+
+  it('reconferência no operante com erro "outro": tenta de novo na volta seguinte e só bloqueia se repetir', async () => {
+    gravarCred();
+    gravar({ estado: 'pronto', atualizadoEm: 'a' });
+    let impressao = { ...RETRATO };
+    const c = novo({ impressaoDigital: async () => ({ ...impressao }) });
+    await c.saude();
+    impressao = { ...RETRATO, oids: [8, 8, 8] };
+    conf.erro = new Error('falha estranha');
+    await c.vigiar();
+    assert.equal(c.estado().estado, 'operante', 'primeira falha "outro" não bloqueia');
+    await c.vigiar();
+    assert.equal(c.estado().estado, 'bloqueado', 'repetiu: bloqueia');
+    assert.match(c.estado().causa, /falha estranha/);
+    // uma falha "outro" isolada seguida de sucesso zera a contagem
+    const d = novo({ impressaoDigital: async () => ({ ...impressao }) });
+    conf.erro = null;
+    impressao = { ...RETRATO };
+    await d.saude();
+    impressao = { ...RETRATO, oids: [5, 5, 5] };
+    conf.erro = new Error('falha estranha');
+    await d.vigiar();
+    conf.erro = null;
+    await d.vigiar();
+    assert.equal(d.estado().estado, 'operante');
+    impressao = { ...RETRATO, oids: [6, 6, 6] };
+    conf.erro = new Error('falha estranha');
+    await d.vigiar();
+    assert.equal(d.estado().estado, 'operante');
+  });
+
+  it('a vigia começa mesmo se o primeiro avaliar rejeitar', async () => {
+    gravarCred();
+    gravar({ estado: 'pronto', atualizadoEm: 'a' });
+    let n = 0;
+    const c = criarCiclo({
+      dirEstado: dir, pg: {}, intervalos: { vigiaSegundos: 1, conteudoACada: 1 }, relogio: Date,
+      dependencias: {
+        criarPools: () => {
+          n += 1;
+          if (n === 1) throw new Error('falha ao criar os pools');
+          return { leitura: poolFalso(), escrita: poolFalso() };
+        },
+        conferirIntegral: async () => ok(),
+      },
+    });
+    try {
+      await assert.rejects(c.iniciar(), /falha ao criar os pools/);
+      await new Promise((r) => setTimeout(r, 3500));
+      assert.ok(n >= 2, `a vigia não rodou (criarPools chamado ${n} vez)`);
+      assert.equal(c.estado().estado, 'operante');
+    } finally {
+      await c.parar();
+    }
+  });
+
+  it('depois de parar(), nada recria pools nem abre conexões', async () => {
+    gravarCred();
+    gravar({ estado: 'pronto', atualizadoEm: 'a' });
+    const c = novo();
+    await c.saude();
+    assert.equal(pools.criados, 1);
+    await c.parar();
+    rel.avancar(5000);
+    const s = await c.saude();
+    await c.vigiar();
+    rel.avancar(5000);
+    await c.saude();
+    assert.equal(pools.criados, 1);
+    assert.equal(c.operante(), null);
+    assert.equal(c.poolEscrita(), null);
+    assert.equal(s.estado, 'preparando');
+    // sem nunca ter iniciado também
+    const d = novo();
+    await d.parar();
+    await d.saude();
+    assert.equal(pools.criados, 1);
   });
 
   it('padrões da vigia são 60 s e 10 ciclos (§10.6 d)', () => {

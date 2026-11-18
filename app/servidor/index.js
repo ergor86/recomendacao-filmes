@@ -3,7 +3,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { construirApp } from './app.js';
-import { criarCiclo } from './ciclo.js';
+import { criarCiclo, intervalosDoAmbiente } from './ciclo.js';
 
 const PORTA_INTERNA = 3000;
 const env = process.env;
@@ -17,10 +17,7 @@ const log = (m) => console.error(`[servidor] ${m}`);
 const ciclo = criarCiclo({
   dirEstado,
   pg: { host: env.PGHOST ?? 'db', port: Number(env.PGPORT ?? 5432), database: env.PGDATABASE ?? 'recomendacao_app' },
-  intervalos: {
-    vigiaSegundos: Number(env.APP_VIGIA_SEGUNDOS ?? 60),
-    conteudoACada: Number(env.APP_VIGIA_CONTEUDO_A_CADA ?? 10),
-  },
+  intervalos: intervalosDoAmbiente(env),
   log,
 });
 const app = construirApp({ ciclo, porta, dirWeb });

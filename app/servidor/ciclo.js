@@ -31,6 +31,25 @@ const MAX_CAUSA = 400;
 
 const divergencia = (causa) => ({ ok: false, causa });
 
+export const PADRAO_VIGIA_SEGUNDOS = 60;
+export const PADRAO_CONTEUDO_A_CADA = 10;
+
+// Inteiro positivo escrito só com dígitos; qualquer outra coisa (vazio, 'abc', '0', '1.5') dá o padrão.
+function inteiroPositivo(v, padrao) {
+  const t = String(v ?? '').trim();
+  if (!/^\d+$/.test(t)) return padrao;
+  const n = Number(t);
+  return Number.isSafeInteger(n) && n > 0 ? n : padrao;
+}
+
+/** Intervalos da vigia a partir do ambiente (APP_VIGIA_SEGUNDOS, APP_VIGIA_CONTEUDO_A_CADA). Fonte única dos padrões. */
+export function intervalosDoAmbiente(env = process.env) {
+  return {
+    vigiaSegundos: inteiroPositivo(env.APP_VIGIA_SEGUNDOS, PADRAO_VIGIA_SEGUNDOS),
+    conteudoACada: inteiroPositivo(env.APP_VIGIA_CONTEUDO_A_CADA, PADRAO_CONTEUDO_A_CADA),
+  };
+}
+
 /**
  * Conferência integral (spec 4.2 passos 4 e 7): current_schema() do pool de leitura = v2_final,
  * hashes de metadados = HASHES, vetores (contagem, suporte e valores) e selo app.preparacao.
@@ -103,10 +122,7 @@ function copiarCampos(origem, estado, campos) {
 export function criarCiclo({
   dirEstado,
   pg: cfgPg,
-  intervalos = {
-    vigiaSegundos: Number(process.env.APP_VIGIA_SEGUNDOS ?? 60),
-    conteudoACada: Number(process.env.APP_VIGIA_CONTEUDO_A_CADA ?? 10),
-  },
+  intervalos = intervalosDoAmbiente(process.env),
   relogio = Date,
   dependencias = {},
   log = () => {},
@@ -114,8 +130,8 @@ export function criarCiclo({
   const dep = {
     criarPools, conferirIntegral, impressaoDigital, lerEstado, lerCredenciais, ...dependencias,
   };
-  const vigiaMs = Math.max(1, Number(intervalos.vigiaSegundos)) * 1000;
-  const conteudoACada = Math.max(1, Math.trunc(Number(intervalos.conteudoACada)));
+  const vigiaMs = inteiroPositivo(intervalos.vigiaSegundos, PADRAO_VIGIA_SEGUNDOS) * 1000;
+  const conteudoACada = inteiroPositivo(intervalos.conteudoACada, PADRAO_CONTEUDO_A_CADA);
 
   let fase = { estado: 'preparando', mensagem: 'aguardando a preparação' };
   let op = null; // { pools, fc, ocultos, rankingPopulares, temVetor }: snapshot imutável do operante
@@ -131,12 +147,14 @@ export function criarCiclo({
   let ciclos = 0;
   let timer = null;
   let parado = false;
+  let falhasOutro = 0; // falhas "outro" seguidas na reconferência do operante
 
   function sairDoOperante(novaFase) {
     geracao += 1;
     op = null;
     retrato = null;
     ciclos = 0;
+    falhasOutro = 0;
     fase = novaFase;
   }
 
@@ -144,10 +162,14 @@ export function criarCiclo({
     sairDoOperante({ estado: 'bloqueado', causa: String(causa).slice(0, MAX_CAUSA), comando: COMANDO_PREPARAR });
   }
 
+  // Só bloqueia a partir do operante: fora dele, o estado é decidido pela reavaliação (que confere tudo
+  // de novo); um erro tardio de um pedido antigo não deve sobrescrever "preparando" ou "falhou".
   function registrarErro(erro) {
     const tipo = classificarErroPg(erro);
-    if (tipo === 'integridade') bloquear(causaDeErro(erro));
-    else if (tipo === 'credenciais') bloquear(CAUSA_CREDENCIAIS);
+    if (fase.estado === 'operante') {
+      if (tipo === 'integridade') bloquear(causaDeErro(erro));
+      else if (tipo === 'credenciais') bloquear(CAUSA_CREDENCIAIS);
+    }
     log(`erro do banco (${tipo}): ${String(erro?.message ?? erro).slice(0, MAX_CAUSA)}`);
     return tipo;
   }
@@ -163,6 +185,7 @@ export function criarCiclo({
   // Lê credenciais.json e (re)cria os pools se as senhas mudaram. Devolve false se o arquivo
   // falta ou é inválido.
   function garantirPools() {
+    if (parado) return false;
     let cred;
     try {
       cred = dep.lerCredenciais(dirEstado);
@@ -198,9 +221,16 @@ export function criarCiclo({
         return;
       }
       if (tipo === 'credenciais') return bloquear(CAUSA_CREDENCIAIS);
+      if (tipo === 'outro' && estavaOperante && falhasOutro === 0) {
+        // erro inesperado isolado no operante: o retrato não muda, então a próxima volta tenta de novo
+        falhasOutro = 1;
+        log(`reconferência: erro inesperado; tentando de novo na próxima volta: ${String(erro?.message ?? erro).slice(0, MAX_CAUSA)}`);
+        return;
+      }
       return bloquear(causaDeErro(erro));
     }
     if (g !== geracao) return;
+    falhasOutro = 0;
     if (!r.ok) return bloquear(r.causa);
     op = { pools: usados, fc: r.fc, ocultos: r.ocultos, rankingPopulares: r.rankingPopulares, temVetor: r.temVetor };
     retrato = { ...r.retrato, atualizadoEm: atualizadoEm ?? null };
@@ -209,6 +239,7 @@ export function criarCiclo({
 
   // Fora do operante: estado.json manda até ficar "pronto"; então, conferência integral.
   async function avaliar() {
+    if (parado) return;
     const e = lerEstadoSeguro();
     const temCredenciais = garantirPools(); // também abre o pool de escrita da gestão restrita
     if (!e) {
@@ -275,6 +306,7 @@ export function criarCiclo({
 
   // Gestão restrita de perfis (spec 4.3): disponível quando o pool de escrita conecta e app.perfil existe.
   async function sondarPerfis() {
+    if (parado) return;
     let cred;
     try {
       cred = dep.lerCredenciais(dirEstado);
@@ -286,7 +318,7 @@ export function criarCiclo({
       perfis = { disponivel: false, motivo: 'sem_dados' };
       return;
     }
-    if (!pools) garantirPools();
+    if (!pools && !garantirPools()) return;
     try {
       const { rows: [r] } = await pools.escrita.query("SELECT to_regclass('app.perfil') IS NOT NULL AS existe");
       perfis = r?.existe ? { disponivel: true } : { disponivel: false, motivo: 'sem_dados' };
@@ -340,12 +372,17 @@ export function criarCiclo({
     vigiar,
     async iniciar() {
       parado = false;
-      await reavaliarLimitado();
-      agendar();
+      try {
+        await reavaliarLimitado();
+      } finally {
+        agendar(); // a vigia começa mesmo que a primeira avaliação rejeite
+      }
     },
+    // Depois de parar(), nenhuma chamada abre pools ou conexões (avaliar, sonda e vigia voltam sem efeito).
     async parar() {
       parado = true;
       clearTimeout(timer);
+      fase = { estado: 'preparando', mensagem: 'servidor encerrando' };
       await emCurso?.catch(() => {});
       await sondaEmCurso?.catch(() => {});
       const p = pools;

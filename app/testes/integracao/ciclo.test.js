@@ -13,6 +13,7 @@ import { HASHES } from '../../integridade.js';
 import { prepararTudo } from '../../preparar/preparar.js';
 import { rodarScript16 } from '../../preparar/script16.js';
 import { construirApp } from '../../servidor/app.js';
+import { ErroApi } from '../../servidor/seguranca.js';
 import { criarCiclo } from '../../servidor/ciclo.js';
 import { criarBuscarBanco } from '../../servidor/recomendacao/s1.js';
 import { copiarArquivosML, recriarBancoTeste } from './apoio.js';
@@ -75,6 +76,7 @@ describe('ciclo e vigia (banco app_teste_ciclo)', { timeout: 900_000, skip: semD
     // rota só deste teste, para ver o mapeamento de erros do banco (a rota real nasce na Tarefa 12)
     app.get('/api/teste-busca', async () => {
       const op = ciclo.operante();
+      if (!op) throw new ErroApi('BLOQUEADO'); // a vigia pode ter bloqueado antes do pedido
       const r = await criarBuscarBanco(op.pools.leitura)(VETOR, [], 10, 'hnsw');
       return { n: r.lista.length };
     });
@@ -113,6 +115,9 @@ describe('ciclo e vigia (banco app_teste_ciclo)', { timeout: 900_000, skip: semD
       let erro;
       try { await buscar(VETOR, [], 10, 'hnsw'); } catch (e) { erro = e; }
       assert.ok(erro, 'a busca deveria recusar');
+      assert.match(erro.message, /fase em uso/, 'a recusa vem da conferência dos hashes na busca');
+      // a vigia (1 s) pode ter bloqueado primeiro; registrarErro só bloqueia a partir do operante.
+      // Em qualquer ordem, o resultado é bloqueado com causa sobre o treino.
       assert.equal(ciclo.registrarErro(erro), 'integridade');
       const s = await saude();
       assert.equal(s.estado, 'bloqueado');

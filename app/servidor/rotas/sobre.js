@@ -13,20 +13,34 @@ const RESUMO = Object.freeze([
   'Com poucas curtidas, a lista se apoia em poucos filmes.',
 ]);
 
-const METODO = 'Avaliação retrospectiva do Plano 3: 445 pessoas do MovieLens 100K tiveram 20% das suas notas escondidas; '
-  + 'a lista da S1 (filtragem colaborativa item a item) foi comparada com a da versão anterior (S2) pelo NDCG@10, '
-  + 'com intervalo de confiança de 95% por bootstrap pareado. O intervalo exclui o zero: a S1 superou a versão anterior.';
+// Números do Plano 3 com 4 casas e vírgula decimal, sempre a partir de RESULTADO_PLANO3.
+const num = (x) => x.toFixed(4).replace('.', ',');
+const R = RESULTADO_PLANO3;
+
+// População (README da pesquisa, "Avaliação retrospectiva do Plano 3"): o teste-2 escondeu 20% das notas
+// dos usuários 1 a 462; 445 foram avaliados (17 sem nenhuma curtida escondida). As 943 pessoas são a base
+// dos vetores, não as pessoas avaliadas.
+const METODO = 'O que foi medido: no teste-2 do Plano 3, 20% das notas dos usuários 1 a 462 do MovieLens 100K foram escondidas; '
+  + '445 deles foram avaliados (17 ficaram de fora por não terem nenhuma curtida escondida). '
+  + 'Para cada um, a lista da S1 e a da versão anterior (S2) foram comparadas pelo NDCG@10, '
+  + 'com intervalo de confiança de 95% por bootstrap pareado (5.000 reamostragens). '
+  + 'Os vetores que a S1 usa vêm das notas de treino das 943 pessoas do MovieLens 100K.';
+
+const CONCLUSAO = `Nesta avaliação retrospectiva, com essas ${R.nUsuarios} pessoas, a S1 teve NDCG@10 maior que a versão anterior `
+  + `(diferença média ${num(R.media)}, IC 95% [${num(R.ic95[0])}; ${num(R.ic95[1])}]).`;
 
 const NAO_SIGNIFICA = Object.freeze([
-  'Não é uma medida da qualidade das recomendações para você: a técnica foi avaliada com as 943 pessoas de 1997–98.',
-  'Não é uma validação externa independente: as notas avaliadas já pertenciam aos dados usados no projeto, ainda que isoladas no Plano 3.',
-  'O ganho medido é pequeno em valor absoluto, e os níveis de NDCG não são comparáveis entre conjuntos de avaliação diferentes.',
+  // spec §4.4, literal
+  'A qualidade medida no teste-2 (usuários históricos com ≥ 20 notas, avaliação retrospectiva) não se transfere para perfis novos.',
+  'A avaliação é retrospectiva: as notas avaliadas já pertenciam aos dados usados no projeto, ainda que isoladas no Plano 3. '
+    + 'Não é uma validação externa independente.',
+  'O ganho é pequeno em valor absoluto, e os níveis de NDCG não são comparáveis entre conjuntos de avaliação diferentes.',
 ]);
 
 const LIMITES = Object.freeze([
   'O catálogo vai só até 1998: o MovieLens 100K não tem filmes mais novos.',
   'Notas 1–3 tiram o filme das suas recomendações, mas ainda não afastam filmes parecidos (não há sinal negativo).',
-  'Filmes raros nos dados de 1998 não têm vetor: curti-los não muda as suas recomendações.',
+  'Um filme raro nos dados de 1998 não tem vetor: curtir esse filme não entra no cálculo dos seus gostos.',
   'Os perfis ficam só neste computador e não têm senha.',
 ]);
 
@@ -64,6 +78,7 @@ export function montarSobre() {
     },
     resumo: [...RESUMO],
     metodo: METODO,
+    conclusao: CONCLUSAO,
     naoSignifica: [...NAO_SIGNIFICA],
     tecnica: {
       mecanismo: 'S1/HNSW',

@@ -204,5 +204,13 @@ describe('segurança (spec 6.1)', () => {
       'Com poucas curtidas, a lista se apoia em poucos filmes.',
     ]);
     assert.ok(s.avisos.some((a) => /1998/.test(a)));
+    // população certa: 445 avaliados entre os usuários 1 a 462; as 943 pessoas são a base dos vetores
+    assert.match(r.body, /445/);
+    assert.match(r.body, /462/);
+    assert.doesNotMatch(r.body, /avaliad[ao]s? (com|n?as) (as )?943/i);
+    assert.ok(r.body.includes('A qualidade medida no teste-2 (usuários históricos com ≥ 20 notas, avaliação retrospectiva) não se transfere para perfis novos.'));
+    assert.ok(r.body.includes('não entra no cálculo dos seus gostos'));
+    assert.doesNotMatch(r.body, /não muda as suas recomendações/);
+    assert.match(r.body, /retrospectiva/);
   });
 });
