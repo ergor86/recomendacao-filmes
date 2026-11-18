@@ -9,6 +9,11 @@ for (const [code, esperado] of [
   ['ENOTFOUND', 'disponibilidade'],
   ['57P01', 'disponibilidade'],
   ['57P03', 'disponibilidade'],
+  // queda do banco vista por um encaminhamento de porta (Docker no WSL/Desktop): reset em vez de recusa
+  ['ECONNRESET', 'disponibilidade'],
+  ['ETIMEDOUT', 'disponibilidade'],
+  ['EPIPE', 'disponibilidade'],
+  ['57P02', 'disponibilidade'],
   ['28P01', 'credenciais'],
   ['42501', 'integridade'],
   ['42P01', 'integridade'],
@@ -19,6 +24,8 @@ for (const [code, esperado] of [
 
 for (const [msg, esperado] of [
   ['Connection terminated unexpectedly', 'disponibilidade'],
+  ['timeout exceeded when trying to connect', 'disponibilidade'],
+  ['Connection terminated due to connection timeout', 'disponibilidade'],
   ['régua do banco difere da fase em uso: rode npm run carregar-v2', 'integridade'],
   ['treino do banco difere da fase em uso: rode npm run carregar-v2', 'integridade'],
   ['banco sem filmes_fc: rode npm run carregar-v2', 'integridade'],

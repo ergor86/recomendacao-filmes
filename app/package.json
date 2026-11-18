@@ -13,7 +13,10 @@
     "e2e": "playwright test -c testes/e2e/playwright.config.js"
   },
   "dependencies": {
+    "@fastify/helmet": "^13.2.0",
+    "@fastify/static": "^10.1.11",
     "adm-zip": "^0.6.1",
+    "fastify": "^5.12.8",
     "pg": "^8.23.1"
   },
   "devDependencies": {

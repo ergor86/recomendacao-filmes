@@ -1,4 +1,5 @@
-const DISPONIBILIDADE = new Set(['ECONNREFUSED', 'ENOTFOUND', '57P01', '57P03']);
+// ECONNRESET/ETIMEDOUT/EPIPE: queda do banco vista através de um encaminhamento de porta (Docker no WSL)
+const DISPONIBILIDADE = new Set(['ECONNREFUSED', 'ENOTFOUND', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE', '57P01', '57P02', '57P03']);
 const INTEGRIDADE = new Set(['42501', '42P01']);
 const MSG_INTEGRIDADE = ['régua do banco difere', 'treino do banco difere', 'banco sem filmes_fc'];
 
@@ -11,7 +12,7 @@ export function classificarErroPg(erro) {
     if (INTEGRIDADE.has(code)) return 'integridade';
   }
   const msg = String(erro.message ?? erro);
-  if (msg.includes('Connection terminated')) return 'disponibilidade';
+  if (msg.includes('Connection terminated') || msg.includes('timeout exceeded when trying to connect')) return 'disponibilidade';
   if (MSG_INTEGRIDADE.some((p) => msg.startsWith(p))) return 'integridade';
   return 'outro';
 }
