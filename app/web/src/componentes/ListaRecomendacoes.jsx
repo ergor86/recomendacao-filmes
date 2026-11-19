@@ -91,7 +91,7 @@ export default function ListaRecomendacoes({ perfilId, itens, atualizando, saind
 
   if (itens.length === 0) return null;
   return (
-    <ol className="lista-recomendacoes" ref={raiz} aria-busy={atualizando ? 'true' : 'false'} onFocus={aoFocar} onBlur={aoDesfocar}>
+    <ol className="lista-recomendacoes" role="list" ref={raiz} aria-busy={atualizando ? 'true' : 'false'} onFocus={aoFocar} onBlur={aoDesfocar}>
       {itens.map((item) => {
         const f = item.filme;
         const novo = ehNovo(f.id);
