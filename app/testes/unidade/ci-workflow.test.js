@@ -35,3 +35,20 @@ test('o CI confere [::1] aceito e localhost:3000 recusado com 421 contra o cont�
 test('o banco de teste do CI vem do projeto recomendacao-dev (I-2)', () => {
   assert.match(passo('Banco de teste (db do Compose, publicado só no loopback)'), /-p recomendacao-dev|compose\.dev\.yml/);
 });
+
+test('todo job que roda npm test ou o congelamento faz checkout com fetch-depth: 0 (I-1 da revisão final)', () => {
+  const inicio = yml.indexOf('\njobs:\n');
+  assert.ok(inicio >= 0, 'bloco jobs ausente');
+  const jobs = yml.slice(inicio).split(/\n(?=  [a-z0-9-]+:\n)/).slice(1);
+  assert.ok(jobs.length >= 2, 'jobs não encontrados');
+  let conferidos = 0;
+  for (const job of jobs) {
+    const nome = job.trim().split('\n')[0];
+    if (!/\bnpm test\b|congelamento\.test\.js/.test(job)) continue;
+    conferidos += 1;
+    const checkout = job.match(/uses: actions\/checkout@v\d+\n(\s+with:\n(?:\s+(?:#.*|[a-z-]+:.*)\n?)+)?/);
+    assert.ok(checkout, `job ${nome}: sem checkout`);
+    assert.match(checkout[1] ?? '', /fetch-depth:\s*0\b/, `job ${nome}: checkout raso, mas roda o congelamento`);
+  }
+  assert.ok(conferidos >= 2, 'esperava ao menos os jobs testes e congelamento');
+});

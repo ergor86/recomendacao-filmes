@@ -20,6 +20,9 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+        with:
+          # o npm test inclui o congelamento, que precisa dos commits c048537 e 6077974
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
