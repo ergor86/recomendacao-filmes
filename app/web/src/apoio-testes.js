@@ -36,3 +36,15 @@ export const perfilExemplo = (extra = {}) => ({
   contagens: { notas: 1, gostei: 2, queroAssistir: 0, curtidos: 3, curtidosComVetor: 3 },
   ...extra,
 });
+
+export const filmeExemplo = (extra = {}) => ({
+  id: 1,
+  titulo: 'Toy Story',
+  tituloOriginal: 'Toy Story',
+  ano: 1995,
+  generos: ['Animation', "Children's", 'Comedy'],
+  temVetor: true,
+  midia: { cartaz: { tipo: 'gerado' }, sinopse: null, atribuicao: null },
+  estadoPerfil: null,
+  ...extra,
+});
