@@ -1,4 +1,7 @@
-# Somente desenvolvimento e testes: publica o banco apenas no loopback.
+# Somente desenvolvimento e testes: projeto Compose proprio (`recomendacao-dev`, com volume proprio) e
+# banco publicado apenas no loopback. O nome `recomendacao-app` fica para a instalacao real (compose.yml).
+name: recomendacao-dev
+
 services:
   db:
     ports:

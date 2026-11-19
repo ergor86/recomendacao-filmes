@@ -1,6 +1,7 @@
 // Tarefa 9: ciclo de estados e vigia de integridade contra o banco real (spec 4.3).
 // Banco próprio `app_teste_ciclo`, preparado com prepararTudo; servidor real (construirApp + criarCiclo)
 // com a vigia a cada 1 s e o conteúdo conferido em todo ciclo.
+import '../apoio/dados-exigidos.js';
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -38,7 +39,7 @@ async function esperar(fn, { ms = 10_000, passo = 100, msg = 'condição' } = {}
 
 // docker direto no PATH; senão, pelo WSL (ambiente de desenvolvimento); senão, ignorado
 function comandoCompose() {
-  const arq = '-f compose.yml -f compose.dev.yml';
+  const arq = '-p recomendacao-dev -f compose.yml -f compose.dev.yml';
   if (!spawnSync('docker', ['version'], { stdio: 'ignore' }).error) {
     return (acao) => spawnSync('docker', ['compose', ...arq.split(' '), acao, 'db'], { cwd: APP_DIR, encoding: 'utf8' });
   }

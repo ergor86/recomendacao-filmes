@@ -192,7 +192,7 @@ describe('migracao e papeis (banco app_teste)', () => {
 });
 
 function comandoCompose() {
-  const base = ['compose', '-f', 'compose.yml', '-f', 'compose.dev.yml'];
+  const base = ['compose', '-p', 'recomendacao-dev', '-f', 'compose.yml', '-f', 'compose.dev.yml'];
   if (spawnSync('docker', ['--version'], { encoding: 'utf8' }).status === 0) {
     return { bin: 'docker', args: base };
   }
