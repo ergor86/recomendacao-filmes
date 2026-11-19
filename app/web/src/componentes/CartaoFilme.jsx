@@ -7,7 +7,10 @@ export default function CartaoFilme({ filme, children }) {
   return (
     <article className="cartao-filme">
       <Link to={`/filmes/${filme.id}`} className="cartao-link">
-        <Cartaz filme={filme} midia={filme.midia} tamanho="medio" />
+        <span className="cartao-capa">
+          <Cartaz filme={filme} midia={filme.midia} tamanho="medio" />
+          {filme.estadoPerfil?.tipo === 'gostei' && <span className="carimbo-gostei" aria-hidden="true">Gostei</span>}
+        </span>
         <span className="cartao-titulo" lang="en" id={`titulo-filme-${filme.id}`}>{filme.titulo}</span>
       </Link>
       <p className="cartao-meta">

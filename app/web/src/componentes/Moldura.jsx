@@ -17,7 +17,15 @@ export default function Moldura({ perfil, onTrocarPerfil, children }) {
     <ProvedorAviso>
       <div className="moldura">
         <header className="moldura-topo">
-          <Link to="/" className="moldura-nome" onClick={() => setMenuAberto(false)}>Minha Prateleira</Link>
+          <Link to="/" className="moldura-nome" onClick={() => setMenuAberto(false)}>
+            <svg className="marca-icone" viewBox="0 0 30 30" aria-hidden="true" focusable="false">
+              <rect x="3" y="5" width="6" height="18" rx="1" fill="currentColor" />
+              <rect x="11" y="3" width="6" height="20" rx="1" fill="currentColor" opacity=".55" />
+              <rect x="19" y="7" width="7" height="16" rx="1" fill="currentColor" opacity=".8" transform="rotate(8 22 15)" />
+              <rect x="1" y="24" width="28" height="4" rx="1" fill="currentColor" />
+            </svg>
+            <span>Minha Prateleira</span>
+          </Link>
           {perfil && (
             <>
               <button

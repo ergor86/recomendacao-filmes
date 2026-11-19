@@ -44,7 +44,10 @@ export default function DetalheFilme({ perfilId }) {
     <article className="detalhe-filme">
       <p><Link to="/catalogo">Voltar ao catálogo</Link></p>
       <div className="detalhe-topo">
-        <Cartaz filme={filme} midia={filme.midia} tamanho="grande" />
+        <div className="detalhe-capa">
+          <Cartaz filme={filme} midia={filme.midia} tamanho="grande" />
+          <div className="prateleira-detalhe" aria-hidden="true" />
+        </div>
         <div className="detalhe-dados">
           <h1 lang="en">{filme.titulo}</h1>
           {filme.tituloOriginal && filme.tituloOriginal !== filme.titulo && (
