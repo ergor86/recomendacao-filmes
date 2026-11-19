@@ -19,9 +19,9 @@ export function ProvedorAviso({ children }) {
     setAviso(null);
   }, []);
 
-  const mostrar = useCallback(({ texto, desfazer }) => {
+  const mostrar = useCallback(({ texto, desfazer, tentar }) => {
     clearTimeout(temporizador.current);
-    setAviso({ texto, desfazer });
+    setAviso({ texto, desfazer, tentar });
     temporizador.current = setTimeout(limpar, DURACAO_MS);
   }, [limpar]);
 
@@ -41,6 +41,12 @@ export function ProvedorAviso({ children }) {
     if (f) f();
   };
 
+  const aoTentar = () => {
+    const f = aviso?.tentar;
+    limpar();
+    if (f) f();
+  };
+
   return (
     <contexto.Provider value={valor}>
       {children}
@@ -48,6 +54,7 @@ export function ProvedorAviso({ children }) {
         {aviso && <span>{aviso.texto}</span>}
         {anuncio && <span className="anuncio">{anuncio}</span>}
         {aviso?.desfazer && <button type="button" onClick={aoDesfazer}>Desfazer</button>}
+        {aviso?.tentar && <button type="button" onClick={aoTentar}>Tentar de novo</button>}
       </div>
     </contexto.Provider>
   );

@@ -120,3 +120,30 @@ describe('ControleInteracao', () => {
     expect(screen.getByRole('button', { name: 'Remover' }).disabled).toBe(true);
   });
 });
+
+describe('ControleInteracao: falha de rede numa escrita (spec 7)', () => {
+  test('mostra a frase e o botão "Tentar de novo", que repete a escrita', async () => {
+    let falhar = true;
+    const { chamadas } = montar({
+      rotas: [['PUT', URL_INT, () => {
+        if (falhar) throw new TypeError('Failed to fetch');
+        return resp(null, ef(true, true));
+      }]],
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Gostei' }));
+    expect(await screen.findByText('Não consegui falar com o servidor local. Ele está rodando?')).toBeTruthy();
+    const tentar = screen.getByRole('button', { name: 'Tentar de novo' });
+    falhar = false;
+    fireEvent.click(tentar);
+    expect(await screen.findByText(/Salvo/)).toBeTruthy();
+    expect(chamadas.filter((c) => c.metodo === 'PUT')).toHaveLength(2);
+    expect(JSON.parse(chamadas.filter((c) => c.metodo === 'PUT')[1].init.body)).toEqual({ tipo: 'gostei' });
+  });
+
+  test('um erro da API (não de rede) não oferece "Tentar de novo"', async () => {
+    montar({ rotas: [['PUT', URL_INT, () => new Response(JSON.stringify({ codigo: 'VALIDACAO', mensagem: 'Pedido inválido.' }), { status: 400, headers: { 'Content-Type': 'application/json' } })]] });
+    fireEvent.click(screen.getByRole('button', { name: 'Gostei' }));
+    expect(await screen.findByText('Pedido inválido.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Tentar de novo' })).toBeNull();
+  });
+});

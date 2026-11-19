@@ -89,7 +89,11 @@ export function useInteracao({ perfilId, filme, estado, aoMudar, enviar }) {
       });
     } catch (e) {
       if (pendentes.current === 1) atual.current = propAtual.current;
-      mostrar({ texto: e?.mensagem ?? 'Não consegui salvar. Tente de novo.' });
+      // falha de rede (spec 7): a frase vem com "Tentar de novo", que repete a mesma escrita
+      mostrar({
+        texto: e?.mensagem ?? 'Não consegui salvar. Tente de novo.',
+        tentar: e?.codigo === 'SEM_SERVIDOR' ? () => aplicarRef.current(novo, desfazendo) : undefined,
+      });
     } finally {
       pendentes.current -= 1;
     }
