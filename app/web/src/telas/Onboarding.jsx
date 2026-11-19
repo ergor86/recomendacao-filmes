@@ -26,6 +26,7 @@ export default function Onboarding({ perfilId, aoConcluir }) {
   const [concluindo, setConcluindo] = useState(false);
   const [erroConcluir, setErroConcluir] = useState(null);
   const pedido = useRef(0);
+  const pedidoContagem = useRef(0);
 
   const carregar = useCallback(async (f, cursor) => {
     const meu = ++pedido.current;
@@ -43,8 +44,10 @@ export default function Onboarding({ perfilId, aoConcluir }) {
   }, [perfilId]);
 
   const recontar = useCallback(async () => {
+    const meu = ++pedidoContagem.current;
     try {
       const perfil = (await chamar('GET', '/api/perfis')).find((p) => p.id === perfilId);
+      if (meu !== pedidoContagem.current) return; // resposta velha não sobrescreve a mais nova
       if (perfil) setMarcados(perfil.contagens.curtidosComVetor);
     } catch { /* o contador só orienta: mantém o último valor */ }
   }, [perfilId]);

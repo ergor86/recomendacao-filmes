@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { chamar } from '../api.js';
 import Cartaz from '../componentes/Cartaz.jsx';
@@ -12,17 +12,9 @@ export default function DetalheFilme({ perfilId }) {
   const { id } = useParams();
   const [filme, setFilme] = useState(null);
   const [erro, setErro] = useState(null);
+  const [tentativa, setTentativa] = useState(0);
 
-  const carregar = useCallback(async () => {
-    setErro(null);
-    setFilme(null);
-    try {
-      setFilme(await chamar('GET', `/api/filmes/${id}?perfilId=${perfilId}`));
-    } catch (e) {
-      setErro(e);
-    }
-  }, [id, perfilId]);
-
+  // uma única carga, com a guarda `ativo`: trocar de filme, desmontar ou tentar de novo descarta a resposta velha
   useEffect(() => {
     let ativo = true;
     setErro(null);
@@ -31,18 +23,17 @@ export default function DetalheFilme({ perfilId }) {
       .then((f) => { if (ativo) setFilme(f); })
       .catch((e) => { if (ativo) setErro(e); });
     return () => { ativo = false; };
-  }, [id, perfilId]);
+  }, [id, perfilId, tentativa]);
 
-  const aoMudar = (estado) => setFilme((f) => ({
-    ...f,
-    estadoPerfil: estado,
-    estatisticas: { ...f.estatisticas, sua: estado },
-  }));
+  // só aplica se o filme na tela ainda é o dono da escrita (PUT ou Desfazer tardio não vaza para outro filme)
+  const aoMudar = (filmeId, estado) => setFilme((f) => (f && f.id === filmeId
+    ? { ...f, estadoPerfil: estado, estatisticas: { ...f.estatisticas, sua: estado } }
+    : f));
 
   if (erro) {
     return (
       <section className="detalhe-filme">
-        <Falha erro={erro} onTentar={erro.status === 404 ? undefined : carregar} />
+        <Falha erro={erro} onTentar={erro.status === 404 ? undefined : () => setTentativa((n) => n + 1)} />
         <p><Link to="/catalogo">Voltar ao catálogo</Link></p>
       </section>
     );
@@ -68,7 +59,7 @@ export default function DetalheFilme({ perfilId }) {
               curtir não personaliza
             </p>
           )}
-          <ControleInteracao perfilId={perfilId} filme={filme} estado={filme.estadoPerfil} aoMudar={aoMudar} />
+          <ControleInteracao perfilId={perfilId} filme={filme} estado={filme.estadoPerfil} aoMudar={(e) => aoMudar(filme.id, e)} />
         </div>
       </div>
       <PainelEstatisticas estatisticas={filme.estatisticas} temGemeoOculto={filme.temGemeoOculto} />

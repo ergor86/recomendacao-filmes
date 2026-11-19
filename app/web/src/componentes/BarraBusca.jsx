@@ -28,7 +28,9 @@ export default function BarraBusca({ valor, aoMudar, comOrdem = true, comSoInflu
   // o texto só vai para a consulta depois de uma pausa na digitação
   useEffect(() => {
     if (texto === (ultimo.current.q ?? '')) return undefined;
-    const t = setTimeout(() => aoMudar({ ...ultimo.current, q: texto }), ESPERA_MS);
+    const t = setTimeout(() => {
+      if (texto !== (ultimo.current.q ?? '')) aoMudar({ ...ultimo.current, q: texto });
+    }, ESPERA_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [texto]);
@@ -36,7 +38,7 @@ export default function BarraBusca({ valor, aoMudar, comOrdem = true, comSoInflu
   const mudar = (parte) => aoMudar({ ...valor, ...parte });
 
   return (
-    <form className="barra-busca" role="search" onSubmit={(e) => { e.preventDefault(); aoMudar({ ...valor, q: texto }); }}>
+    <form className="barra-busca" role="search" onSubmit={(e) => { e.preventDefault(); if (texto !== (valor.q ?? '')) aoMudar({ ...valor, q: texto }); }}>
       <label>
         Buscar por título
         <input type="search" value={texto} onChange={(e) => setTexto(e.target.value)} />

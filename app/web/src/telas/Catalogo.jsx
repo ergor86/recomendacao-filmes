@@ -25,6 +25,7 @@ export default function Catalogo({ perfilId }) {
   const [fase, setFase] = useState('carregando'); // carregando | ok | erro
   const [erro, setErro] = useState(null);
   const [maisCarregando, setMaisCarregando] = useState(false);
+  const [erroMais, setErroMais] = useState(null);
   const pedido = useRef(0);
 
   const carregar = useCallback(async (f, pagina) => {
@@ -37,9 +38,12 @@ export default function Catalogo({ perfilId }) {
         total: r.total,
         pagina: r.pagina,
       }));
+      setErroMais(null);
       setFase('ok');
     } catch (e) {
       if (meu !== pedido.current) return;
+      // falha em "Carregar mais" mantém a grade já carregada
+      if (pagina > 1) { setErroMais(e); return; }
       setErro(e);
       setFase('erro');
     } finally {
@@ -52,7 +56,7 @@ export default function Catalogo({ perfilId }) {
     carregar(filtros, 1);
   }, [filtros, carregar]);
 
-  const maisUm = () => { setMaisCarregando(true); carregar(filtros, lista.pagina + 1); };
+  const maisUm = () => { setMaisCarregando(true); setErroMais(null); carregar(filtros, lista.pagina + 1); };
   const atualizar = (id, estadoPerfil) => setLista((l) => ({
     ...l,
     itens: l.itens.map((f) => (f.id === id ? { ...f, estadoPerfil } : f)),
@@ -78,7 +82,8 @@ export default function Catalogo({ perfilId }) {
               </li>
             ))}
           </ul>
-          {lista.itens.length < lista.total && (
+          {erroMais && <Falha erro={erroMais} onTentar={maisUm} />}
+          {!erroMais && lista.itens.length < lista.total && (
             <button type="button" className="carregar-mais" disabled={maisCarregando} onClick={maisUm}>Carregar mais</button>
           )}
         </>

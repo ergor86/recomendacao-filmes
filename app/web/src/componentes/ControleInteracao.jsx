@@ -44,9 +44,21 @@ const corpoDe = (e) => (e.tipo === 'nota' ? { tipo: 'nota', nota: e.nota } : { t
  * As escritas do mesmo controle vão em fila, na ordem dos cliques; o resultado vai ao AvisoAcao
  * (com "Desfazer", que reaplica o `anterior`) e o novo estado ao `aoMudar`.
  */
-export function useInteracao({ perfilId, filme, aoMudar }) {
+export function useInteracao({ perfilId, filme, estado, aoMudar }) {
   const { mostrar } = useAviso();
   const fila = useRef(Promise.resolve());
+  // estado mais recente (otimista): a alternância decide por ele, não pela prop, que só muda quando a escrita volta
+  const atual = useRef(estado ?? null);
+  const propVista = useRef(estado ?? null);
+  const propAtual = useRef(estado ?? null);
+  const pendentes = useRef(0);
+  propAtual.current = estado ?? null;
+  const mudouProp = (propVista.current?.tipo ?? null) !== (estado?.tipo ?? null)
+    || (propVista.current?.nota ?? null) !== (estado?.nota ?? null);
+  if (mudouProp) {
+    propVista.current = estado ?? null;
+    if (pendentes.current === 0) atual.current = estado ?? null;
+  }
   const url = `/api/perfis/${perfilId}/interacoes/${filme.id}`;
   const aoMudarRef = useRef(aoMudar);
   aoMudarRef.current = aoMudar;
@@ -71,21 +83,31 @@ export function useInteracao({ perfilId, filme, aoMudar }) {
         desfazer: desfazendo ? undefined : () => aplicarRef.current(anterior ? { tipo: anterior.tipo, nota: anterior.nota } : null, true),
       });
     } catch (e) {
+      if (pendentes.current === 1) atual.current = propAtual.current;
       mostrar({ texto: e?.mensagem ?? 'Não consegui salvar. Tente de novo.' });
+    } finally {
+      pendentes.current -= 1;
     }
   }, [url, filme.temVetor, mostrar]);
 
   const aplicarRef = useRef(null);
   const aplicar = useCallback((novo, desfazendo = false) => {
+    atual.current = novo ? { tipo: novo.tipo, nota: novo.nota ?? null } : null;
+    pendentes.current += 1;
     fila.current = fila.current.then(() => executar(novo, desfazendo));
     return fila.current;
   }, [executar]);
   aplicarRef.current = aplicar;
-  return aplicar;
+  const alternar = useCallback((tipo) => aplicar(atual.current?.tipo === tipo ? null : { tipo }), [aplicar]);
+  const clicarEstrela = useCallback(
+    (n) => aplicar(atual.current?.tipo === 'nota' && atual.current.nota === n ? null : { tipo: 'nota', nota: n }),
+    [aplicar],
+  );
+  return { aplicar, alternar, clicarEstrela };
 }
 
 /** Estrelas 1–5 como radiogroup: setas movem a seleção; clicar na atual remove a nota. */
-export function Estrelas({ valor, aoEscolher, aoRemover, rotulo = 'Sua nota' }) {
+export function Estrelas({ valor, aoEscolher, aoClicar, rotulo = 'Sua nota' }) {
   const refs = useRef([]);
   const parada = valor ?? 1;
 
@@ -113,7 +135,7 @@ export function Estrelas({ valor, aoEscolher, aoRemover, rotulo = 'Sua nota' }) 
           aria-label={`${n} de 5 estrelas`}
           tabIndex={n === parada ? 0 : -1}
           className={valor && n <= valor ? 'estrela cheia' : 'estrela'}
-          onClick={() => (n === valor ? aoRemover() : aoEscolher(n))}
+          onClick={() => aoClicar(n)}
           onKeyDown={(e) => aoTeclar(e, n)}
         >
           <span aria-hidden="true">{valor && n <= valor ? '★' : '☆'}</span>
@@ -127,8 +149,7 @@ const DESCRICAO = (e) => (!e ? 'nenhum' : e.tipo === 'nota' ? `Nota ${e.nota}` :
 
 /** Controles do detalhe: estrelas, Gostei, Quero assistir e Remover, com o estado atual e o texto fixo. */
 export default function ControleInteracao({ perfilId, filme, estado, aoMudar }) {
-  const aplicar = useInteracao({ perfilId, filme, aoMudar });
-  const alternar = (tipo) => aplicar(estado?.tipo === tipo ? null : { tipo });
+  const { aplicar, alternar, clicarEstrela } = useInteracao({ perfilId, filme, estado, aoMudar });
 
   return (
     <div className="controle-interacao">
@@ -136,7 +157,7 @@ export default function ControleInteracao({ perfilId, filme, estado, aoMudar }) 
       <Estrelas
         valor={estado?.tipo === 'nota' ? estado.nota : null}
         aoEscolher={(n) => aplicar({ tipo: 'nota', nota: n })}
-        aoRemover={() => aplicar(null)}
+        aoClicar={clicarEstrela}
       />
       <div className="acoes-interacao">
         <button type="button" aria-pressed={estado?.tipo === 'gostei'} onClick={() => alternar('gostei')}>Gostei</button>

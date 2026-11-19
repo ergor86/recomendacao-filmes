@@ -3,7 +3,7 @@ import { Estrelas, useInteracao } from './ControleInteracao.jsx';
 
 /** Controle do cartão: "Gostei" (aria-pressed) e um menu "…" com "Quero assistir" e "Dar nota". */
 export default function ControleRapido({ perfilId, filme, estado, aoMudar }) {
-  const aplicar = useInteracao({ perfilId, filme, aoMudar });
+  const { aplicar, alternar, clicarEstrela } = useInteracao({ perfilId, filme, estado, aoMudar });
   const [aberto, setAberto] = useState(false);
   const [comNota, setComNota] = useState(false);
   const gatilho = useRef(null);
@@ -27,7 +27,7 @@ export default function ControleRapido({ perfilId, filme, estado, aoMudar }) {
         className="gostei"
         aria-pressed={estado?.tipo === 'gostei'}
         aria-describedby={descricao}
-        onClick={() => aplicar(estado?.tipo === 'gostei' ? null : { tipo: 'gostei' })}
+        onClick={() => alternar('gostei')}
       >
         Gostei
       </button>
@@ -47,7 +47,7 @@ export default function ControleRapido({ perfilId, filme, estado, aoMudar }) {
           <button
             type="button"
             aria-pressed={estado?.tipo === 'quero_assistir'}
-            onClick={() => { aplicar(estado?.tipo === 'quero_assistir' ? null : { tipo: 'quero_assistir' }); fechar(); }}
+            onClick={() => { alternar('quero_assistir'); fechar(); }}
           >
             Quero assistir
           </button>
@@ -56,7 +56,7 @@ export default function ControleRapido({ perfilId, filme, estado, aoMudar }) {
             <Estrelas
               valor={estado?.tipo === 'nota' ? estado.nota : null}
               aoEscolher={(n) => aplicar({ tipo: 'nota', nota: n })}
-              aoRemover={() => aplicar(null)}
+              aoClicar={clicarEstrela}
             />
           )}
         </div>
