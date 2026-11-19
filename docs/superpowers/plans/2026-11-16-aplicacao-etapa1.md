@@ -684,7 +684,7 @@ app/
   - `erro no GET mostra a faixa Tentar de novo`;
   - `anúncio aria-live único com "Recomendações atualizadas"`;
   - `ExplicacaoMotivo: 5 textos literais`;
-  - `Sobre: mostra a média e o IC de RESULTADO_PLANO3 e a frase "a lista se apoia em poucos filmes"`.
+  - `Sobre: mostra a média e o IC de RESULTADO_PLANO3 e a frase "a lista se apoia em poucos filmes"` (nota: frase substituída por decisão do usuário em 2026-11-18 pelas 3 frases do Sobre).
 - [ ] **Passo 2:** rodar e ver FAIL.
 - [ ] **Passo 3: implementar.**
 - [ ] **Passo 4:** rodar e ver PASS, e `npm run build` também.

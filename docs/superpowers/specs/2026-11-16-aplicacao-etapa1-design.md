@@ -645,7 +645,7 @@ O Playwright e o Vitest gravam só nessas pastas.
      - `/api/saude` responde `operante` em até 15 minutos;
      - o log de `preparar` mostra os três hashes iguais às constantes;
      - o fluxo principal do Playwright passa contra o contêiner;
-     - os casos negativos e de recuperação da §10.6 passam;
+     - os casos negativos e de recuperação da §10.6 são cobertos pela suíte de integração, no job `testes` do CI, e pelo e2e do caminho bloqueado (não pelo job `instalacao-limpa`);
      - `docker compose config` não publica a 5432;
      - a imagem não contém `.env`;
      - `docker compose down -v`.
@@ -751,7 +751,7 @@ O Playwright e o Vitest gravam só nessas pastas.
 | 2. Top 10 na hora | Confirmado | A faixa "Atualizar" saiu. O Top 10 se recalcula sozinho a cada interação, com animação, fila de escritas, contador `seq`/`AbortController`, uma região `aria-live` e foco preservado. O Playwright foi atualizado. |
 | 3. Porta e Host | Confirmado | `APP_PORTA` vai em `environment:` do `app` e do `preparar`. O servidor escuta em `0.0.0.0:3000` dentro do contêiner, e o `Host` aceito é o da porta publicada. Há teste de integração com a 3317. |
 | 4. Estado e credenciais | Parcialmente procedente | As senhas foram para `credenciais.json` (0600), separado do `estado.json`. O `/saude` é montado campo a campo. O `ALTER ROLE` usa `escapeLiteral`, sem logar a senha. O `28P01` passou a ser classificado. Há teste de vazamento em respostas, HAR, estado e logs. O 0600 é declarado como de pouca proteção, porque os dois contêineres usam o mesmo UID. |
-| 5. Textos do onboarding | Confirmado | Os textos não afirmam mais um limiar: cada curtida já muda a lista, e 3 é só uma sugestão. O Sobre diz "a lista se apoia em poucos filmes". |
+| 5. Textos do onboarding | Confirmado | Os textos não afirmam mais um limiar: cada curtida já muda a lista, e 3 é só uma sugestão. O Sobre dizia "a lista se apoia em poucos filmes"; frase substituída por decisão do usuário em 2026-11-18 pelas 3 frases do resumo do Sobre. |
 | 6. "Porque você curtiu" | Confirmado | Só aparecem curtidos com fãs em comum (> 0), ordenados pela contribuição normalizada ao escore, em inteiros exatos. Fica garantida pelo menos 1 explicação por item S1, o que foi provado e é testado. |
 | 7. Build e isolamento | Parcialmente procedente | A sintaxe do `.dockerignore` estava correta. O `resultados/` saiu da imagem, e os números do Sobre viraram constantes conferidas no CI. Entraram padrões extras na lista. O lockfile citado passou a ser o de `app/web`. A §10.8 sobre o `u1.base` foi acrescentada, e o `app_dados_ml` fica montado só no `preparar`. |
 
