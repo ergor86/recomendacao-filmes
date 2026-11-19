@@ -29,6 +29,7 @@ test('APP_EXIGIR_DADOS=1 com pasta sem os 5 arquivos também falha', () => {
   try {
     const r = rodar({ APP_EXIGIR_DADOS: '1', ML100K_DIR: vazia });
     assert.notEqual(r.status, 0, r.stdout + r.stderr);
+    assert.match(r.stdout + r.stderr, /arquivos ausentes em ML100K_DIR/);
   } finally {
     rmSync(vazia, { recursive: true, force: true });
   }

@@ -131,3 +131,12 @@ describe('correção 1: breakpoint único, alvos e Top 10', () => {
 test('estrelas quebram linha em vez de estourar o cartão estreito', () => {
   expect(css).toMatch(/\.estrelas\s*\{[^}]*flex-wrap:\s*wrap/);
 });
+
+describe('símbolos gerados por CSS não entram no nome acessível', () => {
+  test("todo `content` com símbolo literal (✓, ⊘, ✦) traz o texto alternativo vazio: content: '…' / ''", () => {
+    const literais = [...css.matchAll(/content:\s*('[^']+')(\s*\/\s*'')?\s*;/g)];
+    expect(literais.length).toBeGreaterThanOrEqual(3);
+    const semAlternativo = literais.filter((m) => !m[2]).map((m) => m[0]);
+    expect(semAlternativo).toEqual([]);
+  });
+});

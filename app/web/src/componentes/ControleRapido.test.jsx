@@ -60,3 +60,12 @@ describe('ControleRapido', () => {
     expect(screen.getByRole('radiogroup')).toBeTruthy();
   });
 });
+
+describe('ControleRapido: o nome acessível do botão de alternância não muda com o estado', () => {
+  test('Gostei marcado continua se chamando "Gostei" e anuncia o estado só por aria-pressed', () => {
+    montar({ tipo: 'gostei', nota: null }, []);
+    const botao = screen.getByRole('button', { name: 'Gostei' });
+    expect(botao.getAttribute('aria-pressed')).toBe('true');
+    expect(botao.textContent.trim()).toBe('Gostei');
+  });
+});

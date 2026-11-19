@@ -177,10 +177,11 @@ jobs:
         run: |
           set -eu
           docker run --rm --entrypoint sh recomendacao-app:local -c '
-            for p in /repo/.env /repo/app/.env /repo/.git /repo/resultados; do
+            for p in /repo/.env /repo/app/.env /repo/.git /repo/resultados /repo/data /repo/artefatos /repo/modelos; do
               if [ -e "$p" ]; then echo "presente na imagem: $p" >&2; exit 1; fi
             done
             if find /repo -name ".env*" -not -path "*/node_modules/*" | grep .; then exit 1; fi
+            if find /repo \( -name "u.data" -o -name "*.test" -o -name "u1.base" \) -not -path "*/node_modules/*" | grep .; then exit 1; fi
             echo "imagem limpa"
           '
 
@@ -205,6 +206,10 @@ jobs:
 
       - name: Ponta a ponta (fluxo principal e caminho bloqueado) em Chromium e WebKit
         working-directory: app
+        env:
+          # runner descartável: pode adulterar hash_treino (caminho bloqueado) e deve conferir as senhas no tráfego e nos logs
+          E2E_PERMITIR_BLOQUEIO: "1"
+          E2E_EXIGIR_SEGREDOS: "1"
         run: npm run e2e
 
       - name: Retrato da árvore depois da suíte é igual ao de antes (critério a)
@@ -286,6 +291,7 @@ jobs:
       - name: Hashes (com APP_EXIGIR_DADOS=1, a falta de dados falha em vez de ignorar)
         run: APP_EXIGIR_DADOS=1 node --test --test-reporter=spec app/testes/determinismo/hashes.test.js
       - name: Publicar os hashes calculados nesta plataforma
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: hashes-${{ matrix.os }}

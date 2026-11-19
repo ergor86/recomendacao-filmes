@@ -1,5 +1,9 @@
 // Ponta a ponta (spec 12), em Chromium e WebKit, contra o Compose rodando.
-import { contextoApi, expect, limparPerfisDeTeste, nomeUnico, psql, resumirPedidos, test } from './apoio.js';
+import { HASHES } from '../../integridade.js';
+import {
+  compose, contextoApi, expect, limparPerfisDeTeste, MOTIVO_SEM_BLOQUEIO, nomeUnico, PERMITIR_BLOQUEIO, psql, resumirPedidos,
+  senhasDeCredenciais, test,
+} from './apoio.js';
 
 const LISTA = 'ol.lista-recomendacoes > li';
 const porId = (page, id) => page.locator(`ol.lista-recomendacoes > li[data-filme-id="${id}"]`);
@@ -31,11 +35,13 @@ test('fluxo principal: perfil, onboarding, Top 10 que se atualiza sozinho, notas
     await expect(page.getByRole('heading', { name: 'Quem está usando?' })).toBeVisible();
     await criarPerfil(page, nome);
     await expect(page.getByRole('heading', { name: 'Comece pelos filmes que você conhece' })).toBeVisible();
-    const gostei = page.locator('ul.grade-filmes button.gostei'); // o nome acessível muda quando marcado
+    // o nome acessível é "Gostei" também depois de marcado (o ✓ gerado por CSS não entra no nome; o estado vai em aria-pressed)
+    const gostei = page.locator('ul.grade-filmes').getByRole('button', { name: 'Gostei', exact: true });
     await expect(gostei.first()).toBeVisible();
     for (let i = 0; i < 3; i++) {
       await gostei.nth(i).click();
       await expect(gostei.nth(i)).toHaveAttribute('aria-pressed', 'true');
+      await expect(gostei.nth(i)).toHaveAccessibleName('Gostei');
     }
     await page.getByRole('button', { name: 'Ver minhas recomendações' }).click();
   });
@@ -222,9 +228,15 @@ test('prefers-reduced-motion: a lista troca de itens sem animação de deslocame
 test('painel "Neste computador" expande com 5 ou mais notas de perfis diferentes no mesmo filme', async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   const api = await contextoApi(testInfo.project.use.baseURL);
-  const FILME = 1;
   const criados = [];
   try {
+    // um filme que nenhum perfil real avaliou ainda (o banco pode já ter sido usado): procura, pela API, o primeiro com 0 notas
+    let FILME;
+    for (let id = 1; id <= 80 && FILME === undefined; id++) {
+      const r = await api.get(`/api/filmes/${id}`);
+      if (r.ok() && (await r.json()).estatisticas.computador.nNotas === 0) FILME = id;
+    }
+    expect(FILME, 'filme sem notas de perfis reais entre os ids 1 a 80').toBeDefined();
     for (let i = 0; i < 5; i++) {
       const r = await api.post('/api/perfis', { data: { nome: nomeUnico(`painel${i}`) } });
       expect(r.status()).toBe(201);
@@ -242,6 +254,7 @@ test('painel "Neste computador" expande com 5 ou mais notas de perfis diferentes
     const painel = page.locator('.estatistica-computador');
     await expect(painel).toContainText('poucas notas ainda');
     await expect(painel.locator('details')).not.toHaveAttribute('open', '');
+    await expect(painel.locator('div', { hasText: 'Número de notas' }).last().locator('dd')).toHaveText('4');
     // a quinta nota (de outro perfil) abre o painel
     await nota(criados[4], 5);
     await page.reload();
@@ -256,7 +269,7 @@ test('painel "Neste computador" expande com 5 ou mais notas de perfis diferentes
   }
 });
 
-test('Sobre: topo exato, Detalhes técnicos com 462 e 17, e "Trocar de perfil" a partir de /sobre volta à tela de perfis', async ({ page }) => {
+test('Sobre: topo exato, Detalhes técnicos com 462 e 17, e "Trocar de perfil" a partir de /sobre volta à tela de perfis', async ({ page }, testInfo) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Ver um exemplo' }).click();
   await expect(page.getByRole('heading', { name: 'Top 10' })).toBeVisible();
@@ -269,14 +282,24 @@ test('Sobre: topo exato, Detalhes técnicos com 462 e 17, e "Trocar de perfil" a
   ]);
   await page.getByText('Detalhes técnicos').click();
   const detalhes = page.locator('details.sobre-detalhes');
-  await expect(detalhes).toContainText('462');
-  await expect(detalhes).toContainText('17');
+  // o parágrafo da população, isolado e exato (os hashes do mesmo bloco contêm "17" e poderiam mascarar a conferência)
+  await expect(detalhes.locator('p').first()).toHaveText(
+    'Foram considerados inicialmente 462 usuários, e 445 entraram na métrica (17 ficaram fora da métrica por não terem avaliações relevantes escondidas).',
+  );
+  const api = await contextoApi(testInfo.project.use.baseURL);
+  try {
+    expect((await (await api.get('/api/sobre')).json()).populacao).toBe(await detalhes.locator('p').first().innerText());
+  } finally {
+    await api.dispose();
+  }
   await page.getByRole('button', { name: 'Trocar de perfil' }).click();
   await expect(page.getByRole('heading', { name: 'Quem está usando?' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Ver um exemplo' })).toBeVisible();
 });
 
 test.describe('caminho bloqueado: TelaPreparando e GestaoPerfisRestrita', () => {
+  // adultera hash_treino do banco alvo: só com E2E_PERMITIR_BLOQUEIO=1 (ver a recuperação manual em apoio.js)
+  test.skip(!PERMITIR_BLOQUEIO, MOTIVO_SEM_BLOQUEIO);
   const HASH = "chave = 'hash_treino'";
   let original = null;
   let nomePerfil;
@@ -285,9 +308,12 @@ test.describe('caminho bloqueado: TelaPreparando e GestaoPerfisRestrita', () => 
   const restaurar = () => {
     if (original) psql(`UPDATE v2_final.metadados SET valor = '${original}' WHERE ${HASH};`);
   };
+  const valorAtual = () => psql(`SELECT valor FROM v2_final.metadados WHERE ${HASH};`);
 
   test.beforeAll(async ({}, testInfo) => {
     baseURL = testInfo.project.use.baseURL;
+    // uma execução anterior morta no meio deixa 'x' no banco: o valor certo é o congelado (HASHES.treino)
+    if (valorAtual() === 'x') psql(`UPDATE v2_final.metadados SET valor = '${HASHES.treino}' WHERE ${HASH};`);
     const api = await contextoApi(baseURL);
     try {
       nomePerfil = nomeUnico('bloqueio');
@@ -297,8 +323,9 @@ test.describe('caminho bloqueado: TelaPreparando e GestaoPerfisRestrita', () => 
       // o perfil ganha uma marcação, para que a exclusão apague algo em cascata
       const m = await api.put(`/api/perfis/${perfil.id}/interacoes/50`, { data: { tipo: 'gostei' } });
       expect(m.ok()).toBe(true);
-      original = psql(`SELECT valor FROM v2_final.metadados WHERE ${HASH};`);
-      expect(original).toMatch(/^[0-9a-f]{64}$/);
+      const lido = valorAtual();
+      expect(lido).toMatch(/^[0-9a-f]{64}$/);
+      original = lido; // só depois de validado; a partir daqui o afterAll restaura mesmo se algo falhar
       psql(`UPDATE v2_final.metadados SET valor = 'x' WHERE ${HASH};`);
       // a vigia leva até 60 s; o pedido de recomendações confere os hashes e bloqueia na hora
       const bloqueio = await api.get(`/api/perfis/${perfil.id}/recomendacoes`);
@@ -310,15 +337,20 @@ test.describe('caminho bloqueado: TelaPreparando e GestaoPerfisRestrita', () => 
   });
 
   test.afterAll(async () => {
-    restaurar();
-    // volta a operante sem reiniciar o servidor
-    const api = await contextoApi(baseURL);
     try {
-      await expect
-        .poll(async () => (await (await api.get('/api/saude')).json()).estado, { timeout: 30_000, intervals: [2500] })
-        .toBe('operante');
+      restaurar();
     } finally {
-      await api.dispose();
+      // volta a operante sem reiniciar o servidor
+      if (baseURL) {
+        const api = await contextoApi(baseURL);
+        try {
+          await expect
+            .poll(async () => (await (await api.get('/api/saude')).json()).estado, { timeout: 30_000, intervals: [2500] })
+            .toBe('operante');
+        } finally {
+          await api.dispose();
+        }
+      }
     }
   });
 
@@ -346,4 +378,21 @@ test.describe('caminho bloqueado: TelaPreparando e GestaoPerfisRestrita', () => 
     restaurar();
     await expect(page.getByRole('heading', { name: 'Quem está usando?' })).toBeVisible({ timeout: 30_000 });
   });
+});
+
+test('segredos: as senhas de credenciais.json não aparecem em docker compose logs', async () => {
+  const senhas = senhasDeCredenciais();
+  if (!senhas) {
+    expect(process.env.E2E_EXIGIR_SEGREDOS === '1', 'E2E_EXIGIR_SEGREDOS=1 mas credenciais.json não pôde ser lida').toBe(false);
+    test.skip(true, 'credenciais.json indisponível (sem docker compose exec); conferência de logs ignorada');
+  }
+  let logs;
+  try {
+    logs = compose('logs --no-color --no-log-prefix');
+  } catch (e) {
+    expect(process.env.E2E_EXIGIR_SEGREDOS === '1', 'docker compose logs falhou').toBe(false);
+    test.skip(true, 'docker compose logs indisponível');
+  }
+  // só booleano na asserção: a senha nunca entra numa mensagem de falha
+  expect(senhas.some((x) => logs.includes(x))).toBe(false);
 });

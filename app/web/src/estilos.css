@@ -82,7 +82,7 @@ button.destaque { background: var(--carimbo); border-color: var(--carimbo); colo
 button.destaque:hover:not(:disabled) { background: var(--tinta); border-color: var(--tinta); color: var(--papel); }
 button.perigo { color: var(--perigo); border-color: var(--perigo); }
 button[aria-pressed='true'] { background: var(--carimbo-veu); border-color: var(--carimbo); color: var(--tinta); }
-button[aria-pressed='true']::before { content: '\2713'; font-weight: 800; }
+button[aria-pressed='true']::before { content: '\2713' / '';font-weight: 800; }
 button:disabled { opacity: 0.55; cursor: default; }
 input, select {
   min-height: 44px; padding: 0 12px; width: 100%; min-width: 0;
@@ -168,9 +168,9 @@ progress::-moz-progress-bar { background: var(--carimbo); }
 .cartao-meta { display: flex; flex-direction: column; color: var(--grafite); font-size: var(--t-meta); }
 .selo { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 2px 8px; border: 1px solid var(--contorno); border-radius: 4px; color: var(--grafite); font-size: var(--t-meta); font-weight: 600; line-height: 1.4; }
 .selo-sem-vetor { border-style: dashed; white-space: nowrap; }
-.selo-sem-vetor::before { content: '\2298'; }
+.selo-sem-vetor::before { content: '\2298' / ''; }
 .selo-novo { border-color: var(--carimbo); color: var(--carimbo); }
-.selo-novo::before { content: '\2726'; }
+.selo-novo::before { content: '\2726' / ''; }
 .selo-populares { cursor: help; }
 .carregar-mais { display: flex; margin: 40px auto; }
 

@@ -26,7 +26,7 @@ test('capturas: Perfis, Onboarding, Top 10, Detalhe e Sobre', async ({ page }) =
   await page.goto('/onboarding');
   await expect(page.getByRole('heading', { name: 'Comece pelos filmes que você conhece' })).toBeVisible();
   await expect(page.locator('ul.grade-filmes li').first()).toBeVisible();
-  await expect(page.locator('ul.grade-filmes button.gostei').first()).toBeVisible();
+  await expect(page.locator('ul.grade-filmes').getByRole('button', { name: 'Gostei', exact: true }).first()).toBeVisible();
   await salvar(page, '02-onboarding.png');
 
   // 3. Top 10
