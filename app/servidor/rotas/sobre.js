@@ -56,7 +56,8 @@ const LICENCAS = Object.freeze([
     nome: 'MovieLens 100K',
     texto: 'Dados MovieLens 100K, do GroupLens Research (Universidade de Minnesota), usados sob os termos de uso do GroupLens: '
       + 'uso não comercial, sem redistribuição dos dados e com citação obrigatória. Os dados não ficam no repositório; '
-      + 'a preparação os baixa do site do GroupLens.',
+      + 'a preparação os baixa do site do GroupLens. '
+      + 'Este projeto não é endossado nem apoiado pelo GroupLens nem pela Universidade de Minnesota.',
     url: 'https://grouplens.org/datasets/movielens/100k/',
   }),
   Object.freeze({

@@ -16,3 +16,16 @@ describe('/sobre: tecnica.descricao', () => {
     assert.match(tecnica.descricao, /medida no índice da pesquisa/);
   });
 });
+
+describe('/sobre: licenças e atribuição', () => {
+  const { licencas, resumo } = montarSobre();
+  const ml = licencas.find((l) => l.nome === 'MovieLens 100K');
+  it('atribui os dados ao GroupLens e afirma que não há endosso', () => {
+    assert.ok(ml);
+    assert.match(ml.texto, /GroupLens Research/);
+    assert.ok(ml.texto.includes('Este projeto não é endossado nem apoiado pelo GroupLens nem pela Universidade de Minnesota.'));
+  });
+  it('não altera as 3 frases do topo', () => {
+    assert.equal(resumo.length, 3);
+  });
+});
