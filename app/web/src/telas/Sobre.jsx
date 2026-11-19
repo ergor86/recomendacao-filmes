@@ -52,6 +52,7 @@ export default function Sobre() {
 
       <details className="sobre-detalhes">
         <summary>Detalhes técnicos</summary>
+        <p>{sobre.populacao}</p>
         <p>{`Técnica: ${t.mecanismo} · M = ${t.m} · FC${t.nFc}`}</p>
         <p>{t.descricao}</p>
         <dl className="sobre-hashes">

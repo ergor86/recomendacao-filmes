@@ -26,8 +26,8 @@ const SOBRE = {
     suportada: true,
   },
   resumo: RESUMO,
-  metodo: 'O que foi medido: no teste-2 do Plano 3, 20% das notas dos usuários 1 a 462 foram escondidas; '
-    + 'foram considerados inicialmente 462 usuários, e 445 entraram na métrica (17 ficaram fora da métrica).',
+  metodo: 'O que foi medido: no teste-2 do Plano 3, 20% das notas dos usuários escolhidos foram escondidas; a lista da S1 foi comparada com a da S2.',
+  populacao: 'Foram considerados inicialmente 462 usuários, e 445 entraram na métrica (17 ficaram fora da métrica por não terem avaliações relevantes escondidas).',
   conclusao: `Nesta avaliação retrospectiva, com essas ${RESULTADO_PLANO3.nUsuarios} pessoas, a S1 teve NDCG@10 maior que a S2 `
     + `(diferença média de ${num(RESULTADO_PLANO3.media)} no NDCG@10, IC 95% [${num(RESULTADO_PLANO3.ic95[0])}; ${num(RESULTADO_PLANO3.ic95[1])}]).`,
   naoSignifica: ['A qualidade medida não se transfere para perfis novos.', 'A avaliação é retrospectiva.'],
@@ -71,33 +71,36 @@ describe('Sobre', () => {
     for (const t of trechos) expect(t).toMatch(/não garantem/);
   });
 
-  test('o método (com 462 iniciais e 17 fora da métrica) fica em "O que foi medido", não em "Detalhes técnicos"', async () => {
+  test('o método fica em "O que foi medido"; 462 e 17 ficam em "Detalhes técnicos"', async () => {
     simularFetch([['GET', '/api/sobre', SOBRE]]);
     render(<Sobre />);
     await screen.findByText(RESUMO[0]);
     const medido = screen.getByRole('heading', { name: 'O que foi medido' }).closest('section');
     expect(medido.textContent).toContain(SOBRE.metodo);
-    expect(medido.textContent).toMatch(/462 .*considerad/);
-    expect(medido.textContent).toMatch(/17 .*fora da métrica/);
+    expect(medido.textContent).not.toContain(SOBRE.populacao);
     const detalhes = screen.getByText('Detalhes técnicos').closest('details');
+    expect(detalhes.textContent).toContain(SOBRE.populacao);
+    expect(detalhes.textContent).toMatch(/considerados inicialmente 462 usuários/);
+    expect(detalhes.textContent).toMatch(/17 ficaram fora da métrica por não terem avaliações relevantes escondidas/);
     expect(detalhes.textContent).not.toContain(SOBRE.metodo);
-    expect(detalhes.textContent).not.toContain('462');
   });
 
   test('os números de população vêm só da API: nada fixo no cliente', async () => {
     const outro = {
       ...SOBRE,
       resultado: { ...SOBRE.resultado, nUsuarios: 447 },
-      metodo: 'Foram considerados inicialmente 470 usuários, e 447 entraram na métrica (23 ficaram fora da métrica).',
+      metodo: 'O que foi medido: método de teste sem números de população.',
+      populacao: 'Foram considerados inicialmente 470 usuários, e 447 entraram na métrica (23 ficaram fora da métrica por não terem avaliações relevantes escondidas).',
     };
     simularFetch([['GET', '/api/sobre', outro]]);
     render(<Sobre />);
     await screen.findByText(RESUMO[0]);
+    const detalhes = screen.getByText('Detalhes técnicos').closest('details');
+    expect(detalhes.textContent).toContain('470 usuários');
+    expect(detalhes.textContent).toContain('23 ficaram fora');
     const texto = document.body.textContent;
-    expect(texto).toContain('470 usuários');
-    expect(texto).toContain('23 ficaram fora');
     expect(texto).not.toContain('464'); // 447 + 17 fixo
-    expect(texto).not.toMatch(/17/);
+    expect(texto).not.toMatch(/17/);
     expect(texto).not.toContain('462');
   });
 

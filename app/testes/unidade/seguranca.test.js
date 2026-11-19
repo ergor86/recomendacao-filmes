@@ -207,8 +207,10 @@ describe('segurança (spec 6.1)', () => {
     // população certa: 445 avaliados entre os usuários 1 a 462; as 943 pessoas são a base dos vetores
     assert.match(r.body, /445/);
     assert.match(r.body, /462/);
-    assert.match(s.metodo, /considerados inicialmente 462 usuários/);
-    assert.match(s.metodo, /17 ficaram fora da métrica por não terem avaliações relevantes escondidas/);
+    // a população fica separada do método: o cliente põe o método em "O que foi medido" e a população em "Detalhes técnicos"
+    assert.equal(s.populacao, 'Foram considerados inicialmente 462 usuários, e 445 entraram na métrica (17 ficaram fora da métrica por não terem avaliações relevantes escondidas).');
+    assert.doesNotMatch(s.metodo, /considerados inicialmente/);
+    assert.match(s.metodo, /^O que foi medido: no teste-2 do Plano 3/);
     assert.doesNotMatch(r.body, /avaliad[ao]s? (com|n?as) (as )?943/i);
     assert.ok(r.body.includes('A qualidade medida no teste-2 (usuários históricos com ≥ 20 notas, avaliação retrospectiva) não se transfere para perfis novos.'));
     assert.ok(r.body.includes('não entra no cálculo dos seus gostos'));

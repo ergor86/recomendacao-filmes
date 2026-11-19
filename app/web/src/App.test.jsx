@@ -93,7 +93,7 @@ describe('App', () => {
       ['GET', '/api/sobre', {
         versao: '0.1.0', commitCodigo: 'c048537', hashes: { regua: 'a', treino: 'b', vetoresFC: 'c' },
         resultado: { media: 0.0294, ic95: [0.0136, 0.0458], nUsuarios: 445 }, resumo: ['Frase um.', 'Frase dois.', 'Frase três.'],
-        metodo: '', conclusao: '', naoSignifica: [], tecnica: { mecanismo: 'S1/HNSW', m: 300, nFc: 150, descricao: '' },
+        metodo: '', populacao: '', conclusao: '', naoSignifica: [], tecnica: { mecanismo: 'S1/HNSW', m: 300, nFc: 150, descricao: '' },
         avisos: [], licencas: [], citacao: '',
       }],
     ]);
@@ -122,7 +122,7 @@ describe('App', () => {
   const SOBRE_MINIMO = {
     versao: '0.1.0', commitCodigo: 'c048537', hashes: { regua: 'a', treino: 'b', vetoresFC: 'c' },
     resultado: { media: 0.0294, ic95: [0.0136, 0.0458], nUsuarios: 445 }, resumo: ['Frase um.', 'Frase dois.', 'Frase três.'],
-    metodo: '', conclusao: '', naoSignifica: [], tecnica: { mecanismo: 'S1/HNSW', m: 300, nFc: 150, descricao: '' },
+    metodo: '', populacao: '', conclusao: '', naoSignifica: [], tecnica: { mecanismo: 'S1/HNSW', m: 300, nFc: 150, descricao: '' },
     avisos: [], licencas: [], citacao: '',
   };
 

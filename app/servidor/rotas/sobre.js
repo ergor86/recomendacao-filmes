@@ -20,8 +20,13 @@ const R = RESULTADO_PLANO3;
 // População (README da pesquisa, "Avaliação retrospectiva do Plano 3"): o teste-2 escondeu 20% das notas
 // dos usuários 1 a 462; 445 foram avaliados (17 sem nenhuma curtida escondida). As 943 pessoas são a base
 // dos vetores, não as pessoas avaliadas.
-const METODO = 'O que foi medido: no teste-2 do Plano 3, 20% das notas dos usuários 1 a 462 do MovieLens 100K foram escondidas; '
-  + 'foram considerados inicialmente 462 usuários, e 445 entraram na métrica (17 ficaram fora da métrica por não terem avaliações relevantes escondidas). '
+const USUARIOS_CONSIDERADOS = 462; // usuários 1 a 462 do teste-2; os que ficam fora da métrica saem da diferença com RESULTADO_PLANO3.nUsuarios
+const FORA_DA_METRICA = USUARIOS_CONSIDERADOS - RESULTADO_PLANO3.nUsuarios;
+
+const POPULACAO = `Foram considerados inicialmente ${USUARIOS_CONSIDERADOS} usuários, e ${RESULTADO_PLANO3.nUsuarios} entraram na métrica `
+  + `(${FORA_DA_METRICA} ficaram fora da métrica por não terem avaliações relevantes escondidas).`;
+
+const METODO = `O que foi medido: no teste-2 do Plano 3, 20% das notas dos usuários 1 a ${USUARIOS_CONSIDERADOS} do MovieLens 100K foram escondidas. `
   + 'Para cada um, a lista da S1 (filtragem colaborativa sozinha) foi comparada com a da S2: a configuração da v1 '
   + '(150 populares + rede), retreinada no treino do Plano 3, e não o modelo avaliado no Plano 2. '
   + 'A comparação S1 × S2 mede o sistema completo, sem atribuir a diferença a um componente. '
@@ -80,6 +85,7 @@ export function montarSobre() {
     },
     resumo: [...RESUMO],
     metodo: METODO,
+    populacao: POPULACAO,
     conclusao: CONCLUSAO,
     naoSignifica: [...NAO_SIGNIFICA],
     tecnica: {
