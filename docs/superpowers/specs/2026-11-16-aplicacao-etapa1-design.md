@@ -666,7 +666,11 @@ O Playwright e o Vitest gravam só nessas pastas.
    - porta alternativa.
 5. **Sem requisição externa** em tempo de execução.
 6. **Comunicação honesta:** a tela Sobre e o README dizem o que foi medido, com quem, e o que não se transfere. O README declara a exclusão própria da aplicação e o índice reconstruído.
-7. **Licenças:** nenhum dado do MovieLens, cartaz ou sinopse no repositório. A citação aparece no app e no README.
+7. **Licenças e dados:**
+   - O repositório não redistribui os arquivos originais do MovieLens nem registros individuais: nenhuma avaliação individual, id de usuário histórico, dado demográfico ou informação que permita reconstruir registros.
+   - Podem ser publicados resultados agregados do projeto e capturas ilustrativas (`app/docs/capturas/`), desde que o detalhe use um filme com muitas avaliações históricas, só apareçam cartazes gerados localmente e só perfis de demonstração, sem dados pessoais, tokens ou credenciais. Esta regra é uma escolha de cautela do projeto; a spec não afirma que a licença do MovieLens autorize expressamente toda publicação de dados derivados.
+   - Nenhum cartaz ou sinopse de terceiros no repositório.
+   - A atribuição à GroupLens aparece no app e no README, sem sugerir endosso.
 
 ## 14. Decisões tomadas pelo assistente (para revisão do usuário)
 - **Perfis locais sem senha, com "Apelido":** escuta só em localhost e proteção por `Host`/`Origin`.
