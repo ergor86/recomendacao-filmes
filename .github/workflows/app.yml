@@ -1,0 +1,340 @@
+name: app
+
+# CI da aplicação "Minha Prateleira" (app/). Nada aqui publica imagem nem faz push.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------------------------------------
+  testes:
+    name: testes (unidade, web, integração e equivalência)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Dependências (raiz, app e web)
+        run: |
+          npm ci --ignore-scripts
+          npm --prefix app ci
+          npm --prefix app/web ci
+      - name: Chave do cache dos dados (concatenação dos 5 sha256)
+        id: chave
+        run: |
+          echo "valor=ml100k-$(node --input-type=module -e "import { SHA256_ARQUIVOS as S } from './app/integridade.js'; console.log(Object.values(S).join(''))")" >> "$GITHUB_OUTPUT"
+      - name: Cache dos dados do MovieLens 100K
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ml100k
+          key: ${{ steps.chave.outputs.valor }}
+      - name: Obter os dados (só os 5 arquivos, com sha256 conferido)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: node app/testes/determinismo/obter-dados.js "$RUNNER_TEMP/ml100k"
+      - name: Unidade, isolamento e congelamento
+        working-directory: app
+        run: npm test
+      - name: Componentes (Vitest)
+        working-directory: app
+        run: npm run test:web
+      - name: Banco de teste (db do Compose, publicado só no loopback)
+        working-directory: app
+        run: docker compose -f compose.yml -f compose.dev.yml up -d --wait db
+      - name: Integração
+        working-directory: app
+        env:
+          ML100K_DIR: ${{ runner.temp }}/ml100k/ml-100k
+        run: npm run test:integracao
+      - name: Equivalência com a referência (camada a, sem banco)
+        working-directory: app
+        env:
+          ML100K_DIR: ${{ runner.temp }}/ml100k/ml-100k
+        run: node --test --test-reporter=spec testes/referencia/equivalencia.test.js
+      - name: Derrubar o banco de teste
+        if: always()
+        working-directory: app
+        run: docker compose -f compose.yml -f compose.dev.yml down -v
+
+  # ---------------------------------------------------------------------------------------------------------
+  congelamento:
+    name: congelamento da pesquisa
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Diffs da Tarefa 1, da raiz e de app/
+        run: |
+          set -eu
+          for dir in . app; do
+            echo "== a partir de $dir =="
+            (
+              cd "$dir"
+              git -C "$(git rev-parse --show-toplevel)" diff --exit-code c048537911c14313c4e85c516270513871a14a88 -- :/src :/scripts :/package.json :/package-lock.json
+              git -C "$(git rev-parse --show-toplevel)" diff --exit-code 6077974fb015c31c870eb5c4995a3a6f45682ca7 -- :/resultados :/docker-compose.yml :/.env.example
+            )
+          done
+      - name: Constantes de app/integridade.js iguais às de 6077974 e testes de congelamento
+        working-directory: app
+        run: |
+          npm ci
+          node --test --test-reporter=spec testes/congelamento.test.js
+
+  # ---------------------------------------------------------------------------------------------------------
+  instalacao-limpa:
+    name: instalação limpa (Docker Compose + Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      APP_PORTA: "3317"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: O Compose não publica a 5432
+        working-directory: app
+        run: |
+          set -eu
+          docker compose config --format json > "$RUNNER_TEMP/compose.json"
+          node -e '
+            const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            const publicadas = [];
+            for (const [nome, s] of Object.entries(c.services)) {
+              for (const p of s.ports ?? []) publicadas.push({ nome, alvo: Number(p.target), publicada: p.published, ip: p.host_ip });
+            }
+            console.log("portas publicadas:", JSON.stringify(publicadas));
+            if (c.services.db.ports?.length) throw new Error("o db não pode publicar portas");
+            if (publicadas.some((p) => p.alvo === 5432 || Number(p.publicada) === 5432)) throw new Error("a 5432 está publicada");
+            const app = publicadas.find((p) => p.nome === "app");
+            if (!app || app.ip !== "127.0.0.1" || String(app.publicada) !== process.env.APP_PORTA) throw new Error("o app deve publicar só 127.0.0.1:" + process.env.APP_PORTA);
+          ' "$RUNNER_TEMP/compose.json"
+
+      - name: Contexto de build só com a lista de permissão
+        run: |
+          set -eu
+          printf 'FROM busybox:1.37\nCOPY . /ctx\n' | docker build -t contexto-listagem -f - .
+          docker run --rm contexto-listagem find /ctx -type f | sed 's|^/ctx/||' > "$RUNNER_TEMP/contexto.txt"
+          wc -l "$RUNNER_TEMP/contexto.txt"
+          if grep -vE '^(src/|scripts/|app/|package\.json$|package-lock\.json$)' "$RUNNER_TEMP/contexto.txt"; then
+            echo "arquivo fora da lista de permissão no contexto de build" >&2; exit 1
+          fi
+          if grep -E '(^|/)\.env($|\.)|(^|/)node_modules/|(^|/)dist/|(^|/)test-results/|(^|/)playwright-report/|\.log$' "$RUNNER_TEMP/contexto.txt"; then
+            echo "arquivo excluído pelo .dockerignore entrou no contexto" >&2; exit 1
+          fi
+
+      - name: Subir (build sem cache, volumes novos)
+        working-directory: app
+        run: |
+          set -eu
+          docker compose up -d --build
+
+      - name: Esperar /api/saude operante (até 15 minutos)
+        run: |
+          set -u
+          fim=$(( $(date +%s) + 900 ))
+          while [ "$(date +%s)" -lt "$fim" ]; do
+            r=$(curl -s -H "Host: localhost:${APP_PORTA}" "http://127.0.0.1:${APP_PORTA}/api/saude" || true)
+            echo "$r"
+            case "$r" in *'"estado":"operante"'*) exit 0 ;; *'"estado":"falhou"'*) break ;; esac
+            sleep 5
+          done
+          docker compose -f app/compose.yml logs --no-color preparar || true
+          echo "a aplicação não ficou operante" >&2
+          exit 1
+
+      - name: O log de preparar mostra os três hashes iguais às constantes
+        working-directory: app
+        run: |
+          set -eu
+          docker compose logs --no-color preparar > "$RUNNER_TEMP/preparar.log"
+          cat "$RUNNER_TEMP/preparar.log"
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            import { HASHES } from "./integridade.js";
+            const log = readFileSync(process.argv[1], "utf8");
+            for (const [linha, h] of [["hash_regua", HASHES.regua], ["hash_treino", HASHES.treino], ["hash_vetores_fc", HASHES.vetoresFC]]) {
+              if (!log.includes(`${linha}=${h}`)) throw new Error(`${linha} não confere no log de preparar`);
+            }
+            if (!log.includes(`Pronto: abra http://localhost:${process.env.APP_PORTA}`)) throw new Error("linha Pronto ausente ou com a porta errada");
+          ' "$RUNNER_TEMP/preparar.log"
+
+      - name: A imagem não contém .env, app/.env, .git nem resultados/
+        run: |
+          set -eu
+          docker run --rm --entrypoint sh recomendacao-app:local -c '
+            for p in /repo/.env /repo/app/.env /repo/.git /repo/resultados; do
+              if [ -e "$p" ]; then echo "presente na imagem: $p" >&2; exit 1; fi
+            done
+            if find /repo -name ".env*" -not -path "*/node_modules/*" | grep .; then exit 1; fi
+            echo "imagem limpa"
+          '
+
+      - name: Playwright (dependências separadas do clone; navegadores em cache)
+        working-directory: app
+        run: npm ci
+      - name: Versão do @playwright/test
+        id: pw
+        working-directory: app
+        run: echo "versao=$(node -p "require('./node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache dos navegadores
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.versao }}
+      - name: Instalar os navegadores
+        working-directory: app
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Retrato da árvore antes da suíte
+        run: git status --porcelain > "$RUNNER_TEMP/git-antes.txt"; cat "$RUNNER_TEMP/git-antes.txt"
+
+      - name: Ponta a ponta (fluxo principal e caminho bloqueado) em Chromium e WebKit
+        working-directory: app
+        run: npm run e2e
+
+      - name: Retrato da árvore depois da suíte é igual ao de antes (critério a)
+        run: |
+          set -eu
+          git status --porcelain > "$RUNNER_TEMP/git-depois.txt"
+          diff "$RUNNER_TEMP/git-antes.txt" "$RUNNER_TEMP/git-depois.txt"
+
+      - name: A senha dos papéis não aparece nos logs dos serviços
+        working-directory: app
+        run: |
+          set -eu
+          docker compose exec -T app cat /var/app/estado/credenciais.json > "$RUNNER_TEMP/credenciais.json"
+          docker compose logs --no-color > "$RUNNER_TEMP/logs.txt"
+          node -e '
+            const fs = require("node:fs");
+            const cred = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            const logs = fs.readFileSync(process.argv[2], "utf8");
+            const senhas = Object.values(cred);
+            if (senhas.length < 2 || senhas.some((s) => typeof s !== "string" || s.length < 16)) throw new Error("credenciais inesperadas");
+            for (const s of senhas) if (logs.includes(s)) throw new Error("uma senha de papel apareceu em docker compose logs");
+            console.log("nenhuma senha nos logs (" + logs.length + " caracteres conferidos)");
+          ' "$RUNNER_TEMP/credenciais.json" "$RUNNER_TEMP/logs.txt"
+
+      - name: Relatório do Playwright
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            app/playwright-report
+            app/test-results
+          if-no-files-found: ignore
+      - name: Logs do Compose (em caso de falha)
+        if: failure()
+        working-directory: app
+        run: docker compose logs --no-color --tail=200 || true
+      - name: Derrubar e apagar os volumes
+        if: always()
+        working-directory: app
+        run: docker compose down -v
+
+  # ---------------------------------------------------------------------------------------------------------
+  multiplataforma:
+    name: determinismo (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Dependências
+        run: |
+          npm ci --ignore-scripts
+          npm --prefix app ci --ignore-scripts
+      - name: Chave do cache dos dados (concatenação dos 5 sha256)
+        id: chave
+        run: |
+          echo "valor=ml100k-$(node --input-type=module -e "import { SHA256_ARQUIVOS as S } from './app/integridade.js'; console.log(Object.values(S).join(''))")" >> "$GITHUB_OUTPUT"
+      - name: Cache dos dados do MovieLens 100K
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ml100k
+          key: ${{ steps.chave.outputs.valor }}
+      - name: Obter os dados (só os 5 arquivos, com sha256 conferido)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: node app/testes/determinismo/obter-dados.js "$RUNNER_TEMP/ml100k"
+      - name: ML100K_DIR
+        run: echo "ML100K_DIR=$RUNNER_TEMP/ml100k/ml-100k" >> "$GITHUB_ENV"
+      - name: Hashes (com APP_EXIGIR_DADOS=1, a falta de dados falha em vez de ignorar)
+        run: APP_EXIGIR_DADOS=1 node --test --test-reporter=spec app/testes/determinismo/hashes.test.js
+      - name: Publicar os hashes calculados nesta plataforma
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-${{ matrix.os }}
+          path: app/test-results/hashes-*.json
+          if-no-files-found: error
+
+  comparar-hashes:
+    name: os três artefatos de hashes coincidem entre si e com as constantes
+    needs: multiplataforma
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: hashes-*
+          path: ${{ runner.temp }}/hashes
+          merge-multiple: true
+      - name: Comparar
+        run: |
+          node --input-type=module -e '
+            import { readdirSync, readFileSync } from "node:fs";
+            import path from "node:path";
+            import { HASHES } from "./app/integridade.js";
+            const pasta = process.argv[1];
+            const arquivos = readdirSync(pasta).filter((n) => /^hashes-.*\.json$/.test(n)).sort();
+            console.log(arquivos.join(", "));
+            if (arquivos.length !== 3) throw new Error(`esperados 3 artefatos (linux, win32, darwin), achei ${arquivos.length}`);
+            const lidos = arquivos.map((n) => JSON.parse(readFileSync(path.join(pasta, n), "utf8")));
+            console.log(JSON.stringify(lidos.map((l) => [l.plataforma, l.node]), null, 1));
+            const plataformas = new Set(lidos.map((l) => l.plataforma));
+            if (plataformas.size !== 3) throw new Error("as plataformas dos artefatos não são três diferentes");
+            for (const l of lidos) {
+              if (JSON.stringify(l.hashes) !== JSON.stringify(lidos[0].hashes)) throw new Error(`hashes de ${l.plataforma} diferem dos de ${lidos[0].plataforma}`);
+            }
+            if (JSON.stringify(lidos[0].hashes) !== JSON.stringify(HASHES)) throw new Error("os hashes calculados diferem das constantes de HASHES");
+            console.log("iguais entre as três plataformas e a HASHES");
+          ' "$RUNNER_TEMP/hashes"
+
+  # ---------------------------------------------------------------------------------------------------------
+  imagem-arm64:
+    name: imagem linux/amd64 e linux/arm64 (buildx)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build multiplataforma (sem --push e sem --load; o resultado fica só no cache do builder)
+        run: docker buildx build --platform linux/amd64,linux/arm64 -f app/Dockerfile .
