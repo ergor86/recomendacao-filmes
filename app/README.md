@@ -22,14 +22,19 @@ Não precisa de Node, de chave de serviço nem de arquivo `.env`.
 ## Instalação
 
 ```
-git clone https://github.com/<conta>/recomendacao-filmes.git
+git clone <URL do repositório no GitHub>
 cd recomendacao-filmes/app
 docker compose up --build
 ```
 
 Abra http://localhost:3000. A página mostra o progresso da preparação; quando termina, a aplicação abre sozinha. O terminal imprime `Pronto: abra http://localhost:<porta>`.
 
-**Tempo da primeira preparação.** Medido em uma máquina de desenvolvimento (Windows, Docker no WSL2, rede rápida), numa instalação limpa a partir de um clone novo: cerca de 31 s entre `build` e `up` com o cache de camadas do Docker já quente, e a aplicação operante em 37 s no total; sem cache de camadas, a construção da imagem levou 25 s e a primeira subida completa ficou perto de 1 minuto. São valores só dessa máquina e dessa rede; o seu tempo depende de internet e disco. Nas vezes seguintes a preparação leva poucos segundos. O registro do aceite manual (`docs/aceite-manual.md`) guarda o tempo medido em outras máquinas.
+**Tempo da primeira preparação.** Medições da Tarefa 16, feitas numa única máquina de desenvolvimento (Windows, Docker no WSL2, rede rápida); o seu tempo depende de internet e disco:
+- construção da imagem sem cache de camadas: 25 s;
+- instalação limpa a partir de um clone novo (volumes novos, com o cache de camadas já quente): build e subida em 31 s e aplicação operante em 37 s no total;
+- primeiro `up` do Compose dos testes ponta a ponta, com build parcialmente frio: cerca de 1 minuto até operante.
+
+Nas vezes seguintes a preparação leva poucos segundos. O registro do aceite manual (`docs/aceite-manual.md`) guarda os tempos medidos em outras máquinas.
 
 ## Tarefas comuns
 
@@ -48,7 +53,7 @@ Todos os comandos rodam dentro de `app/`.
 
 ## Problemas comuns
 
-- **Sem internet no build** (instalação de pacotes): o `docker compose up --build` falha no `npm ci`, com um erro de rede do npm (por exemplo `EAI_AGAIN` ou `ENOTFOUND` para `registry.npmjs.org`) ou de pull das imagens. Conecte-se, ou configure o proxy do Docker, e rode de novo. O build precisa de internet; o zip local só resolve a preparação.
+- **Sem internet no build** (instalação de pacotes): o `docker compose up --build` falha no `npm ci`, com um erro de rede. A mensagem vem do npm ou do Docker e varia por sistema, então não é citada literalmente aqui; os sinais mais comuns são os códigos do npm `EAI_AGAIN` ou `ENOTFOUND` (para `registry.npmjs.org`) ou a falha de pull da imagem base (`node` ou `pgvector`). Conecte-se, ou configure o proxy do Docker, e rode de novo. O build precisa de internet; o zip local só resolve a preparação.
 - **Sem internet na preparação:** a página mostra "A preparação falhou." com a causa
   `Não consegui baixar o MovieLens 100K (sem internet ou servidor fora do ar).`
   e o comando sugerido `docker compose -f compose.yml -f compose.local-zip.yml run --rm preparar`. Use o zip local acima.
@@ -56,8 +61,8 @@ Todos os comandos rodam dentro de `app/`.
   - na obtenção dos dados: `O arquivo <nome> baixado não confere com o usado na pesquisa.` (o arquivo baixado não é o usado na pesquisa; baixe o zip de novo, só do GroupLens);
   - na conferência do banco, a tela de bloqueio mostra causas como `treino do banco difere do congelado` ou `régua do banco difere da congelada`. Rode `docker compose run --rm preparar` e "Conferir de novo". Se persistir, `docker compose down -v` e recomece.
 - **Credenciais:** `credenciais do banco não conferem; rode `docker compose run --rm preparar`` aparece quando as senhas do arquivo de estado e as do banco divergem. Rode o comando indicado. Se a mensagem for `O arquivo de credenciais está corrompido.`, apague o volume de estado com `docker compose down -v` (apaga tudo) e rode `docker compose up` de novo.
-- **Outra preparação em andamento:** espere terminar; não rode dois `preparar` ao mesmo tempo.
-- **Porta ocupada:** o Docker responde algo como `Bind for 127.0.0.1:3000 failed: port is already allocated`. Use `APP_PORTA`, como em "Tarefas comuns".
+- **Outra preparação em andamento:** o log mostra `A preparação não começou: outra preparação em andamento`. Espere terminar; não rode dois `preparar` ao mesmo tempo.
+- **Porta ocupada:** o Docker informa um erro de bind (porta em uso) ao subir o serviço `app`. O texto vem do Docker e varia por sistema: no Docker Engine/Compose costuma ser `Bind for 127.0.0.1:3000 failed: port is already allocated`; no Docker Desktop no Windows, com um processo do próprio computador ocupando a porta, a forma exata não foi confirmada aqui, e o sinal é o mesmo (falha de bind/porta em uso). Use `APP_PORTA`, como em "Tarefas comuns".
 
 ## Segurança
 
@@ -77,7 +82,7 @@ O **índice HNSW é reconstruído** em cada instalação, com níveis aleatório
 
 ## O que foi medido e o que não se transfere
 
-A tela Sobre mostra os mesmos números. Os resultados são de uma avaliação retrospectiva: no teste-2 do Plano 3, 20% das notas dos usuários 1 a 462 foram escondidas; 462 foram considerados e 445 entraram na métrica (17 ficaram fora por não terem curtidas escondidas). Nessa avaliação, com essas 445 pessoas, a S1 teve NDCG@10 maior que a S2 (a configuração da v1, retreinada), com intervalo de confiança de 95% por bootstrap pareado.
+A tela Sobre mostra os mesmos números. Os resultados são de uma avaliação retrospectiva: no teste-2 do Plano 3, 20% das notas dos usuários 1 a 462 foram escondidas; 462 foram considerados e 445 entraram na métrica (17 ficaram fora por não terem curtidas escondidas). Nesta avaliação retrospectiva, com essas 445 pessoas, a S1 teve NDCG@10 maior que a S2 (a configuração da v1, retreinada): diferença média de 0,0294, IC 95% [0,0136; 0,0458] por bootstrap pareado.
 
 Isso **não** é desempenho com novos usuários. A qualidade medida (usuários históricos com pelo menos 20 notas) não se transfere para perfis novos. As notas avaliadas já pertenciam aos dados usados no projeto, ainda que isoladas no Plano 3: não é uma validação externa independente. Os níveis absolutos de NDCG não são comparáveis entre conjuntos de avaliação diferentes. O catálogo vai só até 1998.
 
