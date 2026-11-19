@@ -3,8 +3,6 @@ import { chamar } from '../api.js';
 import { Carregando, Falha } from '../componentes/Estados.jsx';
 
 const num = (x) => x.toFixed(4).replace('.', ',');
-// população do teste-2 (README da pesquisa): 462 usuários considerados, 445 na métrica, 17 fora dela
-const FORA_DA_METRICA = 17;
 
 /** Sobre, em camadas: resumo em 3 frases, "O que foi medido", limites, "Detalhes técnicos" (recolhido), licenças. */
 export default function Sobre() {
@@ -36,6 +34,7 @@ export default function Sobre() {
 
       <section aria-labelledby="sobre-medido">
         <h2 id="sobre-medido">O que foi medido</h2>
+        <p>{sobre.metodo}</p>
         <p>{sobre.conclusao}</p>
         <dl className="sobre-numeros">
           <div><dt>Diferença média no NDCG@10 (S1 menos S2)</dt><dd>{num(r.media)}</dd></div>
@@ -53,10 +52,6 @@ export default function Sobre() {
 
       <details className="sobre-detalhes">
         <summary>Detalhes técnicos</summary>
-        <p>
-          {`${r.nUsuarios + FORA_DA_METRICA} pessoas foram consideradas inicialmente; ${r.nUsuarios} entraram na métrica e ${FORA_DA_METRICA} ficaram fora da métrica.`}
-        </p>
-        <p>{sobre.metodo}</p>
         <p>{`Técnica: ${t.mecanismo} · M = ${t.m} · FC${t.nFc}`}</p>
         <p>{t.descricao}</p>
         <dl className="sobre-hashes">

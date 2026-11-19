@@ -43,4 +43,14 @@ describe('Moldura', () => {
     expect(rodape.textContent).toBe('Projeto acadêmico · dados MovieLens 100K (GroupLens) · Sobre');
     expect(within(rodape).getByRole('link', { name: 'Sobre' }).getAttribute('href')).toBe('/sobre');
   });
+
+  test('a marca "Minha Prateleira" é um link para o início', () => {
+    montar({ id: 'x', nome: 'Ana' }, '/sobre');
+    expect(screen.getByRole('link', { name: 'Minha Prateleira' }).getAttribute('href')).toBe('/');
+  });
+
+  test('sem perfil a marca continua sendo um link para o início', () => {
+    montar(null, '/sobre');
+    expect(screen.getByRole('link', { name: 'Minha Prateleira' }).getAttribute('href')).toBe('/');
+  });
 });

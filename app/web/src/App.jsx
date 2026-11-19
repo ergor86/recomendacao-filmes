@@ -88,12 +88,13 @@ export default function App() {
   const entrar = (p) => {
     gravarPerfilAtivo(p.id);
     setPerfil({ id: p.id, nome: p.nome, onboardingConcluido: p.onboardingConcluido });
+    navegar('/'); // escolher um perfil leva ao início (Top 10 ou onboarding), não à rota anterior
   };
   const concluirOnboarding = () => {
     setPerfil((p) => ({ ...p, onboardingConcluido: true }));
     navegar('/');
   };
-  const trocar = () => { gravarPerfilAtivo(null); setPerfil(null); };
+  const trocar = () => { gravarPerfilAtivo(null); setPerfil(null); navegar('/'); };
 
   if (!saude) {
     return erroSaude

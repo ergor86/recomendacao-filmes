@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { chamar } from '../api.js';
 import { ConfirmaExclusao, EstadoLista, usePerfis } from '../componentes/ListaPerfis.jsx';
 
+const MSG_SO_ESPACOS = 'O apelido não pode ficar só com espaços. Escreva pelo menos uma letra ou número.';
+
 /** "Quem está usando?": entrar, criar, ver o exemplo, renomear e excluir perfis. */
 export default function TelaPerfis({ onEntrar }) {
   const { perfis, erro, carregando, recarregar } = usePerfis();
@@ -62,6 +64,7 @@ export default function TelaPerfis({ onEntrar }) {
                     Novo apelido
                     <input value={renomeando.nome} maxLength={40} onChange={(e) => setRenomeando({ ...renomeando, nome: e.target.value })} />
                   </label>
+                  {renomeando.nome.length > 0 && !renomeando.nome.trim() && <p role="alert" className="erro-texto">{MSG_SO_ESPACOS}</p>}
                   <button type="submit" disabled={ocupado || !renomeando.nome.trim()}>Salvar</button>
                   <button type="button" onClick={() => setRenomeando(null)}>Cancelar</button>
                 </form>
@@ -78,6 +81,7 @@ export default function TelaPerfis({ onEntrar }) {
           Apelido
           <input value={apelido} maxLength={40} autoComplete="off" onChange={(e) => setApelido(e.target.value)} />
         </label>
+        {apelido.length > 0 && !apelido.trim() && <p role="alert" className="erro-texto">{MSG_SO_ESPACOS}</p>}
         <button type="submit" disabled={ocupado || !apelido.trim()}>Criar perfil</button>
       </form>
       <button type="button" disabled={ocupado} onClick={exemplo}>Ver um exemplo</button>

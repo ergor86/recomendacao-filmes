@@ -17,7 +17,7 @@ export default function Moldura({ perfil, onTrocarPerfil, children }) {
     <ProvedorAviso>
       <div className="moldura">
         <header className="moldura-topo">
-          <strong className="moldura-nome">Minha Prateleira</strong>
+          <Link to="/" className="moldura-nome" onClick={() => setMenuAberto(false)}>Minha Prateleira</Link>
           {perfil && (
             <>
               <button

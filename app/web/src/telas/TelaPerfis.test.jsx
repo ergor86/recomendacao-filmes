@@ -68,4 +68,23 @@ describe('TelaPerfis', () => {
     await waitFor(() => expect(chamadas.some((c) => c.metodo === 'PATCH')).toBe(true));
     expect(chamadas.find((c) => c.metodo === 'PATCH').init.body).toBe(JSON.stringify({ nome: 'Bia' }));
   });
+
+  test('apelido só com espaços mostra uma mensagem visível e não envia', async () => {
+    const { chamadas } = simularFetch([['GET', '/api/perfis', []]]);
+    render(<TelaPerfis onEntrar={() => {}} />);
+    fireEvent.change(await screen.findByLabelText('Apelido'), { target: { value: '   ' } });
+    expect(screen.getByRole('alert').textContent).toContain('só com espaços');
+    expect(screen.getByRole('button', { name: 'Criar perfil' }).disabled).toBe(true);
+    expect(chamadas.some((c) => c.metodo === 'POST')).toBe(false);
+  });
+
+  test('renomear só com espaços mostra a mesma mensagem visível', async () => {
+    const p = perfilExemplo();
+    simularFetch([['GET', '/api/perfis', [p]]]);
+    render(<TelaPerfis onEntrar={() => {}} />);
+    fireEvent.click(await screen.findByRole('button', { name: `Renomear o perfil ${p.nome}` }));
+    fireEvent.change(screen.getByLabelText('Novo apelido'), { target: { value: '  ' } });
+    expect(screen.getByRole('alert').textContent).toContain('só com espaços');
+    expect(screen.getByRole('button', { name: 'Salvar' }).disabled).toBe(true);
+  });
 });

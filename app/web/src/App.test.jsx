@@ -118,4 +118,52 @@ describe('App', () => {
     await screen.findByRole('heading', { level: 1, name: 'Minhas avaliações' });
     await waitFor(() => expect(chamadas.some((c) => c.url.includes('tipos=nota,gostei'))).toBe(true));
   });
+
+  const SOBRE_MINIMO = {
+    versao: '0.1.0', commitCodigo: 'c048537', hashes: { regua: 'a', treino: 'b', vetoresFC: 'c' },
+    resultado: { media: 0.0294, ic95: [0.0136, 0.0458], nUsuarios: 445 }, resumo: ['Frase um.', 'Frase dois.', 'Frase três.'],
+    metodo: '', conclusao: '', naoSignifica: [], tecnica: { mecanismo: 'S1/HNSW', m: 300, nFc: 150, descricao: '' },
+    avisos: [], licencas: [], citacao: '',
+  };
+
+  test('"Trocar de perfil" em /sobre leva a "Quem está usando?"', async () => {
+    const p = perfilExemplo();
+    window.localStorage.setItem('perfilAtivo', p.id);
+    simularFetch([
+      ['GET', '/api/saude', operante],
+      ['GET', '/api/perfis', [p]],
+      ['GET', '/api/sobre', SOBRE_MINIMO],
+    ]);
+    render(<MemoryRouter initialEntries={['/sobre']}><App /></MemoryRouter>);
+    await screen.findByText('Frase um.');
+    fireEvent.click(await screen.findByRole('button', { name: 'Trocar de perfil' }));
+    expect(await screen.findByText('Quem está usando?')).toBeTruthy();
+    expect(screen.queryByText('Frase um.')).toBeNull();
+    expect(window.localStorage.getItem('perfilAtivo')).toBeNull();
+  });
+
+  test('sem perfil, em /sobre, a marca leva a "Quem está usando?"', async () => {
+    simularFetch([['GET', '/api/saude', operante], ['GET', '/api/perfis', []], ['GET', '/api/sobre', SOBRE_MINIMO]]);
+    render(<MemoryRouter initialEntries={['/sobre']}><App /></MemoryRouter>);
+    await screen.findByText('Frase um.');
+    fireEvent.click(screen.getByRole('link', { name: 'Minha Prateleira' }));
+    expect(await screen.findByText('Quem está usando?')).toBeTruthy();
+  });
+
+  test('escolher um perfil em outra rota leva ao Top 10, não à rota anterior', async () => {
+    const p = perfilExemplo();
+    simularFetch([
+      ['GET', '/api/saude', operante],
+      ['GET', '/api/perfis', [p]],
+      ['GET', '/api/sobre', SOBRE_MINIMO],
+      ['GET', `/api/perfis/${p.id}/recomendacoes`, recomendacoesExemplo([1])],
+    ]);
+    render(<MemoryRouter initialEntries={['/sobre']}><App /></MemoryRouter>);
+    // sem perfil ativo, /sobre abre; ao ir à tela de perfis pela marca e escolher, o destino é o início
+    await screen.findByText('Frase um.');
+    fireEvent.click(screen.getByRole('link', { name: 'Minha Prateleira' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Ana' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Top 10' })).toBeTruthy();
+    expect(screen.queryByText('Frase um.')).toBeNull();
+  });
 });

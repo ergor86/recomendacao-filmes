@@ -161,3 +161,4 @@ button.destaque { background: var(--destaque); border-color: var(--destaque); co
 .sobre-numeros dd, .sobre-hashes dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 .sobre-detalhes { margin: 16px 0; padding: 8px 16px; border: 1px solid var(--borda); border-radius: 8px; background: var(--card); }
 .sobre-detalhes summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; }
+.moldura-nome { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; color: inherit; text-decoration: none; }

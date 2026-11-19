@@ -67,27 +67,52 @@ describe('Sobre', () => {
     await screen.findByText(RESUMO[0]);
     // o único trecho que fala de novos usuários é a negação vinda da API
     const trechos = document.body.textContent.match(/[^.]*novos usu[aá]rios[^.]*\./gi) ?? [];
+    expect(trechos.length).toBeGreaterThan(0);
     for (const t of trechos) expect(t).toMatch(/não garantem/);
   });
 
-  test('"Detalhes técnicos" fica recolhido e traz 462 iniciais, 17 fora da métrica, a técnica e os hashes', async () => {
+  test('o método (com 462 iniciais e 17 fora da métrica) fica em "O que foi medido", não em "Detalhes técnicos"', async () => {
     simularFetch([['GET', '/api/sobre', SOBRE]]);
     render(<Sobre />);
     await screen.findByText(RESUMO[0]);
-    const resumo = screen.getByText('Detalhes técnicos');
-    const detalhes = resumo.closest('details');
-    expect(detalhes).not.toBeNull();
+    const medido = screen.getByRole('heading', { name: 'O que foi medido' }).closest('section');
+    expect(medido.textContent).toContain(SOBRE.metodo);
+    expect(medido.textContent).toMatch(/462 .*considerad/);
+    expect(medido.textContent).toMatch(/17 .*fora da métrica/);
+    const detalhes = screen.getByText('Detalhes técnicos').closest('details');
+    expect(detalhes.textContent).not.toContain(SOBRE.metodo);
+    expect(detalhes.textContent).not.toContain('462');
+  });
+
+  test('os números de população vêm só da API: nada fixo no cliente', async () => {
+    const outro = {
+      ...SOBRE,
+      resultado: { ...SOBRE.resultado, nUsuarios: 447 },
+      metodo: 'Foram considerados inicialmente 470 usuários, e 447 entraram na métrica (23 ficaram fora da métrica).',
+    };
+    simularFetch([['GET', '/api/sobre', outro]]);
+    render(<Sobre />);
+    await screen.findByText(RESUMO[0]);
+    const texto = document.body.textContent;
+    expect(texto).toContain('470 usuários');
+    expect(texto).toContain('23 ficaram fora');
+    expect(texto).not.toContain('464'); // 447 + 17 fixo
+    expect(texto).not.toMatch(/17/);
+    expect(texto).not.toContain('462');
+  });
+
+  test('"Detalhes técnicos" fica recolhido e traz a técnica e os hashes', async () => {
+    simularFetch([['GET', '/api/sobre', SOBRE]]);
+    render(<Sobre />);
+    await screen.findByText(RESUMO[0]);
+    const detalhes = screen.getByText('Detalhes técnicos').closest('details');
     expect(detalhes.open).toBe(false);
     const dentro = detalhes.textContent;
-    expect(dentro).toMatch(/462 .*considerad/);
-    expect(dentro).toMatch(/17 .*fora da métrica/);
-    expect(dentro).toContain('445');
     expect(dentro).toContain('M = 300');
     expect(dentro).toContain('FC150');
     expect(dentro).toContain('S1/HNSW');
     for (const h of ['aaa111', 'bbb222', 'ccc333']) expect(dentro).toContain(h);
     expect(dentro).toContain('c048537');
-    fireEvent.click(resumo);
   });
 
   test('traz os limites, as licenças com link, a citação', async () => {

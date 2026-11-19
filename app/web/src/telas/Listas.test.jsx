@@ -134,3 +134,69 @@ describe('MinhasAvaliacoes', () => {
     expect(await screen.findByText(/Você ainda não avaliou/)).toBeTruthy();
   });
 });
+
+describe('paginação depois de remoções (nenhum filme é pulado)', () => {
+  const QUERO = { tipo: 'quero_assistir', nota: null };
+  const EFEITOS_DEL = { contribuiParaPerfil: false, excluidoDasRecomendacoes: false, perfilMudou: false };
+
+  /** Servidor simulado: lista de ids em memória, páginas de `tamanho`, DELETE remove o id. */
+  function servidor(ids, tamanho) {
+    const lista = [...ids];
+    simularFetch([
+      ['GET', /\/interacoes\?/, (init, url) => {
+        const pagina = Number(/pagina=(\d+)/.exec(url)[1]);
+        const fatia = lista.slice((pagina - 1) * tamanho, pagina * tamanho);
+        return { itens: fatia.map((id) => entrada(id, QUERO)), total: lista.length, pagina };
+      }],
+      ['DELETE', /\/interacoes\/\d+$/, (init, url) => {
+        lista.splice(lista.indexOf(Number(/(\d+)$/.exec(url)[1])), 1);
+        return { anterior: QUERO, efeitos: EFEITOS_DEL };
+      }],
+    ]);
+  }
+
+  test('remover da primeira página e carregar mais mostra todos os filmes restantes, e o botão some no fim', async () => {
+    servidor([1, 2, 3, 4, 5], 2);
+    montarTela(MinhaLista);
+    await screen.findByText('Filme 1', SEL);
+    fireEvent.click(within(cartao(1)).getByRole('button', { name: 'Remover da lista' }));
+    await waitFor(() => expect(screen.queryByText('Filme 1', SEL)).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais' }));
+    await screen.findByText('Filme 5', SEL);
+    for (const id of [2, 3, 4, 5]) expect(screen.getByText(`Filme ${id}`, SEL)).toBeTruthy(); // o 3 não foi pulado
+    expect(screen.queryByRole('button', { name: 'Carregar mais' })).toBeNull();
+  });
+
+  test('esvaziar a primeira página recarrega a lista em vez de mostrar grade vazia com "Carregar mais"', async () => {
+    servidor([1, 2, 3], 1);
+    montarTela(MinhaLista);
+    await screen.findByText('Filme 1', SEL);
+    fireEvent.click(within(cartao(1)).getByRole('button', { name: 'Remover da lista' }));
+    await screen.findByText('Filme 2', SEL);
+    expect(screen.queryByText('Filme 1', SEL)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais' }));
+    await screen.findByText('Filme 3', SEL);
+    expect(screen.queryByRole('button', { name: 'Carregar mais' })).toBeNull();
+  });
+
+  test('remover tudo, sem mais páginas, mostra a mensagem de lista vazia e nenhum botão', async () => {
+    servidor([1], 2);
+    montarTela(MinhaLista);
+    await screen.findByText('Filme 1', SEL);
+    fireEvent.click(within(cartao(1)).getByRole('button', { name: 'Remover da lista' }));
+    expect(await screen.findByText(/Sua lista está vazia/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Carregar mais' })).toBeNull();
+  });
+
+  test('o foco não cai no body quando o item focado sai: vai para o item da mesma posição', async () => {
+    servidor([1, 2, 3], 5);
+    montarTela(MinhaLista);
+    await screen.findByText('Filme 1', SEL);
+    const botao = within(cartao(2)).getByRole('button', { name: 'Remover da lista' });
+    botao.focus();
+    fireEvent.click(botao);
+    await waitFor(() => expect(screen.queryByText('Filme 2', SEL)).toBeNull());
+    expect(document.activeElement).not.toBe(document.body);
+    expect(document.activeElement.closest('li').dataset.filmeId).toBe('3');
+  });
+});
