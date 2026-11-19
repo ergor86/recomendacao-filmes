@@ -1,6 +1,7 @@
 import { describe, test, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { paletaDoCartaz } from '../componentes/Cartaz.jsx';
 import Top10 from './Top10.jsx';
 import { ProvedorAviso } from '../componentes/AvisoAcao.jsx';
 import {
@@ -309,5 +310,27 @@ describe('Top10: "Baseado em" com mini-capas', () => {
     // a mini-capa não entra na árvore de acessibilidade: não há imagem "Cartaz: Base A" dentro do bloco
     expect(within(document.querySelector('.baseado-em')).queryAllByRole('img')).toHaveLength(0);
     expect(document.querySelector('.baseado-em').textContent).toContain('Baseado em:');
+  });
+
+  test('os chips são itens de uma lista (leitor de tela anuncia os títulos separados)', async () => {
+    montar({ fila: [recomendacoesExemplo([1, 2])] });
+    await screen.findByText('Filme 1', SEL);
+    const lista = within(document.querySelector('.baseado-em')).getByRole('list');
+    const itens = within(lista).getAllByRole('listitem');
+    expect(itens.map((i) => i.querySelector('em').textContent)).toEqual(['Base A', 'Base B']);
+  });
+
+  test('a mini-capa usa a mesma família e cor do cartaz do mesmo filme na lista', async () => {
+    const r = recomendacoesExemplo([1]);
+    r.perfil.baseadoEm = [{ id: 1, titulo: 'Filme 1', ano: 1995, generos: ['Horror'] }];
+    r.itens[0].filme = { ...r.itens[0].filme, generos: ['Horror'], ano: 1995 };
+    montar({ fila: [r] });
+    await screen.findByText('Filme 1', SEL);
+    const stops = (svg) => [...svg.querySelectorAll('stop')].map((s) => s.getAttribute('stop-color'));
+    const mini = document.querySelector('.baseado-em svg.cartaz');
+    const grande = document.querySelector('li[data-filme-id="1"] svg.cartaz');
+    expect(stops(mini)).toEqual(stops(grande));
+    expect(stops(mini)[0]).toBe(paletaDoCartaz({ id: 1, generos: ['Horror'] }).c1);
+    expect(stops(mini)[0]).not.toBe(paletaDoCartaz({ id: 1, generos: [] }).c1);
   });
 });

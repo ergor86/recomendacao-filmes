@@ -137,7 +137,10 @@ describe('recomendações e diagnóstico (banco app_teste_recomendacoes)', { tim
       assert.equal(corpo.perfil.curtidosComVetor, 3);
       assert.equal(corpo.perfil.baseadoEm.length, 3);
       assert.deepEqual(corpo.perfil.baseadoEm.map((b) => b.id).sort((a, b) => a - b), [...curtidos].sort((a, b) => a - b));
-      for (const b of corpo.perfil.baseadoEm) assert.deepEqual(Object.keys(b).sort(), ['id', 'titulo']);
+      for (const b of corpo.perfil.baseadoEm) {
+        assert.deepEqual(Object.keys(b).sort(), ['ano', 'generos', 'id', 'titulo']);
+        assert.ok(Array.isArray(b.generos));
+      }
       const s1 = corpo.itens.filter((i) => i.fonte === 'S1');
       assert.ok(s1.length >= 1);
       let anterior = Infinity;

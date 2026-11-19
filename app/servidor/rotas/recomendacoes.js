@@ -36,8 +36,9 @@ export async function rotasRecomendacoes(app, { ciclo, midia }) {
     const idsTitulos = new Set(baseadoEmIds);
     for (const i of r.itens) for (const q of i.porque) idsTitulos.add(q);
     const { rows: titulosLinhas } = await pools.leitura.query(
-      'SELECT id, titulo_exibicao FROM app.filme WHERE id = ANY($1::int[])', [[...idsTitulos]],
+      'SELECT id, titulo_exibicao, ano, generos FROM app.filme WHERE id = ANY($1::int[])', [[...idsTitulos]],
     );
+    const filmes = new Map(titulosLinhas.map((l) => [l.id, l]));
     const titulos = new Map(titulosLinhas.map((l) => [l.id, l.titulo_exibicao]));
     const comTitulo = (id) => ({ id, titulo: titulos.get(id) });
 
@@ -48,7 +49,7 @@ export async function rotasRecomendacoes(app, { ciclo, midia }) {
       perfil: {
         curtidos: r.perfil.curtidos.length,
         curtidosComVetor: r.perfil.curtidosComVetor.length,
-        baseadoEm: baseadoEmIds.map(comTitulo),
+        baseadoEm: baseadoEmIds.map((id) => ({ ...comTitulo(id), ano: filmes.get(id)?.ano ?? null, generos: filmes.get(id)?.generos ?? [] })),
       },
       itens: r.itens.map((i, k) => {
         const linha = porId.get(i.id);

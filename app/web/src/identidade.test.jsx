@@ -101,17 +101,17 @@ describe('carimbo e layout', () => {
   test('CSS da estante, menu e alvos', () => {
     expect(css).toContain('.estante');
     expect(css).toMatch(/\.cartao-titulo::before/);
-    expect(css).toMatch(/@media \(max-width: 640px\)/);
+    expect(css).toMatch(/@media \(max-width: 760px\)/);
     expect(css).toMatch(/repeat\(6,/);
     expect(css).toMatch(/repeat\(2,/);
   });
 });
 
 describe('correção 1: breakpoint único, alvos e Top 10', () => {
-  test('um só ponto de quebra de celular (640 px) em todo o CSS', () => {
+  test('um só ponto de quebra de celular (760 px) em todo o CSS', () => {
     const larguras = [...css.matchAll(/@media \(max-width: (\d+)px\)/g)].map((m) => m[1]);
     expect(larguras).not.toContain('639');
-    expect(new Set(larguras.filter((l) => Number(l) < 1000))).toEqual(new Set(['640']));
+    expect(new Set(larguras.filter((l) => Number(l) < 1000))).toEqual(new Set(['760']));
   });
   test('área clicável de 44 px na dica e no link do rodapé', () => {
     expect(css).toMatch(/\.dica::after\s*\{[^}]*inset:\s*-10px/);

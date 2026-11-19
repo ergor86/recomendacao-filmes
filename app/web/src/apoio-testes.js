@@ -63,7 +63,7 @@ export function recomendacoesExemplo(ids, extra = {}) {
     perfilId: '11111111-1111-4111-8111-111111111111',
     geradoEm: '2026-11-18T12:00:00.000Z',
     motivo: 'personalizado',
-    perfil: { curtidos: 5, curtidosComVetor: 4, baseadoEm: [{ id: 100, titulo: 'Base A' }, { id: 101, titulo: 'Base B' }] },
+    perfil: { curtidos: 5, curtidosComVetor: 4, baseadoEm: [{ id: 100, titulo: 'Base A', ano: 1995, generos: ['Drama'] }, { id: 101, titulo: 'Base B', ano: 1997, generos: ['Comedy'] }] },
     itens: ids.map((id, k) => ({
       posicao: k + 1,
       fonte: 'S1',

@@ -21,12 +21,14 @@ export default function Top10({ perfilId }) {
           {base.length > 0 && (
             <p className="baseado-em">
               Baseado em:{' '}
+              <span className="chips-base" role="list">
               {base.map((b) => (
-                <span key={b.id} className="chip-base">
+                <span key={b.id} className="chip-base" role="listitem">
                   <span className="chip-capa" aria-hidden="true"><Cartaz filme={b} tamanho="pequeno" /></span>
                   <em lang="en">{b.titulo}</em>
                 </span>
               ))}
+              </span>
             </p>
           )}
           <p className="contagem-curtidos">
