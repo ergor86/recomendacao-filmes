@@ -14,6 +14,15 @@ function moverArtigo(t) {
   return m[2] === "L'" ? `L'${m[1]}` : `${m[2]} ${m[1]}`;
 }
 
+/**
+ * Ano do filme: o do título (ex.: "Return of the Jedi (1983)"), que é o ano de produção. A data de lançamento do
+ * u.item (a reserva) muitas vezes é a do relançamento (190 filmes divergem) e só vale quando o título não traz ano.
+ */
+export function anoDoTitulo(tituloOriginal, reserva = null) {
+  const m = RE_ANO.exec(String(tituloOriginal));
+  return m ? Number(m[1]) : (reserva ?? null);
+}
+
 export function tituloExibicao(tituloOriginal) {
   let t = String(tituloOriginal);
   const tinhaAno = RE_ANO.test(t);

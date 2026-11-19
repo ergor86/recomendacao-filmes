@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { rankingPopularidade } from '../../src/candidatos/populares.js';
 import { calcularOcultos, carregarGemeosManuais, detectarGemeos } from '../comum/gemeos.js';
-import { tituloBusca, tituloExibicao } from '../comum/titulos.js';
+import { anoDoTitulo, tituloBusca, tituloExibicao } from '../comum/titulos.js';
 import { N_FILMES } from '../integridade.js';
 
 function falhar(msg) {
@@ -44,7 +44,7 @@ export async function preencherReferencia(client, ctx) {
     col.id.push(f.id);
     col.orig.push(f.titulo);
     col.exib.push(tituloExibicao(f.titulo));
-    col.ano.push(f.ano);
+    col.ano.push(anoDoTitulo(f.titulo, f.ano));
     // text[] de tamanho variavel nao cabe em unnest multidimensional: vai como texto separado por '|'
     col.gen.push(nomesGenero.filter((n, i) => f.generos[i] === 1 && n !== 'unknown').join('|'));
     col.vet.push(fc.has(f.id));

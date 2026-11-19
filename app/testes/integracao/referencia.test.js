@@ -107,6 +107,9 @@ describe('tabelas de referencia', { timeout: 600_000 }, () => {
     assert.equal(f1.titulo_original, 'Toy Story (1995)');
     assert.equal(f1.titulo_exibicao, 'Toy Story');
     assert.equal(f1.ano, 1995);
+    // Ruling 26: ano do título, não da data de lançamento (181 tem lançamento em 1997; 23, em 1996)
+    assert.equal(rows.find((r) => r.id === 181).ano, 1983);
+    assert.equal(rows.find((r) => r.id === 23).ano, 1976);
     assert.ok(f1.generos.includes('Animation'));
     assert.equal(rows.find((r) => r.id === 267).ano, null);
   });
