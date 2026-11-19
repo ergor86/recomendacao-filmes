@@ -112,6 +112,13 @@ body:has(.aviso-acao:not(:empty)) .moldura-rodape { padding-bottom: 104px; }
 .navegacao a[aria-current='page'] { color: var(--tinta); box-shadow: inset 0 -3px 0 var(--carimbo); }
 .menu-botao { display: none; align-items: center; gap: 10px; }
 .menu-botao .monograma { width: 28px; height: 28px; }
+/* tablet e janelas estreitas de desktop: marca e perfil na primeira linha, navegação inteira na segunda (sem quebra desigual) */
+@media (min-width: 761px) and (max-width: 1240px) {
+  .moldura-nome { order: 1; }
+  .moldura-perfil { order: 2; margin-left: auto; }
+  .navegacao { order: 3; flex-basis: 100%; }
+  .moldura-topo { row-gap: 0; }
+}
 @media (max-width: 760px) {
   :root { --t-h1: 2.25rem; --t-mostra: 2.75rem; }
   .moldura-topo { padding: 6px 16px; gap: 8px; justify-content: space-between; }
@@ -251,9 +258,9 @@ progress::-moz-progress-bar { background: var(--carimbo); }
 /* top 10 */
 .top10 h1:focus { outline: none; }
 .baseado-em, .contagem-curtidos { margin: 10px 0 0; color: var(--grafite); font-size: var(--t-menor); }
-.baseado-em { display: flex; align-items: center; gap: 8px; }
+.baseado-em { display: flex; align-items: flex-start; gap: 8px; line-height: 52px; }
 .chips-base { display: flex; flex: 1; flex-wrap: wrap; gap: 8px; min-width: 0; }
-.chip-base { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 4px 12px 4px 4px; background: var(--ficha); border: 1px solid var(--risco); border-radius: var(--raio); color: var(--tinta); }
+.chip-base { line-height: 1.4; display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 4px 12px 4px 4px; background: var(--ficha); border: 1px solid var(--risco); border-radius: var(--raio); color: var(--tinta); }
 .chip-base em { overflow-wrap: anywhere; }
 .chip-capa { flex: none; width: 28px; }
 .chip-capa .cartaz { width: 28px; height: auto; border-radius: 2px; box-shadow: none; }
