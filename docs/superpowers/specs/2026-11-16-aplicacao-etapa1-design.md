@@ -390,7 +390,7 @@ DetalheFilme  = CartaoFilme & { temGemeoOculto: boolean,
                                   sua: { tipo, nota } | null } }
 Recomendacoes = { perfilId, geradoEm,
                   motivo: 'personalizado'|'parcial'|'sem_semelhantes'|'sem_curtidas'|'curtidas_sem_vetor',
-                  perfil: { curtidos, curtidosComVetor, baseadoEm: [{ id, titulo }] },  // até 5 curtidos com vetor
+                  perfil: { curtidos, curtidosComVetor, baseadoEm: [{ id, titulo, ano, generos }] },  // até 5 curtidos com vetor; ano e generos como no CartaoFilme (a mini-capa usa a cor do cartaz)
                   itens: [{ posicao, fonte: 'S1'|'populares', escore: number|null,
                             porque: [{ id, titulo }],    // S1: 1 ou 2; populares: []
                             filme: CartaoFilme }],
