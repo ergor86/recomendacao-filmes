@@ -1,5 +1,14 @@
 # Recomendação de filmes
 
+## Minha Prateleira: a aplicação local
+
+![Perfis](app/docs/capturas/01-perfis.png)
+![Top 10](app/docs/capturas/03-top10.png)
+
+A pasta [`app/`](app/README.md) traz a "Minha Prateleira", uma aplicação que roda no seu computador sobre o recomendador da pesquisa. Não há site público: a aplicação usa o MovieLens 100K, que não pode ser redistribuído, e os perfis ficam só na sua máquina. Instalação e uso: [`app/README.md`](app/README.md). Os resultados são de uma avaliação retrospectiva e não valem como desempenho com novos usuários. As capturas são ilustrativas (perfil de exemplo, agregados e cartazes gerados localmente). Dados do MovieLens 100K, do GroupLens Research (Universidade de Minnesota); este projeto não é endossado nem apoiado pelo GroupLens.
+
+---
+
 MovieLens 100K + Postgres/pgvector + TensorFlow.js. Spec em `docs/superpowers/specs/`.
 
 ## Passo a passo
