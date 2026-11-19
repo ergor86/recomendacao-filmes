@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import Cartaz from '../componentes/Cartaz.jsx';
 import { Carregando, Falha } from '../componentes/Estados.jsx';
 import ExplicacaoMotivo from '../componentes/ExplicacaoMotivo.jsx';
 import ListaRecomendacoes from '../componentes/ListaRecomendacoes.jsx';
@@ -20,8 +21,11 @@ export default function Top10({ perfilId }) {
           {base.length > 0 && (
             <p className="baseado-em">
               Baseado em:{' '}
-              {base.map((b, i) => (
-                <span key={b.id}>{i > 0 ? ', ' : ''}<em lang="en">{b.titulo}</em></span>
+              {base.map((b) => (
+                <span key={b.id} className="chip-base">
+                  <span className="chip-capa" aria-hidden="true"><Cartaz filme={b} tamanho="pequeno" /></span>
+                  <em lang="en">{b.titulo}</em>
+                </span>
               ))}
             </p>
           )}

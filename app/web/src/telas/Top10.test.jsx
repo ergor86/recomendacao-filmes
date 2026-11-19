@@ -290,3 +290,24 @@ describe('Top10: animação FLIP', () => {
     expect(animar).not.toHaveBeenCalled();
   });
 });
+
+describe('Top10: "Baseado em" com mini-capas', () => {
+  test('cada base é um chip com mini-capa decorativa e o título como nome', async () => {
+    montar({ fila: [recomendacoesExemplo([1, 2])] });
+    await screen.findByText('Filme 1', SEL);
+    const chips = document.querySelectorAll('.baseado-em .chip-base');
+    expect(chips).toHaveLength(2);
+    // o texto exposto (sem o que é aria-hidden) é só o título
+    const nomeAcessivel = (c) => { const k = c.cloneNode(true); k.querySelectorAll('[aria-hidden="true"]').forEach((n) => n.remove()); return k.textContent.trim(); };
+    expect([...chips].map(nomeAcessivel)).toEqual(['Base A', 'Base B']);
+    for (const c of chips) {
+      const capa = c.querySelector('svg.cartaz');
+      expect(capa).not.toBeNull();
+      expect(capa.closest('[aria-hidden="true"]')).not.toBeNull();
+      expect(capa.className.baseVal).toContain('cartaz-pequeno');
+    }
+    // a mini-capa não entra na árvore de acessibilidade: não há imagem "Cartaz: Base A" dentro do bloco
+    expect(within(document.querySelector('.baseado-em')).queryAllByRole('img')).toHaveLength(0);
+    expect(document.querySelector('.baseado-em').textContent).toContain('Baseado em:');
+  });
+});

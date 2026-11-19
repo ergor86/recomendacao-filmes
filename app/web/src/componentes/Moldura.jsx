@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
+import Monograma from './Monograma.jsx';
 import { ProvedorAviso } from './AvisoAcao.jsx';
 
 const ITENS = [
@@ -32,23 +33,23 @@ export default function Moldura({ perfil, onTrocarPerfil, children }) {
                 type="button"
                 className="menu-botao"
                 aria-expanded={menuAberto}
-                aria-controls="navegacao-principal"
+                aria-controls="menu-painel"
                 onClick={() => setMenuAberto((a) => !a)}
               >
+                <Monograma perfil={perfil} />
                 Menu
               </button>
-              <nav
-                id="navegacao-principal"
-                className={menuAberto ? 'navegacao aberta' : 'navegacao'}
-                aria-label="Principal"
-              >
-                {ITENS.map((i) => (
-                  <NavLink key={i.para} to={i.para} end={i.fim} onClick={() => setMenuAberto(false)}>{i.rotulo}</NavLink>
-                ))}
-              </nav>
-              <div className="moldura-perfil">
-                <span>Perfil: {perfil.nome ?? '…'}</span>
-                <button type="button" onClick={onTrocarPerfil}>Trocar de perfil</button>
+              <div id="menu-painel" className={menuAberto ? 'menu-painel aberta' : 'menu-painel'}>
+                <nav id="navegacao-principal" className="navegacao" aria-label="Principal">
+                  {ITENS.map((i) => (
+                    <NavLink key={i.para} to={i.para} end={i.fim} onClick={() => setMenuAberto(false)}>{i.rotulo}</NavLink>
+                  ))}
+                </nav>
+                <div className="moldura-perfil">
+                  <Monograma perfil={perfil} />
+                  <span>Perfil: {perfil.nome ?? '…'}</span>
+                  <button type="button" onClick={onTrocarPerfil}>Trocar de perfil</button>
+                </div>
               </div>
             </>
           )}

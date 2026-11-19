@@ -54,3 +54,41 @@ describe('Moldura', () => {
     expect(screen.getByRole('link', { name: 'Minha Prateleira' }).getAttribute('href')).toBe('/');
   });
 });
+
+describe('Moldura: monograma e cabeçalho do celular', () => {
+  test('o monograma do perfil é decorativo e o nome continua em texto', () => {
+    montar({ id: 'x', nome: 'Ana' });
+    const topo = screen.getByRole('banner');
+    const monogramas = topo.querySelectorAll('svg.monograma');
+    expect(monogramas.length).toBeGreaterThan(0);
+    for (const m of monogramas) {
+      expect(m.getAttribute('aria-hidden')).toBe('true');
+      expect(m.querySelector('text').textContent).toBe('A');
+    }
+    expect(topo.querySelector('.moldura-perfil').textContent).toContain('Perfil: Ana');
+  });
+
+  test('o botão Menu continua com o nome acessível "Menu" (monograma decorativo dentro dele)', () => {
+    montar({ id: 'x', nome: 'Ana' });
+    const botao = screen.getByRole('button', { name: 'Menu' });
+    expect(botao.querySelector('svg.monograma')).not.toBeNull();
+  });
+
+  test('a navegação e o perfil ficam num painel recolhível único, controlado pelo botão Menu', () => {
+    montar({ id: 'x', nome: 'Ana' });
+    const botao = screen.getByRole('button', { name: 'Menu' });
+    const painel = document.getElementById(botao.getAttribute('aria-controls'));
+    expect(painel.classList.contains('menu-painel')).toBe(true);
+    expect(painel.classList.contains('aberta')).toBe(false);
+    expect(painel.contains(screen.getByRole('navigation', { name: 'Principal' }))).toBe(true);
+    expect(painel.contains(screen.getByRole('button', { name: 'Trocar de perfil' }))).toBe(true);
+    fireEvent.click(botao);
+    expect(painel.classList.contains('aberta')).toBe(true);
+  });
+
+  test('sem perfil não há botão Menu nem monograma', () => {
+    montar(null);
+    expect(screen.queryByRole('button', { name: 'Menu' })).toBeNull();
+    expect(document.querySelector('svg.monograma')).toBeNull();
+  });
+});

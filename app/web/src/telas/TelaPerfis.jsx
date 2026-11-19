@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { chamar } from '../api.js';
+import Monograma from '../componentes/Monograma.jsx';
 import { ConfirmaExclusao, EstadoLista, usePerfis } from '../componentes/ListaPerfis.jsx';
 
 const MSG_SO_ESPACOS = 'O apelido não pode ficar só com espaços. Escreva pelo menos uma letra ou número.';
@@ -54,7 +55,10 @@ export default function TelaPerfis({ onEntrar }) {
           {perfis.map((p) => (
             <li key={p.id}>
               <div className="perfil-linha">
-                <button type="button" className="principal" onClick={() => onEntrar(p)}>{p.nome}</button>
+                <button type="button" className="principal" onClick={() => onEntrar(p)}>
+                  <Monograma perfil={p} />
+                  <span>{p.nome}</span>
+                </button>
                 <button type="button" aria-label={`Renomear o perfil ${p.nome}`} onClick={() => setRenomeando({ id: p.id, nome: p.nome })}>Renomear</button>
                 <button type="button" aria-label={`Excluir o perfil ${p.nome}`} onClick={() => setConfirmando(p.id)}>Excluir</button>
               </div>
