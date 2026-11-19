@@ -49,21 +49,24 @@ jobs:
         run: npm run test:web
       - name: Banco de teste (db do Compose, publicado só no loopback)
         working-directory: app
-        run: docker compose -f compose.yml -f compose.dev.yml up -d --wait db
+        run: docker compose -p recomendacao-dev -f compose.yml -f compose.dev.yml up -d --wait db
       - name: Integração
         working-directory: app
         env:
           ML100K_DIR: ${{ runner.temp }}/ml100k/ml-100k
+          # sem os dados a suíte falha em vez de se ignorar
+          APP_EXIGIR_DADOS: "1"
         run: npm run test:integracao
       - name: Equivalência com a referência (camada a, sem banco)
         working-directory: app
         env:
           ML100K_DIR: ${{ runner.temp }}/ml100k/ml-100k
+          APP_EXIGIR_DADOS: "1"
         run: node --test --test-reporter=spec testes/referencia/equivalencia.test.js
       - name: Derrubar o banco de teste
         if: always()
         working-directory: app
-        run: docker compose -f compose.yml -f compose.dev.yml down -v
+        run: docker compose -p recomendacao-dev -f compose.yml -f compose.dev.yml down -v
 
   # ---------------------------------------------------------------------------------------------------------
   congelamento:
@@ -150,12 +153,25 @@ jobs:
           while [ "$(date +%s)" -lt "$fim" ]; do
             r=$(curl -s -H "Host: localhost:${APP_PORTA}" "http://127.0.0.1:${APP_PORTA}/api/saude" || true)
             echo "$r"
-            case "$r" in *'"estado":"operante"'*) exit 0 ;; *'"estado":"falhou"'*) break ;; esac
+            case "$r" in *'"estado":"operante"'*) exit 0 ;; *'"estado":"falhou"'*|*'"estado":"bloqueado"'*) break ;; esac
             sleep 5
           done
           docker compose -f app/compose.yml logs --no-color preparar || true
           echo "a aplicação não ficou operante" >&2
           exit 1
+
+      - name: Hosts aceitos e recusados contra o contêiner ([::1] aceito, localhost:3000 recusado com 421)
+        run: |
+          set -u
+          url="http://127.0.0.1:${APP_PORTA}/api/saude"
+          for h in "localhost:${APP_PORTA}" "127.0.0.1:${APP_PORTA}" "[::1]:${APP_PORTA}"; do
+            c=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: $h" "$url")
+            echo "Host: $h -> $c"
+            [ "$c" = 200 ] || { echo "Host $h deveria ser aceito" >&2; exit 1; }
+          done
+          c=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: localhost:3000" "$url")
+          echo "Host: localhost:3000 -> $c"
+          [ "$c" = 421 ] || { echo "Host localhost:3000 deveria dar 421" >&2; exit 1; }
 
       - name: O log de preparar mostra os três hashes iguais às constantes
         working-directory: app
