@@ -297,6 +297,55 @@ test('Sobre: topo exato, Detalhes técnicos com 462 e 17, e "Trocar de perfil" a
   await expect(page.getByRole('button', { name: 'Ver um exemplo' })).toBeVisible();
 });
 
+test.describe('bloqueio com a página aberta (I-1)', () => {
+  // adultera hash_treino do banco alvo: só com E2E_PERMITIR_BLOQUEIO=1 (ver a recuperação manual em apoio.js)
+  test.skip(!PERMITIR_BLOQUEIO, MOTIVO_SEM_BLOQUEIO);
+  const HASH = "chave = 'hash_treino'";
+  const valorAtual = () => psql(`SELECT valor FROM v2_final.metadados WHERE ${HASH};`);
+
+  test('o Top 10 aberto percebe o bloqueio sozinho, mostra a TelaPreparando e retoma quando volta a operante', async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    const baseURL = testInfo.project.use.baseURL;
+    if (valorAtual() === 'x') psql(`UPDATE v2_final.metadados SET valor = '${HASHES.treino}' WHERE ${HASH};`);
+    const api = await contextoApi(baseURL);
+    let original = null;
+    try {
+      const r = await api.post('/api/perfis', { data: { nome: nomeUnico('aberta') } });
+      expect(r.status()).toBe(201);
+      const perfil = await r.json();
+      for (const id of [1, 2, 3]) {
+        expect((await api.put(`/api/perfis/${perfil.id}/interacoes/${id}`, { data: { tipo: 'gostei' } })).ok()).toBe(true);
+      }
+      expect((await api.patch(`/api/perfis/${perfil.id}`, { data: { onboardingConcluido: true } })).ok()).toBe(true);
+      await page.addInitScript((id) => {
+        try { window.localStorage.setItem('perfilAtivo', id); } catch { /* sem armazenamento */ }
+      }, perfil.id);
+      await page.goto('/');
+      await expect(page.locator(LISTA)).toHaveCount(10);
+
+      // o bloqueio acontece com a página já aberta
+      const lido = valorAtual();
+      expect(lido).toMatch(/^[0-9a-f]{64}$/);
+      original = lido;
+      psql(`UPDATE v2_final.metadados SET valor = 'x' WHERE ${HASH};`);
+
+      // a próxima ação (que pede a lista de novo) recebe 503 BLOQUEADO e a interface troca de tela sem recarregar
+      await page.locator(LISTA).first().getByRole('button', { name: 'Gostei', exact: true }).click();
+      await expect(page.getByRole('heading', { name: 'A aplicação está bloqueada' })).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole('link', { name: 'Apagar perfis e avaliações' })).toBeVisible();
+
+      // volta a operante: a página retoma sozinha
+      psql(`UPDATE v2_final.metadados SET valor = '${original}' WHERE ${HASH};`);
+      original = null;
+      await expect(page.getByRole('heading', { name: 'A aplicação está bloqueada' })).toHaveCount(0, { timeout: 60_000 });
+      await expect(page.locator(LISTA)).toHaveCount(10, { timeout: 30_000 });
+    } finally {
+      if (original) psql(`UPDATE v2_final.metadados SET valor = '${original}' WHERE ${HASH};`);
+      await api.dispose();
+    }
+  });
+});
+
 test.describe('caminho bloqueado: TelaPreparando e GestaoPerfisRestrita', () => {
   // adultera hash_treino do banco alvo: só com E2E_PERMITIR_BLOQUEIO=1 (ver a recuperação manual em apoio.js)
   test.skip(!PERMITIR_BLOQUEIO, MOTIVO_SEM_BLOQUEIO);
