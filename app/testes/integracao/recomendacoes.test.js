@@ -1,5 +1,6 @@
 // Tarefa 12: GET /perfis/:id/recomendacoes e GET /diagnostico/busca contra o banco real (spec 4.4, 6.2 e 6.3).
 // Banco próprio `app_teste_recomendacoes`, preparado com prepararTudo; servidor real (construirApp + criarCiclo).
+import '../apoio/dados-exigidos.js';
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';

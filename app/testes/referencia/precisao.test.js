@@ -3,6 +3,7 @@
 // Divergência além de τ é falha: este teste nunca é ajustado para aceitá-la.
 // Ruling 14: um gancho de carregamento troca o TensorFlow, alcançado por fidelidade.js → … →
 // src/modelo/rede.js, por um módulo vazio. fidelidade.js só é importado depois do gancho.
+import '../apoio/dados-exigidos.js';
 import { register } from 'node:module';
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';

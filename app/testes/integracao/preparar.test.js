@@ -1,5 +1,6 @@
 // Tarefa 7: orquestracao da preparacao (spec 4.2). Banco proprio `app_teste_prep`, recriado no `before`.
 // Precisa de ML100K_DIR (so os 5 arquivos permitidos sao copiados).
+import '../apoio/dados-exigidos.js';
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

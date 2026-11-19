@@ -1,5 +1,6 @@
 // Tarefa 10: catálogo, detalhe, gêneros e onboarding contra o banco real (spec 6.2 e 6.3).
 // Banco próprio `app_teste_filmes`, preparado com prepararTudo; servidor real (construirApp + criarCiclo).
+import '../apoio/dados-exigidos.js';
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';

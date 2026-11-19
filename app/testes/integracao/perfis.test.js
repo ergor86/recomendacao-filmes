@@ -1,5 +1,6 @@
 // Tarefa 11: perfis, perfil de exemplo e interações contra o banco real (spec 6.2).
 // Banco próprio `app_teste_perfis`, preparado com prepararTudo; servidor real (construirApp + criarCiclo).
+import '../apoio/dados-exigidos.js';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

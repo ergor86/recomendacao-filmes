@@ -1,5 +1,6 @@
 // Tarefa 8, camada (a) da spec 10.5: o pipeline s1.js com a busca injetada em memória é idêntico a uma
 // referência independente escrita aqui (rankingReferencia → 150 → 10, mais populares sem `excluir`).
+import '../apoio/dados-exigidos.js';
 import { before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { construirFC, hashVetoresFC, perfilFC, rankingReferencia, vetorDeBusca } from '../../../src/fc/referencia.js';
