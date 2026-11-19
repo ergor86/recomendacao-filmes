@@ -6,4 +6,4 @@ services:
     environment:
       ML100K_ZIP: /var/app/zip/ml-100k.zip
     volumes:
-      - ${ML100K_ZIP}:/var/app/zip/ml-100k.zip:ro
+      - ${ML100K_ZIP:?defina ML100K_ZIP com o caminho do zip}:/var/app/zip/ml-100k.zip:ro
