@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { chamar } from './api.js';
 import Moldura from './componentes/Moldura.jsx';
 import { Carregando, Falha } from './componentes/Estados.jsx';
@@ -8,6 +8,10 @@ import TelaPerfis from './telas/TelaPerfis.jsx';
 import Onboarding from './telas/Onboarding.jsx';
 import Catalogo from './telas/Catalogo.jsx';
 import DetalheFilme from './telas/DetalheFilme.jsx';
+import Top10 from './telas/Top10.jsx';
+import MinhaLista from './telas/MinhaLista.jsx';
+import MinhasAvaliacoes from './telas/MinhasAvaliacoes.jsx';
+import Sobre from './telas/Sobre.jsx';
 
 const CHAVE = 'perfilAtivo';
 const INTERVALO_MS = 2000;
@@ -23,15 +27,10 @@ function gravarPerfilAtivo(id) {
   } catch { /* sem armazenamento: o perfil vale só nesta sessão */ }
 }
 
-// Início provisório até o Top 10 (próxima tarefa): leva ao onboarding, se faltar, ou ao catálogo.
+// O início é o Top 10; quem ainda não concluiu o onboarding vai primeiro a ele.
 function Inicio({ perfil }) {
   if (perfil.onboardingConcluido === false) return <Navigate to="/onboarding" replace />;
-  return (
-    <section>
-      <p>As telas de recomendação chegam nas próximas tarefas.</p>
-      <p><Link to="/catalogo">Catálogo</Link></p>
-    </section>
-  );
+  return <Top10 perfilId={perfil.id} />;
 }
 
 export default function App() {
@@ -116,13 +115,22 @@ export default function App() {
         : perfil
         ? (
           <Routes>
+            <Route path="/" element={<Inicio perfil={perfil} />} />
             <Route path="/onboarding" element={<Onboarding perfilId={perfil.id} aoConcluir={concluirOnboarding} />} />
             <Route path="/catalogo" element={<Catalogo perfilId={perfil.id} />} />
             <Route path="/filmes/:id" element={<DetalheFilme perfilId={perfil.id} />} />
-            <Route path="*" element={<Inicio perfil={perfil} />} />
+            <Route path="/minha-lista" element={<MinhaLista perfilId={perfil.id} />} />
+            <Route path="/minhas-avaliacoes" element={<MinhasAvaliacoes perfilId={perfil.id} />} />
+            <Route path="/sobre" element={<Sobre />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         )
-        : <TelaPerfis onEntrar={entrar} />}
+        : (
+          <Routes>
+            <Route path="/sobre" element={<Sobre />} />
+            <Route path="*" element={<TelaPerfis onEntrar={entrar} />} />
+          </Routes>
+        )}
     </Moldura>
   );
 }

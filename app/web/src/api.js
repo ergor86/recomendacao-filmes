@@ -13,19 +13,21 @@ export class ErroApi extends Error {
 const MENSAGEM_SEM_SERVIDOR = 'Não consegui falar com o servidor local. Ele está rodando?';
 
 /**
- * chamar(metodo, caminho, corpo?) → Promise<json | null>
+ * chamar(metodo, caminho, corpo?, { signal }?) → Promise<json | null>
  * O cabeçalho Content-Type só vai quando há corpo JSON; sem corpo, não vai cabeçalho nem corpo.
  */
-export async function chamar(metodo, caminho, corpo) {
+export async function chamar(metodo, caminho, corpo, { signal } = {}) {
   const init = { method: metodo, cache: 'no-store', headers: { Accept: 'application/json' } };
   if (corpo !== undefined) {
     init.headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(corpo);
   }
+  if (signal) init.signal = signal;
   let resposta;
   try {
     resposta = await fetch(caminho, init);
-  } catch {
+  } catch (e) {
+    if (e?.name === 'AbortError') throw e; // aborto pedido por quem chamou: não é falha do servidor
     throw new ErroApi({ status: 0, codigo: 'SEM_SERVIDOR', mensagem: MENSAGEM_SEM_SERVIDOR });
   }
   let dados = null;

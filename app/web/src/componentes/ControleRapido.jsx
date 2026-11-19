@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Estrelas, useInteracao } from './ControleInteracao.jsx';
 
 /** Controle do cartão: "Gostei" (aria-pressed) e um menu "…" com "Quero assistir" e "Dar nota". */
-export default function ControleRapido({ perfilId, filme, estado, aoMudar }) {
-  const { aplicar, alternar, clicarEstrela } = useInteracao({ perfilId, filme, estado, aoMudar });
+export default function ControleRapido({ perfilId, filme, estado, aoMudar, enviar }) {
+  const { aplicar, alternar, clicarEstrela } = useInteracao({ perfilId, filme, estado, aoMudar, enviar });
   const [aberto, setAberto] = useState(false);
   const [comNota, setComNota] = useState(false);
   const gatilho = useRef(null);

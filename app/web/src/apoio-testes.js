@@ -48,3 +48,37 @@ export const filmeExemplo = (extra = {}) => ({
   estadoPerfil: null,
   ...extra,
 });
+
+/** Promessa com resolução manual: controla exatamente quando uma resposta simulada chega. */
+export function adiavel() {
+  let resolver;
+  let rejeitar;
+  const promessa = new Promise((res, rej) => { resolver = res; rejeitar = rej; });
+  return { promessa, resolver, rejeitar };
+}
+
+/** Recomendacoes (spec 6.3) com os filmes `ids`, em ordem; títulos "Filme <id>". */
+export function recomendacoesExemplo(ids, extra = {}) {
+  return {
+    perfilId: '11111111-1111-4111-8111-111111111111',
+    geradoEm: '2026-11-18T12:00:00.000Z',
+    motivo: 'personalizado',
+    perfil: { curtidos: 5, curtidosComVetor: 4, baseadoEm: [{ id: 100, titulo: 'Base A' }, { id: 101, titulo: 'Base B' }] },
+    itens: ids.map((id, k) => ({
+      posicao: k + 1,
+      fonte: 'S1',
+      escore: 0.5,
+      porque: [{ id: 100, titulo: 'Base A' }],
+      filme: filmeExemplo({ id, titulo: `Filme ${id}`, tituloOriginal: `Filme ${id}` }),
+    })),
+    busca: null,
+    ...extra,
+  };
+}
+
+/** Deixa os microtarefas e algumas voltas do laço de eventos correrem (resposta tardia já consumida). */
+export async function acomodar(act) {
+  await act(async () => {
+    for (let i = 0; i < 25; i++) await new Promise((r) => setTimeout(r, 0));
+  });
+}

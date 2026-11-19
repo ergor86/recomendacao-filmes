@@ -122,3 +122,42 @@ button.destaque { background: var(--destaque); border-color: var(--destaque); co
 .estatistica summary { min-height: 44px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
 .poucas-notas { color: var(--suave); font-size: 0.85rem; font-weight: 400; }
 .dica { cursor: help; }
+
+/* Navegação, Top 10, listas e Sobre: só layout, com as variáveis acima */
+.navegacao { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; }
+.navegacao a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 8px; color: var(--texto); text-decoration: none; }
+.navegacao a[aria-current='page'] { border-bottom: 3px solid var(--destaque); font-weight: 600; }
+.menu-botao { display: none; }
+@media (max-width: 639px) {
+  .menu-botao { display: inline-flex; align-items: center; }
+  .navegacao { display: none; flex-basis: 100%; flex-direction: column; }
+  .navegacao.aberta { display: flex; }
+}
+
+.top10 h1:focus { outline: none; }
+.baseado-em, .contagem-curtidos { margin: 4px 0; color: var(--suave); }
+.explicacao-motivo { margin: 16px 0; color: var(--suave); }
+.lista-recomendacoes { margin: 16px 0; padding-left: 28px; display: grid; gap: 16px; }
+.item-recomendacao { padding-left: 4px; }
+.item-recomendacao::marker { font-weight: 600; }
+.item-recomendacao .cartao-filme { max-width: 360px; }
+.porque { margin: 0; color: var(--suave); font-size: 0.9rem; }
+.selo-novo { border-style: solid; border-color: var(--destaque); color: var(--destaque); font-weight: 600; }
+.selo-populares { cursor: help; }
+.indicador-atualizando { margin: 4px 0; color: var(--suave); }
+.faixa-erro { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 8px 12px; border: 1px solid var(--perigo); border-radius: 8px; color: var(--perigo); }
+.item-saindo { opacity: 0.4; transition: opacity 200ms ease-out; pointer-events: none; }
+.item-novo { animation: entra 250ms ease-out; }
+@keyframes entra { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .item-saindo { transition: none; } .item-novo { animation: none; } }
+
+.acoes-lista { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.aviso-acao .anuncio { opacity: 0.9; }
+
+.sobre { max-width: 720px; }
+.sobre-resumo p { font-size: 1.1rem; }
+.sobre-numeros, .sobre-hashes { display: grid; gap: 8px; margin: 12px 0; }
+.sobre-numeros dt, .sobre-hashes dt { color: var(--suave); font-size: 0.9rem; }
+.sobre-numeros dd, .sobre-hashes dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.sobre-detalhes { margin: 16px 0; padding: 8px 16px; border: 1px solid var(--borda); border-radius: 8px; background: var(--card); }
+.sobre-detalhes summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; }

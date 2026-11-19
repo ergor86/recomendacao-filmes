@@ -44,7 +44,7 @@ const corpoDe = (e) => (e.tipo === 'nota' ? { tipo: 'nota', nota: e.nota } : { t
  * As escritas do mesmo controle vão em fila, na ordem dos cliques; o resultado vai ao AvisoAcao
  * (com "Desfazer", que reaplica o `anterior`) e o novo estado ao `aoMudar`.
  */
-export function useInteracao({ perfilId, filme, estado, aoMudar }) {
+export function useInteracao({ perfilId, filme, estado, aoMudar, enviar }) {
   const { mostrar } = useAviso();
   const fila = useRef(Promise.resolve());
   // estado mais recente (otimista): a alternância decide por ele, não pela prop, que só muda quando a escrita volta
@@ -62,10 +62,15 @@ export function useInteracao({ perfilId, filme, estado, aoMudar }) {
   const url = `/api/perfis/${perfilId}/interacoes/${filme.id}`;
   const aoMudarRef = useRef(aoMudar);
   aoMudarRef.current = aoMudar;
+  // escritor opcional (ex.: o Top 10, que coordena as escritas e a atualização da lista)
+  const enviarRef = useRef(enviar);
+  enviarRef.current = enviar;
 
   const executar = useCallback(async (novo, desfazendo) => {
     try {
-      const r = novo ? await chamar('PUT', url, corpoDe(novo)) : await chamar('DELETE', url);
+      const r = enviarRef.current
+        ? await enviarRef.current(novo)
+        : novo ? await chamar('PUT', url, corpoDe(novo)) : await chamar('DELETE', url);
       const estado = novo ? { tipo: novo.tipo, nota: novo.nota ?? null } : null;
       aoMudarRef.current?.(estado, r);
       const frase = fraseEfeitos({

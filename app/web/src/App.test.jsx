@@ -2,8 +2,10 @@ import { describe, test, expect, vi } from 'vitest';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from './App.jsx';
-import { simularFetch, perfilExemplo } from './apoio-testes.js';
+import { simularFetch, perfilExemplo, recomendacoesExemplo } from './apoio-testes.js';
 
+// o título do filme aparece também dentro do SVG do cartaz: a consulta mira o título do cartão
+const SEL = { selector: '.cartao-titulo' };
 const operante = { estado: 'operante', perfis: { disponivel: true } };
 
 describe('App', () => {
@@ -47,6 +49,7 @@ describe('App', () => {
     simularFetch([
       ['GET', '/api/saude', operante],
       ['GET', '/api/perfis', () => (n++ === 0 ? new Response('x', { status: 500 }) : [p])],
+      ['GET', `/api/perfis/${p.id}/recomendacoes`, recomendacoesExemplo([1])],
     ]);
     render(<MemoryRouter><App /></MemoryRouter>);
     const botao = await screen.findByRole('button', { name: 'Tentar de novo' });
@@ -54,5 +57,65 @@ describe('App', () => {
     fireEvent.click(botao);
     expect(await screen.findByText(/Perfil: Ana/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Tentar de novo' })).toBeNull();
+  });
+
+  test('perfil com onboarding concluído abre no Top 10 e traz a navegação', async () => {
+    const p = perfilExemplo();
+    window.localStorage.setItem('perfilAtivo', p.id);
+    const { chamadas } = simularFetch([
+      ['GET', '/api/saude', operante],
+      ['GET', '/api/perfis', [p]],
+      ['GET', `/api/perfis/${p.id}/recomendacoes`, recomendacoesExemplo([1, 2])],
+    ]);
+    render(<MemoryRouter><App /></MemoryRouter>);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Top 10' })).toBeTruthy();
+    expect(await screen.findByText('Filme 1', SEL)).toBeTruthy();
+    expect(chamadas.some((c) => c.url === `/api/perfis/${p.id}/recomendacoes`)).toBe(true);
+    expect(screen.getByRole('navigation', { name: 'Principal' })).toBeTruthy();
+  });
+
+  test('perfil sem onboarding concluído vai ao onboarding, não ao Top 10', async () => {
+    const p = perfilExemplo({ onboardingConcluido: false });
+    window.localStorage.setItem('perfilAtivo', p.id);
+    simularFetch([
+      ['GET', '/api/saude', operante],
+      ['GET', '/api/perfis', [p]],
+      ['GET', /\/onboarding/, { itens: [], proximoCursor: null }],
+    ]);
+    render(<MemoryRouter><App /></MemoryRouter>);
+    expect(await screen.findByText(/Marque filmes que você já viu e gostou/)).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Top 10' })).toBeNull();
+  });
+
+  test('/sobre abre sem perfil ativo', async () => {
+    simularFetch([
+      ['GET', '/api/saude', operante],
+      ['GET', '/api/sobre', {
+        versao: '0.1.0', commitCodigo: 'c048537', hashes: { regua: 'a', treino: 'b', vetoresFC: 'c' },
+        resultado: { media: 0.0294, ic95: [0.0136, 0.0458], nUsuarios: 445 }, resumo: ['Frase um.', 'Frase dois.', 'Frase três.'],
+        metodo: '', conclusao: '', naoSignifica: [], tecnica: { mecanismo: 'S1/HNSW', m: 300, nFc: 150, descricao: '' },
+        avisos: [], licencas: [], citacao: '',
+      }],
+    ]);
+    render(<MemoryRouter initialEntries={['/sobre']}><App /></MemoryRouter>);
+    expect(await screen.findByText('Frase um.')).toBeTruthy();
+    expect(screen.queryByText('Quem está usando?')).toBeNull();
+  });
+
+  test('/minha-lista e /minhas-avaliacoes pedem os tipos certos', async () => {
+    const p = perfilExemplo();
+    window.localStorage.setItem('perfilAtivo', p.id);
+    const { chamadas } = simularFetch([
+      ['GET', '/api/saude', operante],
+      ['GET', '/api/perfis', [p]],
+      ['GET', /\/interacoes\?/, { itens: [], total: 0, pagina: 1 }],
+    ]);
+    const { unmount } = render(<MemoryRouter initialEntries={['/minha-lista']}><App /></MemoryRouter>);
+    await screen.findByRole('heading', { level: 1, name: 'Minha lista' });
+    await waitFor(() => expect(chamadas.some((c) => c.url.includes('tipos=quero_assistir'))).toBe(true));
+    unmount();
+    render(<MemoryRouter initialEntries={['/minhas-avaliacoes']}><App /></MemoryRouter>);
+    await screen.findByRole('heading', { level: 1, name: 'Minhas avaliações' });
+    await waitFor(() => expect(chamadas.some((c) => c.url.includes('tipos=nota,gostei'))).toBe(true));
   });
 });
