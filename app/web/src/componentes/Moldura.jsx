@@ -6,7 +6,7 @@ export default function Moldura({ perfil, onTrocarPerfil, children }) {
     <ProvedorAviso>
       <div className="moldura">
         <header className="moldura-topo">
-          <strong className="moldura-nome">Recomendação de filmes</strong>
+          <strong className="moldura-nome">Minha Prateleira</strong>
           {perfil && (
             <div className="moldura-perfil">
               <span>Perfil: {perfil.nome ?? '…'}</span>
