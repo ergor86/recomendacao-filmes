@@ -41,7 +41,7 @@ export default function BarraBusca({ valor, aoMudar, comOrdem = true, comSoInflu
     <form className="barra-busca" role="search" onSubmit={(e) => { e.preventDefault(); if (texto !== (valor.q ?? '')) aoMudar({ ...valor, q: texto }); }}>
       <label>
         Buscar por título
-        <input type="search" value={texto} onChange={(e) => setTexto(e.target.value)} />
+        <input type="search" maxLength={100} value={texto} onChange={(e) => setTexto(e.target.value)} />
       </label>
       <label>
         Gênero
