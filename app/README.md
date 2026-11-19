@@ -49,7 +49,7 @@ Todos os comandos rodam dentro de `app/`.
   - no bash: `APP_PORTA=3001 docker compose up`.
 - **Sem internet na preparação, com zip local:** baixe antes o `ml-100k.zip` do GroupLens e rode
   `ML100K_ZIP=/caminho/para/ml-100k.zip docker compose -f compose.yml -f compose.local-zip.yml run --rm preparar`
-  (no PowerShell, defina `$env:ML100K_ZIP` antes). O caminho precisa ser um arquivo, não uma pasta.
+  (no PowerShell, defina `$env:ML100K_ZIP` antes). O caminho precisa ser um arquivo, não uma pasta. Sem `ML100K_ZIP`, o Compose recusa com a mensagem "defina ML100K_ZIP com o caminho do zip".
 
 ## Problemas comuns
 
@@ -102,6 +102,8 @@ Cartazes reais não estão disponíveis: nenhum fornecedor com licença compatí
 ## Modo de desenvolvimento
 
 Desenvolvimento e testes usam o projeto Compose **`recomendacao-dev`**, declarado em `compose.dev.yml` (volume próprio; banco publicado em `127.0.0.1:5434`). O projeto `recomendacao-app` é a instalação real: nunca o use para testes nem rode `down -v` nele por causa de desenvolvimento.
+
+As suítes de integração trocam as senhas dos papéis `app_leitura` e `app_escrita` no cluster do projeto `recomendacao-dev` (por isso nunca as aponte para a instalação real). Depois delas, rode a preparação de novo (`docker compose -f compose.yml -f compose.dev.yml run --rm preparar`) antes de usar o app de desenvolvimento.
 
 ```
 docker compose -f compose.yml -f compose.dev.yml up -d db
