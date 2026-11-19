@@ -48,3 +48,27 @@ describe('api.chamar', () => {
     await expect(chamar('GET', '/api/x')).rejects.toMatchObject({ status: 502 });
   });
 });
+
+describe('api.chamar: estado do servidor mudou com a página aberta (spec 4.3 e 7)', () => {
+  const emitidos = async (status, codigo) => {
+    simularFetch([['GET', '/api/x', () => erroApi(status, codigo)]]);
+    const ouvinte = vi.fn();
+    window.addEventListener('estado-mudou', ouvinte);
+    await expect(chamar('GET', '/api/x')).rejects.toBeInstanceOf(ErroApi);
+    window.removeEventListener('estado-mudou', ouvinte);
+    return ouvinte.mock.calls.length;
+  };
+
+  test('503 BLOQUEADO emite estado-mudou', async () => {
+    expect(await emitidos(503, 'BLOQUEADO')).toBe(1);
+  });
+  test('503 PREPARANDO emite estado-mudou', async () => {
+    expect(await emitidos(503, 'PREPARANDO')).toBe(1);
+  });
+  test('503 BANCO_INDISPONIVEL não bloqueia: não emite (a Falha local com Tentar de novo basta)', async () => {
+    expect(await emitidos(503, 'BANCO_INDISPONIVEL')).toBe(0);
+  });
+  test('outros erros não emitem', async () => {
+    expect(await emitidos(409, 'LIMITE_PERFIS')).toBe(0);
+  });
+});

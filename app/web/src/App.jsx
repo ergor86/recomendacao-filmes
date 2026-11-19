@@ -64,6 +64,12 @@ export default function App() {
     return () => clearInterval(t);
   }, [operante, conferir]);
 
+  // um pedido recebeu 503 BLOQUEADO/PREPARANDO: reconsulta /saude (o polling volta enquanto não operante)
+  useEffect(() => {
+    window.addEventListener('estado-mudou', conferir);
+    return () => window.removeEventListener('estado-mudou', conferir);
+  }, [conferir]);
+
   useEffect(() => {
     const aoPerder = () => { gravarPerfilAtivo(null); setPerfil(null); };
     window.addEventListener('perfil-perdido', aoPerder);

@@ -45,6 +45,11 @@ export async function chamar(metodo, caminho, corpo, { signal } = {}) {
       mensagem: dados?.mensagem ?? 'Algo deu errado. Tente de novo.',
     });
     if (erro.codigo === 'PERFIL_NAO_ENCONTRADO') window.dispatchEvent(new CustomEvent('perfil-perdido'));
+    // 503 BLOQUEADO/PREPARANDO com a página aberta: o App reconsulta /api/saude.
+    // BANCO_INDISPONIVEL não bloqueia (§4.3): fica a Falha local, com "Tentar de novo".
+    if (erro.status === 503 && (erro.codigo === 'BLOQUEADO' || erro.codigo === 'PREPARANDO')) {
+      window.dispatchEvent(new CustomEvent('estado-mudou'));
+    }
     throw erro;
   }
   return dados;

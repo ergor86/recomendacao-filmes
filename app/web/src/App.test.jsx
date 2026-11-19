@@ -167,3 +167,54 @@ describe('App', () => {
     expect(screen.queryByText('Frase um.')).toBeNull();
   });
 });
+
+describe('App: bloqueio com a página aberta (spec 4.3, gatilho 1)', () => {
+  test('503 BLOQUEADO num pedido de dados leva à TelaPreparando sem recarregar, e a volta a operante retoma', async () => {
+    const p = perfilExemplo();
+    window.localStorage.setItem('perfilAtivo', p.id);
+    let estado = 'operante';
+    let bloquearDados = false;
+    simularFetch([
+      ['GET', '/api/saude', () => (estado === 'operante'
+        ? operante
+        : { estado: 'bloqueado', causa: 'A conferência de integridade falhou.', comando: 'docker compose run --rm preparar', perfis: { disponivel: true } })],
+      ['GET', '/api/perfis', [p]],
+      ['GET', `/api/perfis/${p.id}/recomendacoes`, () => (bloquearDados
+        ? new Response(JSON.stringify({ codigo: 'BLOQUEADO', mensagem: 'A aplicação está bloqueada: a conferência de integridade falhou.' }), { status: 503, headers: { 'Content-Type': 'application/json' } })
+        : recomendacoesExemplo([1]))],
+    ]);
+    render(<MemoryRouter><App /></MemoryRouter>);
+    expect(await screen.findByText('Filme 1', SEL)).toBeTruthy();
+
+    // o bloqueio acontece com a página já aberta: o próximo pedido de dados recebe 503 BLOQUEADO
+    estado = 'bloqueado';
+    bloquearDados = true;
+    await act(async () => { window.dispatchEvent(new CustomEvent('estado-mudou')); });
+    expect(await screen.findByRole('heading', { name: 'A aplicação está bloqueada' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Apagar perfis e avaliações' })).toBeTruthy();
+
+    // volta a operante: a interface retoma sozinha (o polling roda fora do estado operante)
+    estado = 'operante';
+    bloquearDados = false;
+    expect(await screen.findByText('Filme 1', SEL, { timeout: 5000 })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'A aplicação está bloqueada' })).toBeNull();
+  }, 15000);
+
+  test('o 503 BLOQUEADO de um pedido da própria tela dispara a reconsulta de /saude (ponta a ponta, sem evento manual)', async () => {
+    const p = perfilExemplo();
+    window.localStorage.setItem('perfilAtivo', p.id);
+    let bloqueado = false;
+    simularFetch([
+      ['GET', '/api/saude', () => (bloqueado ? { estado: 'bloqueado', causa: 'x', comando: 'y', perfis: { disponivel: true } } : operante)],
+      ['GET', '/api/perfis', [p]],
+      ['GET', `/api/perfis/${p.id}/recomendacoes`, recomendacoesExemplo([1])],
+      ['GET', /\/api\/filmes\?/, () => {
+        bloqueado = true;
+        return new Response(JSON.stringify({ codigo: 'BLOQUEADO', mensagem: 'bloqueado' }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+      }],
+      ['GET', '/api/generos', []],
+    ]);
+    render(<MemoryRouter initialEntries={['/catalogo']}><App /></MemoryRouter>);
+    expect(await screen.findByRole('heading', { name: 'A aplicação está bloqueada' })).toBeTruthy();
+  });
+});
