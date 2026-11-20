@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { chamar } from '../api.js';
 import Cartaz from '../componentes/Cartaz.jsx';
@@ -13,22 +13,46 @@ export default function DetalheFilme({ perfilId }) {
   const [filme, setFilme] = useState(null);
   const [erro, setErro] = useState(null);
   const [tentativa, setTentativa] = useState(0);
+  // guarda das recargas pós-escrita: `chave` é o filme+perfil na tela; `geracao` numera as recargas (só a mais recente vale)
+  const chave = useRef('');
+  const geracao = useRef(0);
 
   // uma única carga, com a guarda `ativo`: trocar de filme, desmontar ou tentar de novo descarta a resposta velha
   useEffect(() => {
     let ativo = true;
+    chave.current = `${id}|${perfilId}`;
+    geracao.current += 1;
     setErro(null);
     setFilme(null);
     chamar('GET', `/api/filmes/${id}?perfilId=${perfilId}`)
       .then((f) => { if (ativo) setFilme(f); })
       .catch((e) => { if (ativo) setErro(e); });
-    return () => { ativo = false; };
+    return () => { ativo = false; geracao.current += 1; };
   }, [id, perfilId, tentativa]);
 
+  // "Neste computador" é calculado no servidor (a escrita não devolve estatísticas): recarrega o detalhe sem
+  // piscar a tela e aplica só `computador`; falha, filme/perfil trocado ou recarga mais antiga: descarta em silêncio
+  const recarregarComputador = (filmeId) => {
+    const minha = ++geracao.current;
+    const dona = chave.current;
+    chamar('GET', `/api/filmes/${filmeId}?perfilId=${perfilId}`)
+      .then((novo) => {
+        if (minha !== geracao.current || dona !== chave.current || !novo?.estatisticas?.computador) return;
+        setFilme((f) => (f && f.id === filmeId
+          ? { ...f, estatisticas: { ...f.estatisticas, computador: novo.estatisticas.computador } }
+          : f));
+      })
+      .catch(() => {});
+  };
+
   // só aplica se o filme na tela ainda é o dono da escrita (PUT ou Desfazer tardio não vaza para outro filme)
-  const aoMudar = (filmeId, estado) => setFilme((f) => (f && f.id === filmeId
-    ? { ...f, estadoPerfil: estado, estatisticas: { ...f.estatisticas, sua: estado } }
-    : f));
+  const aoMudar = (filmeId, estado) => {
+    if (String(filmeId) !== String(id)) return;
+    setFilme((f) => (f && f.id === filmeId
+      ? { ...f, estadoPerfil: estado, estatisticas: { ...f.estatisticas, sua: estado } }
+      : f));
+    recarregarComputador(filmeId);
+  };
 
   if (erro) {
     return (
