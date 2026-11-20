@@ -30,7 +30,7 @@ Docker Engine no WSL2 Ubuntu; Docker Desktop com backend WSL2 também funciona.
 Projeto no Windows: o Node roda aqui; o WSL2 encaminha a porta 5433 para localhost.
 
     # PowerShell, na pasta C:\dev
-    git clone <url-do-repositório> recomendacao-filmes
+    git clone https://github.com/ergor86/recomendacao-filmes.git
     cd recomendacao-filmes
 
 ### 3. Criar o `.env`

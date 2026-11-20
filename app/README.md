@@ -22,7 +22,7 @@ Não precisa de Node, de chave de serviço nem de arquivo `.env`.
 ## Instalação
 
 ```
-git clone <URL do repositório no GitHub>
+git clone https://github.com/ergor86/recomendacao-filmes.git
 cd recomendacao-filmes/app
 docker compose up --build
 ```
