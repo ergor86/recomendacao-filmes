@@ -174,8 +174,8 @@ export default function ControleInteracao({ perfilId, filme, estado, aoMudar }) 
         <button type="button" disabled={!estado} onClick={() => aplicar(null)}>Remover</button>
       </div>
       <p className="texto-fixo">
-        <strong>Gostei</strong> e notas <strong>4–5</strong> entram no cálculo dos seus gostos. Qualquer marcação,
-        inclusive notas 1–3 e &apos;Quero assistir&apos;, tira o filme das suas recomendações. Notas 1–3 ainda não afastam filmes parecidos.
+        <strong>Gostei</strong> e notas <strong>4 ou 5</strong> contam igual: dizem do que você gosta. Notas <strong>1 a 3</strong> e{' '}
+        <strong>Quero assistir</strong> só tiram o filme das suas recomendações, sem mudar o que é sugerido a partir do resto.
       </p>
     </div>
   );

@@ -53,7 +53,7 @@ describe('ControleInteracao', () => {
   test('texto fixo literal', () => {
     montar();
     expect(document.body.textContent).toContain(
-      "Gostei e notas 4–5 entram no cálculo dos seus gostos. Qualquer marcação, inclusive notas 1–3 e 'Quero assistir', tira o filme das suas recomendações. Notas 1–3 ainda não afastam filmes parecidos.",
+      'Gostei e notas 4 ou 5 contam igual: dizem do que você gosta. Notas 1 a 3 e Quero assistir só tiram o filme das suas recomendações, sem mudar o que é sugerido a partir do resto.',
     );
   });
 
