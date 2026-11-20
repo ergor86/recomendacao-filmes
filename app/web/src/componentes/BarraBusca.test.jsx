@@ -9,4 +9,16 @@ describe('BarraBusca', () => {
     render(<BarraBusca valor={{}} aoMudar={() => {}} />);
     expect(screen.getByLabelText('Buscar por título').getAttribute('maxlength')).toBe('100');
   });
+
+  test('as opções de ordem dizem o critério: Mais notas e Maior média', () => {
+    simularFetch([['GET', '/api/generos', []]]);
+    render(<BarraBusca valor={{}} aoMudar={() => {}} />);
+    const opcoes = [...screen.getByLabelText('Ordem').querySelectorAll('option')].map((o) => [o.value, o.textContent]);
+    expect(opcoes).toEqual([
+      ['mais_avaliados', 'Mais notas'],
+      ['mais_bem_avaliados', 'Maior média'],
+      ['titulo', 'Título'],
+      ['ano', 'Ano (mais recentes)'],
+    ]);
+  });
 });

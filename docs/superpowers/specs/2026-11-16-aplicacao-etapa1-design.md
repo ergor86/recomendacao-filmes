@@ -333,7 +333,7 @@ As senhas dos dois papéis são aleatórias, geradas pela preparação em `crede
 - **Neste computador:** `COUNT` e `AVG` ao vivo das notas em `app.interacao`. Os perfis de exemplo (`perfil.exemplo = true`) **não** entram.
 - **Suficiência:** com `n < 5` numa fonte, a média e o percentual vêm `null` e a flag é `poucasNotas: true`. A contagem aparece sempre.
 - **As fontes nunca são somadas.**
-- A média bayesiana (C = 10, m = a média global do treino) serve só para ordenar "Mais bem avaliados" e nunca é exibida.
+- A média bayesiana (C = 10, m = a média global do treino) serve só para ordenar "Maior média" e nunca é exibida. As opções de ordem do catálogo se chamam "Mais notas" (número de notas no MovieLens) e "Maior média" (no lugar de "Mais avaliados" e "Mais bem avaliados", decisão do usuário em 2026-11-20).
 
 ## 6. API (JSON, `/api`)
 

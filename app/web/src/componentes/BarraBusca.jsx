@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { chamar } from '../api.js';
 
 const ORDENS = [
-  ['mais_avaliados', 'Mais avaliados'],
-  ['mais_bem_avaliados', 'Mais bem avaliados'],
+  ['mais_avaliados', 'Mais notas'],
+  ['mais_bem_avaliados', 'Maior média'],
   ['titulo', 'Título'],
   ['ano', 'Ano (mais recentes)'],
 ];
