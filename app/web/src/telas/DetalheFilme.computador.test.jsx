@@ -23,6 +23,7 @@ const montar = () => render(
   <MemoryRouter initialEntries={['/filmes/1']}>
     <ProvedorAviso>
       <Link to="/filmes/2">ir para o 2</Link>
+      <Link to="/filmes/1">ir para o 1</Link>
       <Routes><Route path="/filmes/:id" element={<DetalheFilme perfilId={PERFIL} />} /></Routes>
     </ProvedorAviso>
   </MemoryRouter>,
@@ -80,24 +81,57 @@ describe('DetalheFilme: "Neste computador" depois de uma escrita', () => {
     expect(secao().textContent).not.toContain('poucas notas ainda');
   });
 
-  test('corrida: a recarga do filme A atrasada não contamina o B', async () => {
+  test('corrida: a recarga de A atrasada não sobrescreve a carga nova de A depois de ir a B e voltar', async () => {
     const lenta = adiavel();
     let gets1 = 0;
     simularFetch([
-      ['GET', URL_GET(1), async () => { gets1 += 1; if (gets1 === 1) return detalhe(1, comp(0)); await lenta.promessa; return detalhe(1, comp(9, 4.5, false)); }],
+      ['GET', URL_GET(1), async () => {
+        gets1 += 1;
+        if (gets1 === 1) return detalhe(1, comp(0));
+        if (gets1 === 2) { await lenta.promessa; return detalhe(1, comp(9, 4.5, false)); }
+        return detalhe(1, comp(1));
+      }],
       ['GET', URL_GET(2), detalhe(2, comp(2, null, true))],
       ['PUT', `/api/perfis/${PERFIL}/interacoes/1`, putOk],
     ]);
     montar();
     await screen.findByRole('heading', { name: 'Filme 1' });
     fireEvent.click(estrela(4));
-    await acomodar(act);
+    await waitFor(() => expect(gets1).toBe(2));
     fireEvent.click(screen.getByText('ir para o 2'));
     await screen.findByRole('heading', { name: 'Filme 2' });
+    expect(nNotas()).toBe('2');
+    fireEvent.click(screen.getByText('ir para o 1'));
+    await screen.findByRole('heading', { name: 'Filme 1' });
+    expect(nNotas()).toBe('1');
     await act(async () => { lenta.resolver(); await lenta.promessa; });
     await acomodar(act);
-    expect(nNotas()).toBe('2');
-    expect(secao().textContent).toContain('poucas notas ainda');
+    expect(nNotas()).toBe('1');
+  });
+
+  test('um PUT tardio de A não descarta a recarga legítima de B', async () => {
+    const putA = adiavel();
+    const recargaB = adiavel();
+    let gets2 = 0;
+    let gets1 = 0;
+    simularFetch([
+      ['GET', URL_GET(1), () => { gets1 += 1; return detalhe(1, comp(0)); }],
+      ['GET', URL_GET(2), async () => { gets2 += 1; if (gets2 === 1) return detalhe(2, comp(2)); await recargaB.promessa; return detalhe(2, comp(7, 3.2, false)); }],
+      ['PUT', `/api/perfis/${PERFIL}/interacoes/1`, async () => { await putA.promessa; return putOk; }],
+      ['PUT', `/api/perfis/${PERFIL}/interacoes/2`, putOk],
+    ]);
+    montar();
+    await screen.findByRole('heading', { name: 'Filme 1' });
+    fireEvent.click(estrela(4));
+    fireEvent.click(screen.getByText('ir para o 2'));
+    await screen.findByRole('heading', { name: 'Filme 2' });
+    fireEvent.click(estrela(5));
+    await waitFor(() => expect(gets2).toBe(2));
+    await act(async () => { putA.resolver(); await putA.promessa; });
+    await acomodar(act);
+    expect(gets1).toBe(1);
+    await act(async () => { recargaB.resolver(); await recargaB.promessa; });
+    await waitFor(() => expect(nNotas()).toBe('7'));
   });
 
   test('corrida: duas escritas seguidas, a primeira recarga chega depois da segunda', async () => {

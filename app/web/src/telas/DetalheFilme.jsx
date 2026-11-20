@@ -13,14 +13,12 @@ export default function DetalheFilme({ perfilId }) {
   const [filme, setFilme] = useState(null);
   const [erro, setErro] = useState(null);
   const [tentativa, setTentativa] = useState(0);
-  // guarda das recargas pós-escrita: `chave` é o filme+perfil na tela; `geracao` numera as recargas (só a mais recente vale)
-  const chave = useRef('');
+  // guarda das recargas pós-escrita: `geracao` numera as recargas; trocar de filme/perfil, tentar de novo ou desmontar também a avança
   const geracao = useRef(0);
 
   // uma única carga, com a guarda `ativo`: trocar de filme, desmontar ou tentar de novo descarta a resposta velha
   useEffect(() => {
     let ativo = true;
-    chave.current = `${id}|${perfilId}`;
     geracao.current += 1;
     setErro(null);
     setFilme(null);
@@ -34,10 +32,9 @@ export default function DetalheFilme({ perfilId }) {
   // piscar a tela e aplica só `computador`; falha, filme/perfil trocado ou recarga mais antiga: descarta em silêncio
   const recarregarComputador = (filmeId) => {
     const minha = ++geracao.current;
-    const dona = chave.current;
     chamar('GET', `/api/filmes/${filmeId}?perfilId=${perfilId}`)
       .then((novo) => {
-        if (minha !== geracao.current || dona !== chave.current || !novo?.estatisticas?.computador) return;
+        if (minha !== geracao.current || !novo?.estatisticas?.computador) return;
         setFilme((f) => (f && f.id === filmeId
           ? { ...f, estatisticas: { ...f.estatisticas, computador: novo.estatisticas.computador } }
           : f));
