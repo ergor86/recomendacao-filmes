@@ -91,8 +91,11 @@ Isso **não** é desempenho com novos usuários. A qualidade medida (usuários h
 ## Licenças e dados
 
 - Dados: MovieLens 100K, do GroupLens Research (Universidade de Minnesota), usados sob os termos de uso do GroupLens (uso não comercial, sem redistribuição, com citação). Este projeto não é endossado nem apoiado pelo GroupLens. Fonte: https://grouplens.org/datasets/movielens/100k/
-- O repositório não redistribui os arquivos originais do MovieLens nem registros individuais (nenhuma avaliação individual, id de usuário histórico ou dado demográfico). A preparação baixa os dados do site do GroupLens para o seu computador.
+- O repositório não redistribui os arquivos originais do MovieLens nem avaliações individuais ou dados demográficos. A preparação baixa os dados do site do GroupLens para o seu computador. A pasta `resultados/` da pesquisa traz métricas por usuário (NDCG@10 por id anônimo de usuário do MovieLens), das quais não se reconstroem notas.
 - As capturas em `docs/capturas/` são ilustrativas, com valores agregados e só o perfil de exemplo. Isso é uma escolha de cautela do projeto; não se afirma que a licença autorize toda publicação de dados derivados.
+- Código: licença MIT (arquivo [`LICENSE`](../LICENSE) na raiz), que cobre só o código, os testes e a documentação autorais. Ela não autoriza uso comercial, redistribuição nem outros usos do MovieLens fora dos termos do GroupLens, e não cobre `resultados/`, as capturas, a fonte nem as dependências. Detalhes na seção "Licença e dados de terceiros" do README da raiz.
+- Fonte Archivo (`web/public/fontes/`): SIL Open Font License 1.1, com o `OFL.txt` ao lado.
+- Dependências npm e imagens de contêiner: as licenças de cada uma.
 - Cartazes: gerados localmente a partir do título e dos gêneros; não há imagens nem sinopses de terceiros.
 
 Citação: F. Maxwell Harper and Joseph A. Konstan. 2015. The MovieLens Datasets: History and Context. ACM Transactions on Interactive Intelligent Systems (TiiS) 5, 4, Article 19. DOI: 10.1145/2827872

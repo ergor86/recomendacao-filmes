@@ -1,0 +1,49 @@
+MIT License
+
+Copyright (c) 2026 André de Souza Rosa
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+-------------------------------------------------------------------------------
+
+Scope / Escopo
+
+This MIT License covers only the original source code, tests, scripts and
+documentation written for this project. It does NOT cover, and grants no
+rights to:
+
+- the MovieLens 100K dataset, which is not included in this repository and is
+  governed by the GroupLens Research terms of use
+  (https://grouplens.org/datasets/movielens/100k/);
+- the files in `resultados/` and the screenshots in `app/docs/capturas/`,
+  which contain values derived from the MovieLens data (including per-user
+  metrics keyed by anonymous MovieLens user ids). They are published for
+  scientific reproducibility and remain subject to the GroupLens terms;
+- the Archivo font files in `app/web/public/fontes/`, licensed under the
+  SIL Open Font License 1.1 (see `app/web/public/fontes/OFL.txt`);
+- third-party dependencies and container images, which keep their own
+  licenses.
+
+See "Licença e dados de terceiros" in README.md for details.
+
+A licença MIT acima cobre apenas o código-fonte, os testes, os scripts e a
+documentação autorais deste projeto. Ela não cobre nem concede direitos sobre
+o MovieLens 100K, os arquivos de `resultados/`, as capturas em
+`app/docs/capturas/`, a fonte Archivo (SIL OFL 1.1) nem as dependências de
+terceiros. Detalhes na seção "Licença e dados de terceiros" do README.md.

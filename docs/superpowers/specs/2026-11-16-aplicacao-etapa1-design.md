@@ -667,7 +667,8 @@ O Playwright e o Vitest gravam só nessas pastas.
 5. **Sem requisição externa** em tempo de execução.
 6. **Comunicação honesta:** a tela Sobre e o README dizem o que foi medido, com quem, e o que não se transfere. O README declara a exclusão própria da aplicação e o índice reconstruído.
 7. **Licenças e dados:**
-   - O repositório não redistribui os arquivos originais do MovieLens nem registros individuais: nenhuma avaliação individual, id de usuário histórico, dado demográfico ou informação que permita reconstruir registros.
+   - O repositório não redistribui os arquivos originais do MovieLens nem registros individuais: nenhuma avaliação individual, dado demográfico ou informação que permita reconstruir registros. A aplicação (`app/`) também não traz id de usuário histórico.
+   - Exceção anterior à aplicação, registrada em 2026-11-20: os resultados congelados da pesquisa (`resultados/avaliacao-final.json` e `resultados/avaliacao-v2.json`) trazem o NDCG@10 por id anônimo de usuário do MovieLens. Um número por usuário e sistema não permite reconstruir notas. Esses arquivos ficam fora da licença MIT do código e sujeitos aos termos do GroupLens (README, seção "Licença e dados de terceiros").
    - Podem ser publicados resultados agregados do projeto e capturas ilustrativas (`app/docs/capturas/`), desde que o detalhe use um filme com muitas avaliações históricas, só apareçam cartazes gerados localmente e só perfis de demonstração, sem dados pessoais, tokens ou credenciais. Esta regra é uma escolha de cautela do projeto; a spec não afirma que a licença do MovieLens autorize expressamente toda publicação de dados derivados.
    - Nenhum cartaz ou sinopse de terceiros no repositório.
    - A atribuição à GroupLens aparece no app e no README, sem sugerir endosso.
