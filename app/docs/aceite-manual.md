@@ -7,7 +7,12 @@ Este arquivo é preenchido pela pessoa que executa o aceite (spec §13, critéri
 Num clone novo, sem `.env` e sem dados anteriores, em Windows com Docker Desktop (e, se houver acesso, em Mac ARM):
 
 1. Conferir os pré-requisitos do README (Docker, 3 GB livres, internet).
-2. `git clone` e `cd recomendacao-filmes/app`.
+2. Clonar e entrar em `app/`. Enquanto o PR #4 não for incorporado à `main`, a `main` ainda não tem a pasta `app/`; clone a branch:
+   ```
+   git clone -b app-etapa1 --single-branch https://github.com/ergor86/recomendacao-filmes.git
+   cd recomendacao-filmes/app
+   ```
+   Depois do merge, vale o comando do README: `git clone https://github.com/ergor86/recomendacao-filmes.git`. Anote no registro qual dos dois foi usado e o commit (`git log -1 --format=%h`).
 3. `docker compose up --build`. Marcar o tempo até aparecer `Pronto: abra http://localhost:3000`.
 4. Abrir http://localhost:3000 e acompanhar a tela de preparação até a aplicação abrir.
 5. Criar um perfil, marcar 3 filmes com "Gostei" e conferir o Top 10 com "Porque você curtiu".
@@ -25,6 +30,7 @@ Preencher uma cópia deste bloco por sistema testado. Nada abaixo foi preenchido
 | Campo | Valor |
 |---|---|
 | Data | |
+| Comando de clone usado (branch ou `main`) e commit testado | |
 | Versão do Docker (`docker version`) | |
 | Sistema (nome e versão; arquitetura) | |
 | Tempo da primeira preparação (do `up --build` até `Pronto`) | |

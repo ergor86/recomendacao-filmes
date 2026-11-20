@@ -27,6 +27,8 @@ cd recomendacao-filmes/app
 docker compose up --build
 ```
 
+Para testar uma branch que ainda não foi incorporada à `main`, clone só ela, por exemplo `git clone -b app-etapa1 --single-branch https://github.com/ergor86/recomendacao-filmes.git`, e siga com os mesmos `cd` e `docker compose up --build`.
+
 Abra http://localhost:3000. A página mostra o progresso da preparação; quando termina, a aplicação abre sozinha. O terminal imprime `Pronto: abra http://localhost:<porta>`.
 
 **Tempo da primeira preparação.** Medições da Tarefa 16, feitas numa única máquina de desenvolvimento (Windows, Docker no WSL2, rede rápida); o seu tempo depende de internet e disco:
