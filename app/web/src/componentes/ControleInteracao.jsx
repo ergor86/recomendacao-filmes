@@ -5,7 +5,7 @@ import { useAviso } from './AvisoAcao.jsx';
 const FRASES = Object.freeze({
   conta: 'Este filme agora conta para as suas recomendações.',
   deixouDeContar: 'Este filme deixou de contar para as suas recomendações e não aparece nelas enquanto estiver marcado.',
-  notaBaixa: 'Notas 1–3 tiram este filme das recomendações, mas ainda não afastam filmes parecidos.',
+  notaBaixa: 'Notas 1–3 tiram este filme das recomendações, mas não afastam filmes parecidos.',
   semVetor: 'Este filme é raro nos dados de 1998 e não entra no cálculo dos seus gostos.',
   queroAssistir: 'Ele não aparece nas recomendações enquanto estiver na Minha lista.',
   voltar: 'Este filme pode voltar a aparecer nas recomendações.',

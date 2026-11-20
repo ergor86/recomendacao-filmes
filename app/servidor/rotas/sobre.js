@@ -46,7 +46,7 @@ const NAO_SIGNIFICA = Object.freeze([
 
 const LIMITES = Object.freeze([
   'O catálogo vai só até 1998: o MovieLens 100K não tem filmes mais novos.',
-  'Notas 1–3 tiram o filme das suas recomendações, mas ainda não afastam filmes parecidos (não há sinal negativo).',
+  'Notas 1–3 tiram o filme das suas recomendações, mas não afastam filmes parecidos (não há sinal negativo).',
   'Um filme raro nos dados de 1998 não tem vetor: curtir esse filme não entra no cálculo dos seus gostos.',
   'Os perfis ficam só neste computador e não têm senha.',
 ]);

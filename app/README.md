@@ -78,7 +78,7 @@ A preparação baixa o `u1.base`, que contém as notas das quais o teste-2 da pe
 
 É a mesma S1 da pesquisa: mesmos vetores (conferidos por hash), mesma busca com M = 300, os 150 primeiros e o top 10 como prefixo deles, completado pelos mais avaliados.
 
-Muda só o **conjunto de exclusão**: no lugar dos filmes vistos no treino, saem das recomendações os filmes com qualquer interação do seu perfil, mais os filmes ocultos (o 267 e o gêmeo de maior id de cada par). Qualquer nota, "Gostei" ou "Quero assistir" tira o filme da lista; só "Gostei" e as notas 4 e 5 entram no seu perfil de gostos. Notas 1 a 3 ainda não afastam filmes parecidos.
+Muda só o **conjunto de exclusão**: no lugar dos filmes vistos no treino, saem das recomendações os filmes com qualquer interação do seu perfil, mais os filmes ocultos (o 267 e o gêmeo de maior id de cada par). Qualquer nota, "Gostei" ou "Quero assistir" tira o filme da lista; só "Gostei" e as notas 4 e 5 entram no seu perfil de gostos. Notas 1 a 3 não afastam filmes parecidos.
 
 O **índice HNSW é reconstruído** em cada instalação, com níveis aleatórios. Por isso a lista aproximada pode diferir, em casos raros, da que o índice da pesquisa daria; a fidelidade publicada entre HNSW e busca exata foi medida no índice da pesquisa.
 

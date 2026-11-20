@@ -421,7 +421,7 @@ Recomendacoes = { perfilId, geradoEm,
 **Frases do `AvisoAcao`:**
 - `perfilMudou` e `contribuiParaPerfil`: "Este filme agora conta para as suas recomendações."
 - `perfilMudou` sem `contribuiParaPerfil` (PUT): "Este filme deixou de contar para as suas recomendações e não aparece nelas enquanto estiver marcado."
-- Nota 1–3 sem mudança de perfil: "Notas 1–3 tiram este filme das recomendações, mas ainda não afastam filmes parecidos."
+- Nota 1–3 sem mudança de perfil: "Notas 1–3 tiram este filme das recomendações, mas não afastam filmes parecidos." (sem o "ainda", decisão do usuário em 2026-11-20)
 - Filme sem vetor, com "Gostei" ou nota 4–5: "Este filme é raro nos dados de 1998 e não entra no cálculo dos seus gostos."
 - "Quero assistir": "Ele não aparece nas recomendações enquanto estiver na Minha lista."
 - `DELETE`: "Este filme pode voltar a aparecer nas recomendações." Com `perfilMudou`, antes vem "Ele deixou de contar para os seus gostos."

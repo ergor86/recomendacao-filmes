@@ -18,7 +18,7 @@ describe('fraseEfeitos (frases literais da spec 7)', () => {
   });
   test('nota 1-3 sem mudança de perfil', () => {
     expect(fraseEfeitos({ efeitos: ef(false, false), tipo: 'nota', nota: 3, temVetor: true, operacao: 'put' }))
-      .toBe('Notas 1–3 tiram este filme das recomendações, mas ainda não afastam filmes parecidos.');
+      .toBe('Notas 1–3 tiram este filme das recomendações, mas não afastam filmes parecidos.');
   });
   test('filme sem vetor com Gostei ou nota 4-5', () => {
     const esperado = 'Este filme é raro nos dados de 1998 e não entra no cálculo dos seus gostos.';
