@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { LOCK_PERFIS } from '../../servidor/rotas/perfis.js';
 import { HASHES } from '../../integridade.js';
 import { prepararTudo } from '../../preparar/preparar.js';
 import { construirApp } from '../../servidor/app.js';
@@ -204,6 +205,124 @@ describe('perfis e interações (banco app_teste_perfis)', { timeout: 900_000, s
       const ok = await pedir('PATCH', `/api/perfis/${x.id}`, { nome: 'Bia 2' });
       assert.equal(ok.status, 200);
       assert.equal(ok.corpo.nome, 'Bia 2');
+    });
+
+    it('o perfil de exemplo pode manter, ajustar a caixa e voltar ao próprio nome', async () => {
+      const ex = (await pedir('POST', '/api/perfis/exemplo')).corpo;
+      for (const nome of ['Perfil de exemplo', 'PERFIL DE EXEMPLO', 'Meu exemplo', 'Perfil de exemplo']) {
+        const r = await pedir('PATCH', `/api/perfis/${ex.id}`, { nome });
+        assert.equal(r.status, 200, nome);
+        assert.equal(r.corpo.nome, nome);
+      }
+      recusado(await pedir('POST', '/api/perfis', { nome: 'perfil de exemplo' }));
+    });
+
+    it('reserva comparada no banco: "PERFİL DE EXEMPLO" (İ turco) também é recusado', async () => {
+      recusado(await pedir('POST', '/api/perfis', { nome: 'PERFİL DE EXEMPLO' }));
+      assert.equal(await contagem(), 0);
+    });
+
+    it('PATCH em id inexistente → 404 mesmo com nome ocupado ou reservado', async () => {
+      await criar('Ana');
+      for (const nome of ['Ana', 'ana', 'Perfil de exemplo', 'Livre']) {
+        const r = await pedir('PATCH', `/api/perfis/${PERFIL_FANTASMA}`, { nome });
+        assert.equal(r.status, 404, nome);
+        assert.equal(r.corpo.codigo, 'PERFIL_NAO_ENCONTRADO');
+      }
+    });
+
+    it('NFC: "André" composto e decomposto são o mesmo nome; grava em NFC', async () => {
+      const composto = 'Andr\u00e9';
+      const decomposto = 'Andre\u0301';
+      const a = await pedir('POST', '/api/perfis', { nome: decomposto });
+      assert.equal(a.status, 201);
+      assert.equal(a.corpo.nome, composto);
+      recusado(await pedir('POST', '/api/perfis', { nome: composto }));
+      assert.equal((await pedir('POST', '/api/perfis', { nome: 'Andre' })).status, 201);
+      const b = await criar('Outro');
+      recusado(await pedir('PATCH', `/api/perfis/${b.id}`, { nome: decomposto.toUpperCase() }));
+    });
+
+    it('PATCH só com onboardingConcluido não pega o lock de perfis', async () => {
+      const p = await criar('Fabi');
+      const seg = await su.connect();
+      try {
+        await seg.query('BEGIN');
+        await seg.query('SELECT pg_advisory_xact_lock($1)', [LOCK_PERFIS]);
+        const r = await Promise.race([
+          pedir('PATCH', `/api/perfis/${p.id}`, { onboardingConcluido: true }),
+          dormir(5000).then(() => 'preso'),
+        ]);
+        assert.notEqual(r, 'preso', 'o PATCH ficou esperando o lock');
+        assert.equal(r.status, 200);
+      } finally {
+        await seg.query('ROLLBACK');
+        seg.release();
+      }
+    });
+
+    it('10 POSTs simultâneos (pool aquecido) com o mesmo nome: exatamente um 201', async () => {
+      await Promise.all(Array.from({ length: 10 }, () => su.query('SELECT 1')));
+      await Promise.all(Array.from({ length: 10 }, () => pedir('GET', '/api/perfis')));
+      for (let rodada = 0; rodada < 3; rodada += 1) {
+        const nome = `Zé${rodada}`;
+        const rs = await Promise.all(Array.from({ length: 10 }, (_, i) => pedir('POST', '/api/perfis', { nome: i % 2 ? nome.toUpperCase() : nome })));
+        assert.equal(rs.filter((r) => r.status === 201).length, 1, `rodada ${rodada}`);
+        assert.equal(rs.filter((r) => r.status === 409 && r.corpo.codigo === 'NOME_EM_USO').length, 9);
+      }
+    });
+
+    it('renomear × criar com o mesmo nome: exatamente um sucesso (várias rodadas)', async () => {
+      const b = await criar('Base');
+      for (let rodada = 0; rodada < 5; rodada += 1) {
+        const nome = `Disputa${rodada}`;
+        const rs = await Promise.all([
+          pedir('PATCH', `/api/perfis/${b.id}`, { nome }),
+          ...Array.from({ length: 4 }, () => pedir('POST', '/api/perfis', { nome: nome.toLowerCase() })),
+        ]);
+        assert.equal(rs.filter((r) => r.status === 200 || r.status === 201).length, 1, `rodada ${rodada}: ${rs.map((r) => r.status)}`);
+      }
+    });
+
+    it('renomear espera o lock de perfis (a checagem do nome roda sob ele)', async () => {
+      const p = await criar('Gabi');
+      const seg = await su.connect();
+      try {
+        await seg.query('BEGIN');
+        await seg.query('SELECT pg_advisory_xact_lock($1)', [LOCK_PERFIS]);
+        const pendente = pedir('PATCH', `/api/perfis/${p.id}`, { nome: 'Gabriela' });
+        const antes = await Promise.race([pendente, dormir(700).then(() => 'esperando')]);
+        assert.equal(antes, 'esperando', 'o PATCH de nome não esperou o lock');
+        await seg.query('COMMIT');
+        assert.equal((await pendente).status, 200);
+      } finally {
+        await seg.query('ROLLBACK').catch(() => {});
+        seg.release();
+      }
+    });
+
+    it('invisíveis (Cf) nas pontas são removidos; no meio, nunca', async () => {
+      const a = await pedir('POST', '/api/perfis', { nome: 'Ana\u200b' });
+      assert.equal(a.status, 201);
+      assert.equal(a.corpo.nome, 'Ana');
+      recusado(await pedir('POST', '/api/perfis', { nome: '\u200bAna' }));
+      recusado(await pedir('POST', '/api/perfis', { nome: '\ufeff \u00adANA\u200d\u2060 \u200e' }));
+      const b = await criar('Beto');
+      recusado(await pedir('PATCH', `/api/perfis/${b.id}`, { nome: 'Ana\u200b' }));
+      for (const nome of ['\u200b\u200b', ' \u200b\ufeff ', '\u00ad']) {
+        const r = await pedir('POST', '/api/perfis', { nome });
+        assert.equal(r.status, 400, JSON.stringify(nome));
+        assert.equal(r.corpo.codigo, 'VALIDACAO');
+      }
+      const familia = '\u{1F468}\u200d\u{1F469}\u200d\u{1F467}';
+      const f = await pedir('POST', '/api/perfis', { nome: familia });
+      assert.equal(f.status, 201);
+      assert.equal(f.corpo.nome, familia);
+      const c = await pedir('POST', '/api/perfis', { nome: '\u2764\ufe0f' });
+      assert.equal(c.status, 201);
+      assert.equal(c.corpo.nome, '\u2764\ufe0f');
+      const m = await pedir('POST', '/api/perfis', { nome: 'A\u200bB' });
+      assert.equal(m.corpo.nome, 'A\u200bB');
     });
 
     it('o 409 NOME_EM_USO não derruba o estado do app', async () => {

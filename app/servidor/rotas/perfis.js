@@ -65,25 +65,28 @@ export async function comTransacao(pool, fn) {
   }
 }
 
-/** Nome sem espaços nas pontas, de 1 a 40 caracteres (pontos de código: um emoji conta como 1). */
+// Espaços (o que o trim do JS remove) e caracteres de formato Unicode (\p{Cf}: U+200B, U+200D, U+FEFF, U+00AD...)
+// nas pontas, repetidos até não sobrar nenhum. Só as pontas: o meio fica intacto (emoji com ZWJ, U+FE0F).
+const PONTAS_INVISIVEIS = /^[\s\p{Cf}]+|[\s\p{Cf}]+$/gu;
+
+/** Nome em NFC, sem invisíveis nas pontas, de 1 a 40 caracteres (pontos de código: um emoji conta como 1). */
 function validarNome(nome) {
-  const limpo = nome.trim();
+  const limpo = nome.normalize('NFC').replace(PONTAS_INVISIVEIS, ''); // composto e decomposto (André) são o mesmo nome
   const n = Array.from(limpo).length;
   if (n < MIN_NOME || n > MAX_NOME) throw new ErroApi('VALIDACAO', `O nome deve ter de ${MIN_NOME} a ${MAX_NOME} caracteres.`);
   return limpo;
 }
 
-const NOME_RESERVADO = 'perfil de exemplo';
-
 // Nome único sem diferenciar caixa (decisão do usuário, 2026-11-21); roda sob o lock de LOCK_PERFIS.
-// Só compara com OUTROS perfis (`idAtual`), e o nome do perfil de exemplo é reservado a ele.
-async function exigirNomeLivre(cliente, nome, idAtual = null) {
-  const { rows } = await cliente.query(
-    `SELECT 1 FROM app.perfil WHERE lower(nome) = lower($1) AND ($2::uuid IS NULL OR id <> $2::uuid) LIMIT 1`,
+// Só compara com OUTROS perfis (`idAtual`). "Perfil de exemplo" é reservado ao perfil de exemplo
+// (`exemplo = true`). Tudo no banco, com o mesmo lower(), para a reserva e a unicidade não divergirem.
+async function exigirNomeLivre(cliente, nome, idAtual = null, atualEhExemplo = false) {
+  const { rows: [r] } = await cliente.query(
+    `SELECT EXISTS (SELECT 1 FROM app.perfil WHERE lower(nome) = lower($1) AND ($2::uuid IS NULL OR id <> $2::uuid)) AS repetido,
+            lower($1) = 'perfil de exemplo' AS reservado`,
     [nome, idAtual],
   );
-  const reservado = nome.toLowerCase() === NOME_RESERVADO;
-  if (rows.length || reservado) throw new ErroApi('NOME_EM_USO');
+  if (r.repetido || (r.reservado && !atualEhExemplo)) throw new ErroApi('NOME_EM_USO');
 }
 
 const buscarPerfil = async (cliente, id) => {
@@ -176,9 +179,7 @@ export async function rotasPerfis(app, { ciclo }) {
     const pool = exigirPoolEscrita(ciclo);
     const nome = req.body.nome === undefined ? null : validarNome(req.body.nome);
     const concluido = req.body.onboardingConcluido ?? null;
-    return comTransacao(pool, async (c) => {
-      await c.query('SELECT pg_advisory_xact_lock($1)', [LOCK_PERFIS]);
-      if (nome !== null) await exigirNomeLivre(c, nome, req.params.id);
+    const atualizar = async (c) => {
       const { rowCount } = await c.query(
         `UPDATE app.perfil SET nome = COALESCE($2, nome), onboarding_concluido = COALESCE($3, onboarding_concluido)
          WHERE id = $1`,
@@ -186,6 +187,15 @@ export async function rotasPerfis(app, { ciclo }) {
       );
       if (rowCount === 0) throw new ErroApi('PERFIL_NAO_ENCONTRADO', 'Perfil não encontrado.');
       return buscarPerfil(c, req.params.id);
+    };
+    if (nome === null) return atualizar(pool); // sem renomear: nada a conferir, sem lock
+    return comTransacao(pool, async (c) => {
+      await c.query('SELECT pg_advisory_xact_lock($1)', [LOCK_PERFIS]);
+      // a existência vem antes da regra de nome: id inexistente é sempre 404
+      const { rows: [alvo] } = await c.query('SELECT exemplo FROM app.perfil WHERE id = $1', [req.params.id]);
+      if (!alvo) throw new ErroApi('PERFIL_NAO_ENCONTRADO', 'Perfil não encontrado.');
+      await exigirNomeLivre(c, nome, req.params.id, alvo.exemplo);
+      return atualizar(c);
     });
   });
 }
