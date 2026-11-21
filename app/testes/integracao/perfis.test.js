@@ -325,6 +325,20 @@ describe('perfis e interações (banco app_teste_perfis)', { timeout: 900_000, s
       assert.equal(m.corpo.nome, 'A\u200bB');
     });
 
+    it('bandeiras com caracteres de tag (U+E0020–E007F) não perdem o fim do nome', async () => {
+      const inglaterra = '\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}';
+      const escocia = '\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}';
+      const a = await pedir('POST', '/api/perfis', { nome: `Torcida ${inglaterra}` });
+      assert.equal(a.status, 201);
+      assert.equal(a.corpo.nome, `Torcida ${inglaterra}`);
+      const b = await pedir('POST', '/api/perfis', { nome: `Torcida ${escocia}` });
+      assert.equal(b.status, 201);
+      assert.equal(b.corpo.nome, `Torcida ${escocia}`);
+      const c = await pedir('POST', '/api/perfis', { nome: `\u200b${inglaterra}\u200b` });
+      assert.equal(c.status, 201);
+      assert.equal(c.corpo.nome, inglaterra);
+    });
+
     it('o 409 NOME_EM_USO não derruba o estado do app', async () => {
       await criar('Eva');
       recusado(await pedir('POST', '/api/perfis', { nome: 'eva' }));

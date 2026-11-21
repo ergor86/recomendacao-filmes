@@ -65,9 +65,10 @@ export async function comTransacao(pool, fn) {
   }
 }
 
-// Espaços (o que o trim do JS remove) e caracteres de formato Unicode (\p{Cf}: U+200B, U+200D, U+FEFF, U+00AD...)
+// Espaços (o que o trim do JS remove) e caracteres de formato Unicode (\p{Cf}, menos os tags U+E0020–E007F: U+200B, U+200D, U+FEFF, U+00AD...)
 // nas pontas, repetidos até não sobrar nenhum. Só as pontas: o meio fica intacto (emoji com ZWJ, U+FE0F).
-const PONTAS_INVISIVEIS = /^[\s\p{Cf}]+|[\s\p{Cf}]+$/gu;
+const INVISIVEL = String.raw`[[\s\p{Cf}]--[\u{E0020}-\u{E007F}]]`; // sem os tags: formam bandeiras (🏴 + tags + U+E007F)
+const PONTAS_INVISIVEIS = new RegExp(`^${INVISIVEL}+|${INVISIVEL}+$`, 'gv');
 
 /** Nome em NFC, sem invisíveis nas pontas, de 1 a 40 caracteres (pontos de código: um emoji conta como 1). */
 function validarNome(nome) {
