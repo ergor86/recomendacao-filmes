@@ -1,0 +1,8 @@
+# Somente desenvolvimento e testes: projeto Compose proprio (`recomendacao-dev`, com volume proprio) e
+# banco publicado apenas no loopback. O nome `recomendacao-app` fica para a instalacao real (compose.yml).
+name: recomendacao-dev
+
+services:
+  db:
+    ports:
+      - "127.0.0.1:5434:5432"

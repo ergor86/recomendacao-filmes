@@ -1,0 +1,70 @@
+name: recomendacao-app
+
+services:
+  db:
+    image: pgvector/pgvector:0.8.1-pg17@sha256:3e8b3adfd27b5707128f60956f62a793c3c9326ea8cfaf0eab7adccb5d700b21
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-recomendacao_app}
+      # Valor padrao aceitavel: o banco nao publica porta. So vale na primeira
+      # inicializacao do volume; trocar exige `down -v` ou ALTER ROLE.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app-local-sem-porta-publicada}
+      POSTGRES_DB: ${POSTGRES_DB:-recomendacao_app}
+    volumes:
+      - app_dados_pg:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 2s
+      retries: 30
+      start_period: 30s
+
+  preparar:
+    # contexto na raiz do repositorio (o Dockerfile copia src/ e scripts/); .dockerignore e lista de permissao
+    build:
+      context: ..
+      dockerfile: app/Dockerfile
+    image: recomendacao-app:local
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    command: ["node", "app/preparar/index.js"]
+    environment:
+      # so para imprimir a URL correta na linha "Pronto"
+      APP_PORTA: ${APP_PORTA:-3000}
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-recomendacao_app}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-app-local-sem-porta-publicada}
+      PGDATABASE: ${POSTGRES_DB:-recomendacao_app}
+    volumes:
+      - app_dados_ml:/var/app/dados
+      - app_trabalho:/var/app/trabalho
+      - app_estado:/var/app/estado
+
+  app:
+    image: recomendacao-app:local
+    pull_policy: never
+    # nao espera o preparar: mostra "Preparando..." ate o estado ficar pronto
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    command: ["node", "app/servidor/index.js"]
+    ports:
+      - "127.0.0.1:${APP_PORTA:-3000}:3000"
+    environment:
+      # a mesma expressao de `ports`: a interpolacao em ports nao injeta a variavel no conteiner
+      APP_PORTA: ${APP_PORTA:-3000}
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB:-recomendacao_app}
+    volumes:
+      # unico volume do app, somente leitura: o u1.base (app_dados_ml) fica fora do servidor
+      - app_estado:/var/app/estado:ro
+
+volumes:
+  app_dados_pg:
+  app_dados_ml:
+  app_trabalho:
+  app_estado:

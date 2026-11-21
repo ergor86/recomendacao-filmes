@@ -1,0 +1,48 @@
+const ARTIGOS = ['The', 'A', 'An', 'La', 'Le', 'Les', 'Il', 'Das', 'Der', 'Die', 'El', "L'"];
+// o ano pode vir seguido de um marcador de mídia, como "(V)" (vídeo)
+const RE_ANO = /\s*\((\d{4})\)(?:\s*\([A-Z]{1,3}\))?\s*$/;
+const RE_ARTIGO_FINAL = new RegExp(`^(.*), (${ARTIGOS.map((a) => a.replace("'", "\\'")).join('|')})$`);
+const RE_ALIAS_FINAL = /\s*\([^()]*\)\s*$/;
+
+function semAno(titulo) {
+  return String(titulo).replace(RE_ANO, '').trim();
+}
+
+function moverArtigo(t) {
+  const m = RE_ARTIGO_FINAL.exec(t);
+  if (!m) return t;
+  return m[2] === "L'" ? `L'${m[1]}` : `${m[2]} ${m[1]}`;
+}
+
+/**
+ * Ano do filme: o do título (ex.: "Return of the Jedi (1983)"), que é o ano de produção. A data de lançamento do
+ * u.item (a reserva) muitas vezes é a do relançamento (190 filmes divergem) e só vale quando o título não traz ano.
+ */
+export function anoDoTitulo(tituloOriginal, reserva = null) {
+  const m = RE_ANO.exec(String(tituloOriginal));
+  return m ? Number(m[1]) : (reserva ?? null);
+}
+
+export function tituloExibicao(tituloOriginal) {
+  let t = String(tituloOriginal);
+  const tinhaAno = RE_ANO.test(t);
+  t = semAno(t);
+  // alias entre parênteses antes do ano (ex.: "Seven (Se7en)"): só quando havia ano
+  if (tinhaAno) t = t.replace(RE_ALIAS_FINAL, '').trim();
+  return moverArtigo(t);
+}
+
+export function normalizarConsulta(s) {
+  return s
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+export function tituloBusca(tituloOriginal) {
+  const original = normalizarConsulta(semAno(tituloOriginal));
+  const exibicao = normalizarConsulta(tituloExibicao(tituloOriginal));
+  return original === exibicao ? original : `${original} ${exibicao}`;
+}

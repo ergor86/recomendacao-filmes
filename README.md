@@ -1,5 +1,17 @@
 # Recomendação de filmes
 
+## Minha Prateleira: a aplicação local
+
+![Perfis](app/docs/capturas/01-perfis.png)
+![Primeiros filmes](app/docs/capturas/02-onboarding.png)
+![Top 10](app/docs/capturas/03-top10.png)
+![Detalhe](app/docs/capturas/04-detalhe.png)
+![Sobre](app/docs/capturas/05-sobre.png)
+
+A pasta [`app/`](app/README.md) traz a "Minha Prateleira", uma aplicação que roda no seu computador sobre o recomendador da pesquisa. Não há site público: a aplicação usa o MovieLens 100K, que não pode ser redistribuído, e os perfis ficam só na sua máquina. Instalação e uso: [`app/README.md`](app/README.md). Os resultados são de uma avaliação retrospectiva e não valem como desempenho com novos usuários. As capturas são ilustrativas (perfil de exemplo, agregados e cartazes gerados localmente). Dados do MovieLens 100K, do GroupLens Research (Universidade de Minnesota); este projeto não é endossado nem apoiado pelo GroupLens. O código é MIT; os dados, `resultados/`, as capturas e a fonte têm termos próprios (seção [Licença e dados de terceiros](#licença-e-dados-de-terceiros)).
+
+---
+
 MovieLens 100K + Postgres/pgvector + TensorFlow.js. Spec em `docs/superpowers/specs/`.
 
 ## Passo a passo
@@ -18,7 +30,7 @@ Docker Engine no WSL2 Ubuntu; Docker Desktop com backend WSL2 também funciona.
 Projeto no Windows: o Node roda aqui; o WSL2 encaminha a porta 5433 para localhost.
 
     # PowerShell, na pasta C:\dev
-    git clone <url-do-repositório> recomendacao-filmes
+    git clone https://github.com/ergor86/recomendacao-filmes.git
     cd recomendacao-filmes
 
 ### 3. Criar o `.env`
@@ -297,6 +309,19 @@ As revisões por IA **não substituem a revisão humana nem a replicação indep
 - Treino de verificação (2 épocas, 1000x70): na ordem de centenas de ms
 - Imagem do banco: `pgvector/pgvector:0.8.1-pg17` (tag confirmada com `docker pull`; digest `sha256:3e8b3adf...b700b21`)
 - pgvector `extversion` medido: 0.8.1 (Postgres 17, via Docker no WSL2)
+
+## Licença e dados de terceiros
+
+| Material | Licença ou termos |
+|---|---|
+| Código-fonte, testes, scripts e documentação autorais | MIT (arquivo [`LICENSE`](LICENSE)), © 2026 André de Souza Rosa |
+| MovieLens 100K | Termos de uso do GroupLens Research (Universidade de Minnesota): uso não comercial, sem redistribuição e com citação, salvo permissão do GroupLens. Os dados não estão no repositório; cada pessoa os baixa do site do GroupLens |
+| `resultados/` | Fora da MIT. Resultados científicos publicados para reprodutibilidade, derivados do MovieLens, incluindo métricas por usuário (NDCG@10 por id anônimo de usuário do MovieLens em `avaliacao-final.json` e `avaliacao-v2.json`). Seguem sujeitos aos termos do GroupLens |
+| Capturas em `app/docs/capturas/` | Fora da MIT. Mostram títulos, médias agregadas do MovieLens, o perfil de exemplo e cartazes gerados localmente; seguem sujeitas aos termos do GroupLens |
+| Fonte Archivo (`app/web/public/fontes/`) | SIL Open Font License 1.1 ([`OFL.txt`](app/web/public/fontes/OFL.txt)) |
+| Dependências npm e imagens de contêiner | As licenças de cada pacote e imagem |
+
+A licença MIT do software não autoriza uso comercial, redistribuição nem qualquer outro uso do MovieLens 100K ou de dados derivados dele fora dos termos do GroupLens. Quem usa o código com o MovieLens precisa aceitar e cumprir esses termos por conta própria: https://grouplens.org/datasets/movielens/100k/. Este projeto não é endossado nem apoiado pelo GroupLens nem pela Universidade de Minnesota.
 
 ## Dados e citação
 
