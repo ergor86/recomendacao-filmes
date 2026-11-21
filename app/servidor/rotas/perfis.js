@@ -73,6 +73,19 @@ function validarNome(nome) {
   return limpo;
 }
 
+const NOME_RESERVADO = 'perfil de exemplo';
+
+// Nome único sem diferenciar caixa (decisão do usuário, 2026-11-21); roda sob o lock de LOCK_PERFIS.
+// Só compara com OUTROS perfis (`idAtual`), e o nome do perfil de exemplo é reservado a ele.
+async function exigirNomeLivre(cliente, nome, idAtual = null) {
+  const { rows } = await cliente.query(
+    `SELECT 1 FROM app.perfil WHERE lower(nome) = lower($1) AND ($2::uuid IS NULL OR id <> $2::uuid) LIMIT 1`,
+    [nome, idAtual],
+  );
+  const reservado = nome.toLowerCase() === NOME_RESERVADO;
+  if (rows.length || reservado) throw new ErroApi('NOME_EM_USO');
+}
+
 const buscarPerfil = async (cliente, id) => {
   const { rows } = await cliente.query(`${SQL_PERFIS} WHERE p.id = $1 GROUP BY p.id`, [id]);
   return rows.length ? formatarPerfil(rows[0]) : null;
@@ -120,6 +133,7 @@ export async function rotasPerfis(app, { ciclo }) {
     const pool = exigirPoolEscrita(ciclo);
     const perfil = await comTransacao(pool, async (c) => {
       await travarELimitar(c);
+      await exigirNomeLivre(c, nome);
       const { rows: [{ id }] } = await c.query('INSERT INTO app.perfil (nome) VALUES ($1) RETURNING id', [nome]);
       return buscarPerfil(c, id);
     });
@@ -162,12 +176,16 @@ export async function rotasPerfis(app, { ciclo }) {
     const pool = exigirPoolEscrita(ciclo);
     const nome = req.body.nome === undefined ? null : validarNome(req.body.nome);
     const concluido = req.body.onboardingConcluido ?? null;
-    const { rowCount } = await pool.query(
-      `UPDATE app.perfil SET nome = COALESCE($2, nome), onboarding_concluido = COALESCE($3, onboarding_concluido)
-       WHERE id = $1`,
-      [req.params.id, nome, concluido],
-    );
-    if (rowCount === 0) throw new ErroApi('PERFIL_NAO_ENCONTRADO', 'Perfil não encontrado.');
-    return buscarPerfil(pool, req.params.id);
+    return comTransacao(pool, async (c) => {
+      await c.query('SELECT pg_advisory_xact_lock($1)', [LOCK_PERFIS]);
+      if (nome !== null) await exigirNomeLivre(c, nome, req.params.id);
+      const { rowCount } = await c.query(
+        `UPDATE app.perfil SET nome = COALESCE($2, nome), onboarding_concluido = COALESCE($3, onboarding_concluido)
+         WHERE id = $1`,
+        [req.params.id, nome, concluido],
+      );
+      if (rowCount === 0) throw new ErroApi('PERFIL_NAO_ENCONTRADO', 'Perfil não encontrado.');
+      return buscarPerfil(c, req.params.id);
+    });
   });
 }

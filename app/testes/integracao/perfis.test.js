@@ -142,6 +142,77 @@ describe('perfis e interações (banco app_teste_perfis)', { timeout: 900_000, s
     });
   });
 
+  describe('nomes únicos (decisão do usuário, 2026-11-21)', () => {
+    const MSG = 'Já existe um perfil com esse nome.';
+    const recusado = (r) => {
+      assert.equal(r.status, 409);
+      assert.equal(r.corpo.codigo, 'NOME_EM_USO');
+      assert.equal(r.corpo.mensagem, MSG);
+    };
+
+    it('criar nome repetido → 409; sem diferenciar caixa nem espaços; acento conta', async () => {
+      assert.equal((await pedir('POST', '/api/perfis', { nome: 'Ana' })).status, 201);
+      recusado(await pedir('POST', '/api/perfis', { nome: 'Ana' }));
+      recusado(await pedir('POST', '/api/perfis', { nome: 'ana' }));
+      recusado(await pedir('POST', '/api/perfis', { nome: '  ANA  ' }));
+      assert.equal((await pedir('POST', '/api/perfis', { nome: 'Anã' })).status, 201);
+      assert.equal(await contagem(), 2);
+    });
+
+    it('renomear para o nome de outro → 409; para o próprio nome em outra caixa → 200', async () => {
+      const a = await criar('Ana');
+      const b = await criar('Beto');
+      recusado(await pedir('PATCH', `/api/perfis/${b.id}`, { nome: 'ana' }));
+      const r = await pedir('PATCH', `/api/perfis/${a.id}`, { nome: 'ANA' });
+      assert.equal(r.status, 200);
+      assert.equal(r.corpo.nome, 'ANA');
+      assert.equal((await pedir('PATCH', `/api/perfis/${a.id}`, { nome: 'ANA' })).status, 200);
+      const { rows } = await su.query('SELECT nome FROM app.perfil WHERE id = $1', [b.id]);
+      assert.equal(rows[0].nome, 'Beto');
+    });
+
+    it('"Perfil de exemplo" é reservado, com e sem o exemplo criado', async () => {
+      recusado(await pedir('POST', '/api/perfis', { nome: 'Perfil de exemplo' }));
+      recusado(await pedir('POST', '/api/perfis', { nome: 'perfil de EXEMPLO' }));
+      const ex = await pedir('POST', '/api/perfis/exemplo');
+      assert.equal(ex.status, 201);
+      assert.equal(ex.corpo.exemplo, true);
+      recusado(await pedir('POST', '/api/perfis', { nome: 'Perfil de exemplo' }));
+      recusado(await pedir('POST', '/api/perfis', { nome: 'perfil de EXEMPLO' }));
+      const c = await criar('Carla');
+      recusado(await pedir('PATCH', `/api/perfis/${c.id}`, { nome: 'PERFIL DE EXEMPLO' }));
+      const de = await pedir('POST', '/api/perfis/exemplo');
+      assert.equal(de.status, 200);
+      assert.equal(de.corpo.id, ex.corpo.id);
+    });
+
+    it('dois POSTs concorrentes com o mesmo nome: um 201 e um 409', async () => {
+      const antes = await contagem();
+      const rs = await Promise.all([pedir('POST', '/api/perfis', { nome: 'Duda' }), pedir('POST', '/api/perfis', { nome: 'duda' })]);
+      assert.deepEqual(rs.map((r) => r.status).sort(), [201, 409]);
+      recusado(rs.find((r) => r.status === 409));
+      assert.equal(await contagem(), antes + 1);
+    });
+
+    it('duplicatas antigas: PATCH sem nome passa; renomear para o nome do outro → 409; nome novo → 200', async () => {
+      const { rows } = await su.query(`INSERT INTO app.perfil (nome) VALUES ('Bia'), ('Bia') RETURNING id`);
+      const [x] = rows;
+      const r = await pedir('PATCH', `/api/perfis/${x.id}`, { onboardingConcluido: true });
+      assert.equal(r.status, 200);
+      assert.equal(r.corpo.onboardingConcluido, true);
+      recusado(await pedir('PATCH', `/api/perfis/${x.id}`, { nome: 'Bia' }));
+      const ok = await pedir('PATCH', `/api/perfis/${x.id}`, { nome: 'Bia 2' });
+      assert.equal(ok.status, 200);
+      assert.equal(ok.corpo.nome, 'Bia 2');
+    });
+
+    it('o 409 NOME_EM_USO não derruba o estado do app', async () => {
+      await criar('Eva');
+      recusado(await pedir('POST', '/api/perfis', { nome: 'eva' }));
+      assert.equal((await saude()).estado, 'operante');
+    });
+  });
+
   describe('GET, PATCH e DELETE /perfis', () => {
     it('GET lista por criação com o formato da spec', async () => {
       const a = await criar('Ana');

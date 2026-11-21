@@ -1,7 +1,7 @@
 import { describe, test, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import TelaPerfis from './TelaPerfis.jsx';
-import { simularFetch, perfilExemplo, semCorpo, cabecalho } from '../apoio-testes.js';
+import { simularFetch, erroApi, perfilExemplo, semCorpo, cabecalho } from '../apoio-testes.js';
 
 describe('TelaPerfis', () => {
   test('aviso de perfil local e campo Apelido', async () => {
@@ -76,6 +76,32 @@ describe('TelaPerfis', () => {
     expect(screen.getByRole('alert').textContent).toContain('só com espaços');
     expect(screen.getByRole('button', { name: 'Criar perfil' }).disabled).toBe(true);
     expect(chamadas.some((c) => c.metodo === 'POST')).toBe(false);
+  });
+
+  test('criar com nome repetido mostra a mensagem do servidor e mantém o texto', async () => {
+    simularFetch([
+      ['GET', '/api/perfis', []],
+      ['POST', '/api/perfis', () => erroApi(409, 'NOME_EM_USO', 'Já existe um perfil com esse nome.')],
+    ]);
+    render(<TelaPerfis onEntrar={() => {}} />);
+    fireEvent.change(await screen.findByLabelText('Apelido'), { target: { value: 'Ana' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Criar perfil' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Já existe um perfil com esse nome.');
+    expect(screen.getByLabelText('Apelido').value).toBe('Ana');
+  });
+
+  test('renomear para nome repetido mostra a mensagem do servidor e mantém o texto', async () => {
+    const p = perfilExemplo();
+    simularFetch([
+      ['GET', '/api/perfis', [p]],
+      ['PATCH', `/api/perfis/${p.id}`, () => erroApi(409, 'NOME_EM_USO', 'Já existe um perfil com esse nome.')],
+    ]);
+    render(<TelaPerfis onEntrar={() => {}} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Renomear/ }));
+    fireEvent.change(screen.getByLabelText('Novo apelido'), { target: { value: 'Ana' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Já existe um perfil com esse nome.');
+    expect(screen.getByLabelText('Novo apelido').value).toBe('Ana');
   });
 
   test('renomear só com espaços mostra a mesma mensagem visível', async () => {
