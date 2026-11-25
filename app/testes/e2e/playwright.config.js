@@ -22,13 +22,23 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never', outputFolder: path.join(app, 'playwright-report') }]],
   use: { baseURL, reducedMotion: 'reduce', locale: 'pt-BR', trace: 'retain-on-failure' },
   projects: [
-    { name: 'chromium', testIgnore: /capturas\.spec/, use: { ...devices['Desktop Chrome'], reducedMotion: 'reduce' } },
-    { name: 'webkit', testIgnore: /capturas\.spec/, use: { ...devices['Desktop Safari'], reducedMotion: 'reduce' } },
+    { name: 'chromium', testIgnore: /(capturas|gif)\.spec/, use: { ...devices['Desktop Chrome'], reducedMotion: 'reduce' } },
+    { name: 'webkit', testIgnore: /(capturas|gif)\.spec/, use: { ...devices['Desktop Safari'], reducedMotion: 'reduce' } },
     // só gera as capturas versionadas (`npx playwright test capturas`); fora do `npm run e2e`
     {
       name: 'capturas',
       testMatch: /capturas\.spec/,
       use: { ...devices['Desktop Chrome'], reducedMotion: 'reduce', viewport: { width: 1280, height: 800 } },
+    },
+    // só grava o vídeo do GIF de demonstração (`--project=gif`); fora do `npm run e2e`
+    {
+      name: 'gif',
+      testMatch: /gif\.spec/,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 800 },
+        video: { mode: 'on', size: { width: 1280, height: 800 } },
+      },
     },
   ],
 });
