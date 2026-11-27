@@ -5,7 +5,9 @@ Aplicação local que recomenda filmes a partir das suas notas, usando a técnic
 ![Perfis](docs/capturas/01-perfis.png)
 ![Top 10](docs/capturas/03-top10.png)
 
-As capturas em `docs/capturas/` são ilustrativas: usam só o perfil de exemplo, agregados do conjunto de dados e cartazes gerados localmente.
+![Demonstração: perfil novo, primeiros filmes, Top 10, notas, Minha lista, detalhe, catálogo, Sobre e troca de tema](docs/demonstracao.gif)
+
+As capturas em `docs/capturas/` e o GIF de demonstração são ilustrativos: as capturas usam só o perfil de exemplo, o GIF usa um perfil de demonstração ("Visitante"), e os dois mostram só agregados do conjunto de dados e cartazes gerados localmente.
 
 O tema (claro ou escuro) segue o sistema. O botão de tema do cabeçalho (ícone de meio círculo, sol ou lua) alterna entre Automático, Claro e Escuro; a escolha fica só neste navegador.
 

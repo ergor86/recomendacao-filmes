@@ -1,6 +1,6 @@
 # Aceite manual: roteiro e registro
 
-Este arquivo é preenchido pela pessoa que executa o aceite (spec §13, critério 1). O roteiro segue só o `app/README.md`, sem ajuda de quem escreveu o código. O GIF de 60 a 90 s é gravado a partir deste roteiro e guardado em `app/docs/`.
+Este arquivo é preenchido pela pessoa que executa o aceite (spec §13, critério 1). O roteiro segue só o `app/README.md`, sem ajuda de quem escreveu o código. O GIF de 60 a 90 s é gravado a partir deste roteiro e guardado em `app/docs/demonstracao.gif` (roteiro de gravação em `app/testes/e2e/gif.spec.js`, projeto `gif` do Playwright).
 
 ## Roteiro
 
