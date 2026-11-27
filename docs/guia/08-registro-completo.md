@@ -301,3 +301,5 @@ As revisões por IA **não substituem a revisão humana nem a replicação indep
 - Treino de verificação (2 épocas, 1000x70): na ordem de centenas de ms
 - Imagem do banco: `pgvector/pgvector:0.8.1-pg17` (tag confirmada com `docker pull`; digest `sha256:3e8b3adf...b700b21`)
 - pgvector `extversion` medido: 0.8.1 (Postgres 17, via Docker no WSL2)
+
+Próximo: [9. Metodologia de desenvolvimento com IA](09-metodologia-com-ia.md).

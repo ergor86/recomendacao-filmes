@@ -101,6 +101,7 @@ O **[guia do projeto](docs/guia/README.md)** explica tudo, do básico ao detalhe
 | [6. A aplicação](docs/guia/06-aplicacao.md) | Arquitetura, preparação, cálculo da recomendação, API e telas |
 | [7. Glossário](docs/guia/07-glossario.md) | S0–S4, régua, portão, gêmeos, FC150 e outros termos |
 | [8. Registro completo da pesquisa](docs/guia/08-registro-completo.md) | Todos os comandos, tabelas e limitações, como registrados durante a pesquisa |
+| [9. Metodologia com IA](docs/guia/09-metodologia-com-ia.md) | Como o projeto foi desenvolvido com assistentes de IA: papéis, revisões, exemplos e limitações |
 
 As specs e os planos de implementação estão em [`docs/superpowers/`](docs/superpowers/).
 

@@ -14,6 +14,7 @@ Este guia explica o projeto **por dentro**. Para instalar a aplicação ou prepa
 | Entender a aplicação "Minha Prateleira" | [6. A aplicação](06-aplicacao.md) |
 | Consultar um termo (S1, fase `v2-exp`, régua, portão, gêmeos…) | [7. Glossário](07-glossario.md) |
 | Ver o comando exato, a sequência que rodou ou a lista completa de limitações | [8. Registro completo da pesquisa](08-registro-completo.md) |
+| Entender como o projeto foi desenvolvido com IA (papéis, revisões, limitações) | [9. Metodologia com IA](09-metodologia-com-ia.md) |
 
 Sugestão para quem está começando: 1 → 4 → 3 → 5. O capítulo 4 foi escrito para quem nunca estudou recomendação; os outros pressupõem que você já leu a visão geral.
 
