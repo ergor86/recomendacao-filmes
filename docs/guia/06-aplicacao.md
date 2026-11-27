@@ -182,6 +182,31 @@ Todas as rotas ficam sob `/api` e respondem JSON. Erros seguem o formato `{ codi
 
 O estado da preparação aparece em `TelaPreparando` enquanto o servidor não está operante.
 
+## Por que os cartazes são gerados localmente
+
+Os "cartazes" da aplicação são desenhos SVG criados no próprio computador a partir do título e dos gêneros do filme. Não há imagens nem sinopses de terceiros, nem no repositório nem em tempo de execução. Foi uma **decisão de cautela sobre termos de uso**, registrada na §11.2 da [spec da aplicação](../superpowers/specs/2026-11-16-aplicacao-etapa1-design.md), e não uma limitação técnica.
+
+**As fontes avaliadas e por que ficaram de fora:**
+
+| Fonte | O que impediu o uso |
+|---|---|
+| **TMDB** (API) | Os termos de uso da API reservam ao TMDB o uso do conteúdo "em conexão com, ou para treinar" uma aplicação baseada em aprendizado de máquina ou inteligência artificial. A aplicação é um recomendador por filtragem colaborativa, uma técnica de aprendizado de máquina, e a restrição fala em "em conexão com", não só em treino. O projeto não presumiu exceção por ser acadêmico, não comercial ou por usar a chave da própria pessoa. **Foi enviado um pedido de esclarecimento ao TMDB, que não teve resposta** até a publicação desta documentação. |
+| **Cinemeta / MetaHub** | Termos restritos ao Stremio, sem licença que autorize exibir as imagens. |
+| **URLs de cartazes do IMDb** (conjunto `movielens-posters`, que associa os filmes do MovieLens a imagens hospedadas pela Amazon/IMDb) | Nenhuma licença de redistribuição. Carregar uma imagem não significa ter permissão para usá-la. |
+
+**A investigação das URLs do IMDb mostrou também problemas de qualidade.** Ela foi feita à parte, fora deste repositório, sem baixar imagens nem fazer *scraping*:
+
+- 1.592 dos 1.682 filmes têm URL de cartaz; 90 não têm nenhuma.
+- Nas verificações visuais feitas (uma amostra aleatória de 50 filmes mais 6 conferências manuais), **35 cartazes estavam corretos, 3 eram de outro filme e 18 URLs não carregaram**. Na amostra de 50, 13 imagens eram pequenas demais para exibir bem.
+- O identificador do IMDb **diverge** entre as fontes comparadas em 154 filmes.
+- O MovieLens tem filmes diferentes com títulos parecidos (por exemplo, *La Promesse* e *Das Versprechen*), o que torna arriscado associar imagens automaticamente.
+
+Ou seja, mesmo que a licença permitisse, usar essas URLs exigiria revisar manualmente centenas de filmes.
+
+**Como isso pode mudar:** a aplicação tem uma interface para fornecedores de mídia (`app/servidor/midia/`). Um fornecedor de cartazes só entra se tiver uma licença **comprovadamente compatível** com um recomendador baseado em aprendizado de máquina, ou se o TMDB autorizar expressamente esse uso. Nenhuma das duas coisas aconteceu até agora.
+
+> Este registro descreve a leitura cautelosa que o projeto fez dos termos de uso. Não é um parecer jurídico.
+
 ## O que os números da pesquisa dizem (e não dizem) sobre a aplicação
 
 A tela "Sobre" mostra o resultado do teste-2: a S1 superou a S2 por 0,0294 de NDCG@10, IC 95% [0,0136; 0,0458]. Isso **não** é desempenho com novos usuários:
