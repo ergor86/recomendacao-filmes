@@ -183,20 +183,6 @@ Lista completa: §16 da [spec dos Planos 1 e 2](../superpowers/specs/2026-11-07-
 
 ## Metodologia de desenvolvimento assistido por IA
 
-O projeto foi construído com assistentes de IA, num fluxo que o [registro completo da pesquisa](08-registro-completo.md) descreve como **prática adotada, não padrão acadêmico**:
-
-```mermaid
-flowchart LR
-    S["Spec<br/>(escrita com IA,<br/>aprovada pelo humano)"] --> RV["Revisão externa<br/>(outra IA, só documentos)"]
-    RV --> CT["Contestação<br/>(subagentes instruídos<br/>a refutar)"]
-    CT --> P["Plano de tarefas"]
-    P --> I["Implementador<br/>(subagente)"]
-    I --> R["Revisor independente<br/>(subagente)"]
-    R -->|correções| I
-    R --> F["Revisão final<br/>(3 subagentes adversariais)"]
-    F --> H["Humano autoriza:<br/>congelamento, etapa 1,<br/>leitura do gabarito"]
-```
-
-Os artefatos desse processo ficam em `docs/superpowers/` (specs e planos, versionados) e em `.superpowers/sdd/` (briefs, relatórios e revisões de cada tarefa, fora do git). O registro da pesquisa lembra que **revisões por IA não substituem revisão humana nem replicação independente**.
+O projeto foi construído com assistentes de IA: specs e planos escritos com a IA e aprovados por mim, cada tarefa implementada por um subagente e conferida por outro, revisões externas e adversariais e portões humanos nos pontos críticos do protocolo. O processo, os papéis, exemplos reais do que as revisões encontraram e as limitações estão no [capítulo 9](09-metodologia-com-ia.md).
 
 Próximo: [6. A aplicação](06-aplicacao.md).
