@@ -30,7 +30,7 @@
   --raio: 6px;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-tema="claro"]) {
     --papel: #17151f;
     --ficha: #221f2e;
     --tinta: #eeecf5;
@@ -45,6 +45,24 @@
     --prateleira-luz: #6b6390;
     --sombra-cartaz: 0 0 0 1px rgb(255 255 255 / 0.10), 0 12px 20px -10px rgb(0 0 0 / 0.9);
   }
+}
+:root[data-tema="claro"] { color-scheme: light; }
+/* escolha explícita do seletor "Tema": mesmos tokens escuros do bloco acima */
+:root[data-tema="escuro"] {
+  color-scheme: dark;
+  --papel: #17151f;
+  --ficha: #221f2e;
+  --tinta: #eeecf5;
+  --grafite: #b5afc9;
+  --risco: #35304a;
+  --contorno: #8a83a3;
+  --carimbo: #b9a5ff;
+  --sobre-carimbo: #17151f;
+  --carimbo-veu: #2f2752;
+  --perigo: #ff8fa0;
+  --prateleira: #3e3856;
+  --prateleira-luz: #6b6390;
+  --sombra-cartaz: 0 0 0 1px rgb(255 255 255 / 0.10), 0 12px 20px -10px rgb(0 0 0 / 0.9);
 }
 
 * { box-sizing: border-box; }
@@ -97,6 +115,10 @@ label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-
 .moldura-nome { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; flex: none; color: var(--tinta); text-decoration: none; }
 .moldura-nome span { font-family: var(--fonte-titulo); font-weight: 800; font-stretch: condensed; font-size: 1.5rem; letter-spacing: 0.01em; }
 .marca-icone { width: 30px; height: 30px; flex: none; }
+.botao-tema { flex: none; width: 44px; padding: 0; }
+.botao-tema-icone { display: block; }
+/* sem perfil o botão é irmão direto da marca: vai para o canto direito (com perfil o Menu fica entre os dois) */
+.moldura-nome + .botao-tema { margin-left: auto; }
 .moldura-perfil { display: flex; align-items: center; gap: 10px; flex: none; font-size: var(--t-menor); }
 .menu-painel { display: contents; }
 .monograma { width: 32px; height: 32px; flex: none; border-radius: 4px; box-shadow: 0 0 0 1px var(--prateleira-luz); }
@@ -116,6 +138,7 @@ body:has(.aviso-acao:not(:empty)) .moldura-rodape { padding-bottom: 104px; }
 @media (min-width: 761px) and (max-width: 1240px) {
   .moldura-nome { order: 1; }
   .moldura-perfil { order: 2; margin-left: auto; }
+  .botao-tema { order: 2; }
   .navegacao { order: 3; flex-basis: 100%; }
   .moldura-topo { row-gap: 0; }
 }
@@ -123,9 +146,15 @@ body:has(.aviso-acao:not(:empty)) .moldura-rodape { padding-bottom: 104px; }
   :root { --t-h1: 2.25rem; --t-mostra: 2.75rem; }
   .moldura-topo { padding: 6px 16px; gap: 8px; justify-content: space-between; }
   .menu-botao { display: inline-flex; }
+  /* Menu e tema na mesma linha da marca (57 px); sem perfil só o botão de tema, à direita */
   .moldura-nome { gap: 6px; }
   .moldura-nome span { font-size: 1.25rem; }
   .menu-botao { gap: 6px; padding-inline: 10px; }
+  .moldura-topo { flex-wrap: wrap; }
+  .moldura-nome { flex: 1 1 0; min-width: 0; }
+  .moldura-nome span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .botao-tema { order: 1; }
+  .menu-botao { order: 2; }
   /* uma linha só (marca + Menu, 57 px); a navegação e o perfil ficam no painel recolhível */
   .menu-painel { display: none; flex-basis: 100%; flex-direction: column; gap: 8px; order: 5; padding: 8px; background: var(--ficha); border: 1px solid var(--contorno); border-radius: 8px; }
   .menu-painel.aberta { display: flex; }

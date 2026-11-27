@@ -59,10 +59,18 @@ describe('Onboarding', () => {
     await waitFor(() => expect(chamadas.some((c) => c.url.includes('cursor=100%3A10'))).toBe(true));
   });
 
-  test('concluir envia PATCH onboardingConcluido', async () => {
-    const { chamadas } = montar(3, [['PATCH', `/api/perfis/${ID}`, comContagem(3)]]);
+  test('o botão principal chama a conclusão do App uma vez; erro e "concluindo" vêm de fora', async () => {
+    let n = 0;
+    simularFetch([
+      ['GET', '/api/generos', generos],
+      ['GET', '/api/perfis', () => [comContagem(3)]],
+      ['GET', new RegExp(`^/api/perfis/${ID}/onboarding`), { itens, proximoCursor: null }],
+    ]);
+    const { rerender } = render(<MemoryRouter><ProvedorAviso><Onboarding perfilId={ID} aoConcluir={() => { n++; }} /></ProvedorAviso></MemoryRouter>);
     fireEvent.click(await screen.findByRole('button', { name: 'Ver minhas recomendações' }));
-    await waitFor(() => expect(chamadas.some((c) => c.metodo === 'PATCH')).toBe(true));
-    expect(chamadas.find((c) => c.metodo === 'PATCH').init.body).toBe(JSON.stringify({ onboardingConcluido: true }));
+    expect(n).toBe(1);
+    rerender(<MemoryRouter><ProvedorAviso><Onboarding perfilId={ID} aoConcluir={() => { n++; }} concluindo erroConcluir={{ mensagem: 'Falhou.' }} /></ProvedorAviso></MemoryRouter>);
+    expect(screen.getByRole('alert').textContent).toBe('Falhou.');
+    expect(screen.getByRole('button', { name: 'Ver minhas recomendações' }).disabled).toBe(true);
   });
 });

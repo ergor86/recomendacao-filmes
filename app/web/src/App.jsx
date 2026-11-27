@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { chamar } from './api.js';
 import Moldura from './componentes/Moldura.jsx';
@@ -85,7 +85,10 @@ export default function App() {
     chamar('GET', '/api/perfis').then((lista) => {
       if (!ativo) return;
       const achado = lista.find((p) => p.id === perfil.id);
-      if (achado) setPerfil({ id: achado.id, nome: achado.nome, onboardingConcluido: achado.onboardingConcluido });
+      if (achado) {
+        // uma resposta pedida antes da conclusão nunca rebaixa o true já aplicado ao mesmo perfil
+        setPerfil((p) => ({ id: achado.id, nome: achado.nome, onboardingConcluido: p?.id === achado.id && p.onboardingConcluido === true ? true : achado.onboardingConcluido }));
+      }
       else { gravarPerfilAtivo(null); setPerfil(null); }
     }).catch((e) => { if (ativo) setErroPerfil(e); });
     return () => { ativo = false; };
@@ -93,14 +96,38 @@ export default function App() {
 
   const entrar = (p) => {
     gravarPerfilAtivo(p.id);
+    setErroConclusao(null);
     setPerfil({ id: p.id, nome: p.nome, onboardingConcluido: p.onboardingConcluido });
     navegar('/'); // escolher um perfil leva ao início (Top 10 ou onboarding), não à rota anterior
   };
-  const concluirOnboarding = () => {
-    setPerfil((p) => ({ ...p, onboardingConcluido: true }));
-    navegar('/');
+  // Conclusão dos primeiros filmes, num caminho só (botão da tela, "Top 10" e logo): um PATCH em voo no máximo, e o
+  // resultado só vale se o perfil ativo ainda for o que a iniciou. O erro fica preso ao id desse perfil.
+  const concluindoRef = useRef(false);
+  const perfilIdAtual = useRef(null);
+  perfilIdAtual.current = perfil?.id ?? null;
+  const [concluindo, setConcluindo] = useState(false);
+  const [erroConclusao, setErroConclusao] = useState(null); // { perfilId, erro }
+  const concluirPrimeirosFilmes = async () => {
+    const id = perfil?.id;
+    if (!id || concluindoRef.current) return;
+    concluindoRef.current = true;
+    setConcluindo(true);
+    setErroConclusao(null);
+    try {
+      await chamar('PATCH', `/api/perfis/${id}`, { onboardingConcluido: true });
+      if (perfilIdAtual.current !== id) return;
+      setPerfil((p) => (p?.id === id ? { ...p, onboardingConcluido: true } : p));
+      navegar('/');
+    } catch (e) {
+      if (perfilIdAtual.current !== id) return;
+      setErroConclusao({ perfilId: id, erro: e });
+      navegar('/onboarding');
+    } finally {
+      concluindoRef.current = false;
+      setConcluindo(false);
+    }
   };
-  const trocar = () => { gravarPerfilAtivo(null); setPerfil(null); navegar('/'); };
+  const trocar = () => { gravarPerfilAtivo(null); setPerfil(null); setErroConclusao(null); navegar('/'); };
 
   if (!saude) {
     return erroSaude
@@ -116,14 +143,14 @@ export default function App() {
     );
   }
   return (
-    <Moldura perfil={perfil} onTrocarPerfil={trocar}>
+    <Moldura perfil={perfil} onTrocarPerfil={trocar} onInicio={concluirPrimeirosFilmes}>
       {perfil && erroPerfil && semNome
         ? <Falha erro={erroPerfil} onTentar={() => setTentativa((n) => n + 1)} />
         : perfil
         ? (
           <Routes>
             <Route path="/" element={<Inicio perfil={perfil} />} />
-            <Route path="/onboarding" element={<Onboarding perfilId={perfil.id} aoConcluir={concluirOnboarding} />} />
+            <Route path="/onboarding" element={<Onboarding perfilId={perfil.id} aoConcluir={concluirPrimeirosFilmes} concluindo={concluindo} erroConcluir={erroConclusao?.perfilId === perfil.id ? erroConclusao.erro : null} />} />
             <Route path="/catalogo" element={<Catalogo perfilId={perfil.id} />} />
             <Route path="/filmes/:id" element={<DetalheFilme perfilId={perfil.id} />} />
             <Route path="/minha-lista" element={<MinhaLista perfilId={perfil.id} />} />
