@@ -27,7 +27,7 @@ timeline
 
 | Fase | Pergunta | Resposta (resumida) |
 |---|---|---|
-| **Plano 1** | Vetores de conteúdo (gênero, época, popularidade) ajudam a encontrar filmes relevantes? | Sozinhos, quase não acertam (NDCG@10 de 0,070 contra 0,233 da popularidade, na validação). Juntos com os populares, aumentam o recall dos candidatos. |
+| **Plano 1** | Vetores de conteúdo (gênero, época, popularidade) ajudam a encontrar filmes relevantes? | Sozinhos, quase não acertam (NDCG@10 de 0,070 contra 0,233 da popularidade, na validação). Somados aos populares, aumentam o recall dos candidatos quando a lista cresce; com o mesmo tamanho de lista, mais populares rendem mais. |
 | **Plano 2** | Uma rede neural reordenando candidatos supera a popularidade? | **Sim.** No `u1.test`, NDCG@10 de 0,3526 contra 0,2451 (diferença +0,1076, IC 95% [0,0907; 0,1250]). Mas a configuração escolhida não usa os vetores de conteúdo: são 150 populares reordenados pela rede. |
 | **Plano 3** | Filtragem colaborativa (FC) melhora a versão 1? A rede ainda acrescenta algo sobre a FC? | A FC sozinha (S1) superou a v1 (S2) no teste-2: +0,0294, IC 95% [0,0136; 0,0458]. A rede **sobre** a FC ficou abaixo da FC sozinha (−0,0234, descritivo). |
 | **Aplicação** | Como usar o sistema vencedor no dia a dia? | Aplicação local que roda a S1 congelada, conferida por hash, sobre perfis criados pelo usuário. |
@@ -61,10 +61,10 @@ O sistema final da pesquisa (S1) usa a forma mais simples desse desenho: a busca
 
 Boa parte do código não é "fazer o modelo funcionar", e sim **garantir que a medição seja honesta**:
 
-- **Separação estrita de dados.** Há fases (`exp`, `final`, `v2-exp`, `v2-final`) e cada uma só enxerga o que pode. O `u1.test` foi lido **uma única vez**; o Plano 3 nunca o leu.
+- **Separação estrita de dados.** Há fases (`exp`, `final`, `v2-exp`, `v2-final`) e cada uma só enxerga o que pode. O `u1.test` foi lido **uma única vez**, segundo o registro do autor (o script recusa sobrescrever o resultado); o Plano 3 nunca o leu.
 - **Régua com hash.** Os parâmetros de codificação são calculados só com o treino e gravados com um sha256. Modelo, banco e aplicação recusam rodar com uma régua diferente.
 - **Pré-registro e congelamento por git.** A configuração é escolhida na validação e commitada **antes** de olhar o teste. No Plano 3, até o hash das previsões foi commitado antes do gabarito.
-- **Estatística pareada.** Toda comparação é feita usuário a usuário, com intervalo de confiança por bootstrap.
+- **Estatística pareada.** As comparações são feitas usuário a usuário. As hipóteses principais e as comparações descritivas finais têm intervalo de confiança por bootstrap; as escolhas da validação usam o erro padrão pareado.
 - **Limitações escritas.** O [registro completo da pesquisa](08-registro-completo.md) e o [README dos resultados](../../resultados/README.md) listam o que **não** foi medido e o que **não** se generaliza.
 
 ## Stack

@@ -4,7 +4,7 @@ Este capítulo guarda, **sem alterações de conteúdo**, o registro detalhado q
 
 Os capítulos 1 a 7 explicam o mesmo material de forma didática. Use este quando precisar do comando exato ou do número oficial.
 
-> A seção "Passo a passo" abaixo começa pela instalação do ambiente; os passos 1 a 7 também aparecem, resumidos, no [README da raiz](../../README.md#reproduzir-a-pesquisa).
+> A seção "Passo a passo" abaixo começa pela instalação do ambiente; os passos 1 a 7 aparecem, resumidos em 5, no [README da raiz](../../README.md#reproduzir-a-pesquisa).
 
 ## Passo a passo
 
@@ -274,7 +274,8 @@ As revisões por IA **não substituem a revisão humana nem a replicação indep
 
 - **Teste-2 retrospectivo:** ver a ressalva ao lado da comparação principal.
 - **Um conjunto, uma arquitetura, um protocolo:** o resultado vale para o MovieLens 100K, para a rede densa 64-32 com estas entradas e para este protocolo. Ele não se generaliza a outros conjuntos, outras arquiteturas, outros protocolos nem a catálogos maiores sem nova medição.
-- **Notas invisíveis do `u1.test`:** cada usuário do teste-2 tem, em média, cerca de 28 notas no `u1.test` que o sistema vê como "não vistas".
+- **Notas invisíveis do `u1.test`:** cada usuário do teste-2 tem, em média, cerca de **43** notas no `u1.test` que o sistema vê como "não vistas".
+  - **Errata (26/11/2026):** a versão original deste texto, a spec do Plano 3 (§13) e o `resultados/README.md` diziam "cerca de 28". A conta pelos próprios resultados mostra que o valor está errado: pelo `resultados/divisoes-v2.json`, os usuários 463–943 têm 47.466 notas no `u1.base` e os usuários 1–462 têm 32.534, somando os 80.000 do `u1.base`. Assim, as 20.000 notas do `u1.test` são todas dos usuários 1–462, o que dá 20.000 / 462 ≈ 43 por usuário. O `resultados/README.md` não foi corrigido porque `resultados/` está congelado; vale esta correção. O gabarito do teste-2 é, portanto, ainda mais incompleto do que o texto original sugeria.
   - Curtidas entre elas, se recomendadas, contam como não relevantes.
   - Isso não pode ser medido nem corrigido sem ler o `u1.test`, o que é proibido no Plano 3 (ler o `u.data` também o revelaria).
   - **Não se pode garantir o efeito disso sobre a diferença v2 − v1, nem a direção dele.** Só se a divisão do `u1.test` fosse aleatória dentro de cada usuário, o efeito esperado seria atenuar as diferenças e reduzir o poder. Essa hipótese não é verificável: o `mku.sh` documentado com o MovieLens monta o `u1.test` com as 20.000 primeiras linhas do `u.data`, o que não explica a concentração observada nos usuários 1–462. E, mesmo com divisão aleatória, o sinal da diferença média só estaria garantido sem heterogeneidade entre usuários.

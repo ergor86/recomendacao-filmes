@@ -27,10 +27,10 @@ test('lerAvaliacoes lê TAB', () => {
 });
 
 test('lerUsuarios e lerLista', () => {
-  fs.writeFileSync(arq, '1|24|M|technician|85711\n\n2|53|F|other|94043\n');
+  fs.writeFileSync(arq, '1|30|M|engineer|00000\n\n2|40|F|other|11111\n');
   assert.deepEqual(lerUsuarios(arq), [
-    { id: 1, idade: 24, genero: 'M', ocupacao: 'technician' },
-    { id: 2, idade: 53, genero: 'F', ocupacao: 'other' },
+    { id: 1, idade: 30, genero: 'M', ocupacao: 'engineer' },
+    { id: 2, idade: 40, genero: 'F', ocupacao: 'other' },
   ]);
   fs.writeFileSync(arq, 'unknown|0\nAction|1\n\n');
   assert.deepEqual(lerLista(arq), ['unknown', 'Action']);

@@ -31,11 +31,9 @@ cd recomendacao-filmes/app
 docker compose up --build
 ```
 
-Para testar uma branch que ainda não foi incorporada à `main`, clone só ela, por exemplo `git clone -b app-etapa1 --single-branch https://github.com/ergor86/recomendacao-filmes.git`, e siga com os mesmos `cd` e `docker compose up --build`.
-
 Abra http://localhost:3000. A página mostra o progresso da preparação; quando termina, a aplicação abre sozinha. O terminal imprime `Pronto: abra http://localhost:<porta>`.
 
-**Tempo da primeira preparação.** Medições da Tarefa 16, feitas numa única máquina de desenvolvimento (Windows, Docker no WSL2, rede rápida); o seu tempo depende de internet e disco:
+**Tempo da primeira preparação.** Medições feitas numa única máquina de desenvolvimento (Windows, Docker no WSL2, rede rápida); o seu tempo depende de internet e disco:
 - construção da imagem sem cache de camadas: 25 s;
 - instalação limpa a partir de um clone novo (volumes novos, com o cache de camadas já quente): build e subida em 31 s e aplicação operante em 37 s no total;
 - primeiro `up` do Compose dos testes ponta a ponta, com build parcialmente frio: cerca de 1 minuto até operante.
@@ -117,13 +115,15 @@ As suítes de integração trocam as senhas dos papéis `app_leitura` e `app_esc
 
 ```
 docker compose -f compose.yml -f compose.dev.yml up -d db
-npm test                  # unidade, isolamento e congelamento, sem banco
+npm test                  # unidade, isolamento e congelamento, sem banco (precisa do histórico completo do git)
 npm run test:web          # Vitest do frontend
 npm run test:integracao   # com banco; exige ML100K_DIR
 npm run e2e               # Playwright (Chromium e WebKit)
 ```
 
 Nunca use `compose.override.yml`.
+
+**Histórico do git:** os testes de congelamento comparam o código com commits antigos da pesquisa (`c048537` e `6077974`). Num clone raso (`git clone --depth 1`) ou num download em ZIP, esses commits não existem e o `npm test` mostra cerca de 7 falhas de congelamento. Use um clone completo (`git clone` sem `--depth`) para rodar os testes. Para só usar a aplicação, o clone raso basta.
 
 - **Integração:** `ML100K_DIR` aponta para a pasta com os 5 arquivos do MovieLens; sem ela os testes se ignoram. `APP_EXIGIR_DADOS=1` transforma essa ausência em falha (é o que o CI faz). Conexão: `TESTE_PGHOST`, `TESTE_PGPORT`, `TESTE_PGUSER`, `TESTE_PGPASSWORD`.
 - **E2E:** `E2E_DOCKER` (padrão `docker`) e `E2E_COMPOSE_ARGS` dizem como alcançar o Compose que roda a aplicação (por exemplo, `E2E_DOCKER="wsl -d Ubuntu -- docker"`). `E2E_EXIGIR_SEGREDOS=1` faz a falta das senhas falhar a verificação de segredos (que usa captura em memória de requisições e respostas mais `docker compose logs`). `E2E_PERMITIR_BLOQUEIO=1` habilita o caso que adultera temporariamente o hash do treino no banco alvo para exercitar a tela de bloqueio.

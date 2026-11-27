@@ -89,7 +89,7 @@ As escolhas foram gravadas em `resultados/configuracao-final.json` **antes** de 
 **O que se aprende com os outros experimentos:**
 
 - **A rede usa o gosto, não só a popularidade.** Sem as entradas de popularidade (Exp. 7), o NDCG cai para 0,320, mas fica bem acima dos 0,245 da popularidade.
-- **Os candidatos funcionam como filtro.** A rede ordenando todos os filmes (Exp. 6) cai para 0,264.
+- **Os candidatos parecem funcionar como filtro.** A rede ordenando todos os filmes (Exp. 6) cai para 0,264. O experimento não isola a causa.
 - **Teto da rede:** só 57% dos relevantes estão entre os 150 candidatos. O resto, a rede nunca vê.
 - **Média não é garantia individual:** 43 dos 456 usuários (9%) não têm nenhum acerto nas 3 sementes; na popularidade, são 99 (22%).
 
@@ -152,11 +152,11 @@ O congelamento (`configuracao-v2.json`) fixou o sistema, as épocas, as regras e
 | Os populares ajudam junto com a FC? | melhor S4 − S3 | −0,00002 | [−0,0062; 0,0059] |
 | A FC melhora o sistema da v1? | melhor S4 − S2 | +0,0060 | [−0,0016; 0,0136] |
 
-### Por que a rede perdeu para a FC
+### Uma explicação provável para a rede ter ficado abaixo da FC
 
-A rede do projeto vê **atributos** (demografia, gêneros, época, popularidade), mas **não vê o sinal colaborativo** ("quem gostou disto também gostou daquilo"). Sobre uma lista que a FC já ordenou bem, reordenar por atributos piorou o resultado. O [capítulo 8](08-registro-completo.md#limitações-do-plano-3) é preciso sobre o alcance disso: **não se testou uma rede que receba o escore da FC ou embeddings**. A conclusão vale para *esta* rede, *este* conjunto e *este* protocolo.
+A rede do projeto vê **atributos** (demografia, gêneros, época, popularidade), mas **não vê o sinal colaborativo** ("quem gostou disto também gostou daquilo"). Descritivamente, reordenar por atributos uma lista que a FC já tinha ordenado piorou o resultado. A explicação mais provável é essa ausência do sinal colaborativo, mas ela não foi testada. O [capítulo 8](08-registro-completo.md#limitações-do-plano-3) é preciso sobre o alcance disso: **não se testou uma rede que receba o escore da FC ou embeddings**. A conclusão vale para *esta* rede, *este* conjunto e *este* protocolo.
 
-Também é importante o que os níveis absolutos **não** dizem: o NDCG do teste-2 (0,156) não é comparável ao do `u1.test` (0,353). O teste-2 tem em média 7,8 curtidas escondidas por usuário, contra cerca de 22 na validação. Com menos relevantes, o NDCG é naturalmente menor.
+Também é importante o que os níveis absolutos **não** dizem: o NDCG do teste-2 (0,156) não é comparável ao do `u1.test` (0,353). O teste-2 tem em média 7,8 curtidas escondidas por usuário, contra cerca de 22 na validação. Como os gabaritos e os usuários são diferentes, os níveis absolutos não se comparam entre os protocolos. (O NDCG é normalizado pelo melhor resultado possível de cada usuário, então ter menos relevantes não o reduz automaticamente; só as diferenças entre sistemas **dentro** do mesmo protocolo têm significado.)
 
 ---
 

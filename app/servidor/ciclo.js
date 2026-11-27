@@ -10,7 +10,7 @@
 //   conteúdo a cada `conteudoACada` ciclos). Se algo difere do retrato da última conferência integral
 //   bem-sucedida, refaz a conferência integral: se passar, continua operante com o fc recarregado e um
 //   retrato novo (os pedidos em andamento seguem com o snapshot anterior); se falhar, bloqueia.
-// - Regra do controlador (Ruling 15): cada `docker compose up` refaz a preparação, e o estado.json
+// - Decisão de projeto tomada na implementação: cada `docker compose up` refaz a preparação, e o estado.json
 //   passa por "preparando" e volta a "pronto" em ~0,2 s. Um estado.json em "preparando" NÃO derruba o
 //   servidor operante; só a mudança do retrato (que leva à reconferência) importa. O servidor só deixa
 //   o operante quando a conferência falha (integridade/credenciais), quando um erro de integridade ou
@@ -282,7 +282,7 @@ export function criarCiclo({
       sairDoOperante(copiarCampos(e, 'falhou', ['etapa', 'total', 'mensagem', 'causa', 'comando']));
       return;
     }
-    // "preparando" no estado.json não derruba o operante (Ruling 15): só entra no retrato.
+    // "preparando" no estado.json não derruba o operante (ver o cabeçalho): só entra no retrato.
     const reconferir = async () => {
       if (!garantirPools()) return bloquear(CAUSA_CREDENCIAIS);
       await conferir(e?.atualizadoEm, true);

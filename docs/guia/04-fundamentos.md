@@ -81,7 +81,7 @@ O resultado vai de −1 a 1 (de 0 a 1 quando os valores não são negativos). Va
 
 ### Pesos e por que "60/20/20" não quer dizer 60%
 
-Cada bloco é multiplicado por um peso: gênero 0,6, época 0,2 e popularidade 0,2. Como o cosseno multiplica as posições dos dois vetores, **o peso entra ao quadrado**, e a popularidade também entra no denominador. A influência efetiva medida no projeto foi de **73,6% gênero, 14,4% época e 12,0% popularidade** (média sobre 10.418 pares usuário–filme relevante da validação). A explicação completa está no comentário obrigatório no topo de `src/features/codificacao.js`.
+Cada bloco é multiplicado por um peso: gênero 0,6, época 0,2 e popularidade 0,2. Como o cosseno multiplica as posições dos dois vetores, **o peso entra ao quadrado**. Além disso, o bloco de popularidade não é normalizado como os outros, o que muda a sua participação no comprimento do vetor. A influência efetiva medida no projeto foi de **73,6% gênero, 14,4% época e 12,0% popularidade** (média sobre 10.418 pares usuário–filme relevante da validação). A explicação completa está no comentário obrigatório no topo de `src/features/codificacao.js`.
 
 > **No projeto:** `features/codificacao.js` (`vetorBuscaFilme`, `perfilUsuario`, `vetorBuscaUsuario`, `vetorBuscaUsuarioNovo` para quem ainda não deu notas).
 
@@ -165,7 +165,7 @@ Imagine uma pessoa nova, que curtiu só o **Matrix**. A pergunta é: **quais fil
 
 O usuário 4 curtiu o Titanic e o Toy Story, então esses dois filmes têm um fã em comum **entre si**. Mas o usuário 4 não curtiu o Matrix, e por isso não liga o Titanic ao gosto dessa pessoa. O que importa é a sobreposição com os fãs dos filmes **que a pessoa curtiu**, não com os de qualquer filme.
 
-No denominador, √3 vem dos 3 fãs do Matrix, e √2 ou √1 vem do número de fãs do candidato. Essa divisão impede que um filme com muitos fãs ganhe só por ser popular.
+No denominador, √3 vem dos 3 fãs do Matrix, e √2 ou √1 vem do número de fãs do candidato. Essa divisão **atenua** a vantagem de um filme com muitos fãs, mas não a elimina: um filme popular tende a ter mais fãs em comum com qualquer perfil, e o escore ainda cresce com a popularidade (ver o viés de popularidade nas limitações abaixo).
 
 A recomendação seria Alien, depois Toy Story. O Titanic fica fora, porque só entram filmes com escore maior que zero. Se a pessoa também curtisse o Toy Story, o usuário 4 passaria a contar, e o Titanic ganharia um escore positivo.
 
@@ -201,7 +201,7 @@ No projeto, as fontes de candidatos foram:
 - **Vizinhos de conteúdo** (Plano 1): os N filmes mais próximos do perfil pelos vetores de 23 dimensões;
 - **FC** (Plano 3): os N filmes com maior escore colaborativo.
 
-Um resultado didático do Plano 2: quando a rede ordenou **todos** os filmes não vistos (Exp. 6), o NDCG caiu de 0,353 para 0,264. A etapa de candidatos não é só uma otimização de velocidade; ela também funciona como **filtro de qualidade**.
+Um resultado didático do Plano 2: quando a rede ordenou **todos** os filmes não vistos (Exp. 6), o NDCG caiu de 0,353 para 0,264. A etapa de candidatos não é só uma otimização de velocidade; o resultado é compatível com ela funcionar também como um **filtro de qualidade**, embora o experimento não isole a causa da queda.
 
 > **No projeto:** `candidatos/hibrido.js` (Plano 1/2), `candidatos/composicao.js` e `candidatos/v2.js` (Plano 3), `modelo/ranqueador.js` (ordenação pela rede).
 
@@ -340,7 +340,7 @@ Um filme recomendado que o usuário **nunca assistiu** conta como erro, mesmo qu
 
 ## 10. Estatística: comparar dois sistemas com honestidade
 
-"O sistema B teve NDCG 0,35 e o A teve 0,25" não basta. Com outros usuários, a diferença poderia ser outra. O projeto responde a duas perguntas: **a diferença é real?** e **qual o tamanho dela?**
+"O sistema B teve NDCG 0,35 e o A teve 0,25" não basta. Com outros usuários, a diferença poderia ser outra. O projeto responde a duas perguntas: **a diferença é distinguível do acaso?** e **qual o tamanho dela?**
 
 ### Comparação pareada
 
@@ -373,7 +373,7 @@ Antes de medir, vale perguntar: **com este número de usuários, que tamanho de 
 
 ### Confirmatória × descritiva
 
-Uma comparação **confirmatória** foi definida antes de ver os dados e é a única que pode "confirmar" uma hipótese. As outras são **descritivas**: mostram com IC, mas não contam como descoberta, porque fazer muitas comparações aumenta a chance de achar uma diferença por acaso (o problema das **comparações múltiplas**). Cada plano tem **uma** hipótese confirmatória.
+Uma comparação **confirmatória** foi definida antes de ver os dados e é a única que pode "confirmar" uma hipótese. As outras são **descritivas**: mostram com IC, mas não contam como descoberta, porque fazer muitas comparações aumenta a chance de achar uma diferença por acaso (o problema das **comparações múltiplas**). Cada avaliação final tem **uma** hipótese confirmatória: a do `u1.test` (Plano 2) e a do teste-2 (Plano 3). O Plano 1 foi exploratório.
 
 > **No projeto:** `avaliacao/estatistica.js` (`bootstrapPareado`, `erroPadraoPareado`), `avaliacao/escolha.js` (`escolherConfiguracao`), `avaliacao/mde.js`.
 
@@ -391,7 +391,7 @@ Uma comparação **confirmatória** foi definida antes de ver os dados e é a ú
 
 ### Validação, teste e "gastar" um conjunto
 
-- A **validação** pode ser olhada à vontade, mas cada escolha feita com ela a torna **otimista**. No Plano 3, a S1 teve NDCG 0,3721 na validação e 0,1562 no teste-2: parte da queda é escala do gabarito e parte é o otimismo da escolha.
+- A **validação** pode ser olhada à vontade, mas cada escolha feita com ela a torna **otimista**. No Plano 3, a S1 teve NDCG 0,3721 na validação e 0,1562 no teste-2: os gabaritos têm tamanhos diferentes (cerca de 22 curtidas escondidas por usuário na validação, contra 7,8 no teste-2) e os usuários também são outros. Nenhuma causa da queda foi isolada; por isso os níveis absolutos não se comparam entre os dois conjuntos.
 - O **teste** é olhado uma vez, com tudo congelado antes. É a estimativa sem esse viés.
 
 ### Avaliação retrospectiva

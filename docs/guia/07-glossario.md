@@ -25,7 +25,7 @@ Termos próprios do projeto e conceitos gerais, em ordem alfabética. Para expli
 | **Grade** | Conjunto de combinações testadas. Plano 2: K × N de populares e vizinhos de conteúdo. Plano 3: K × N de populares e FC. |
 | **H_M** | Na spec do Plano 3, a lista devolvida por **uma** busca colaborativa de tamanho M = 300. As listas menores são prefixos dela. |
 | **HNSW** | Índice de busca aproximada de vizinhos em grafo hierárquico. Ver [cap. 4, seção 4](04-fundamentos.md#4-banco-vetorial-pgvector-e-o-índice-hnsw). |
-| **IC 95%** | Intervalo de confiança de 95%. Se o IC da diferença não inclui o zero, a diferença é considerada real (no sentido da hipótese). |
+| **IC 95%** | Intervalo de confiança de 95%. Se o IC da diferença fica todo acima de zero, a diferença é considerada estatisticamente distinguível de zero sob o protocolo do projeto, o que dá suporte à hipótese. Não prova que ela vale fora desse protocolo. |
 | **K, N** | K = quantos populares entram nos candidatos; N = quantos vêm da outra fonte (vizinhos de conteúdo no Plano 2, FC no Plano 3). |
 | **Linha de base** | Popularidade: os 10 filmes mais avaliados que o usuário não viu. O número a superar. |
 | **Mainstream × nicho** | Divisão dos usuários pela mediana da popularidade média dos filmes que curtem. Mostra se um sistema só funciona para quem gosta de populares. |
@@ -50,7 +50,7 @@ Termos próprios do projeto e conceitos gerais, em ordem alfabética. Para expli
 | **Semente** | Número que fixa um sorteio pseudoaleatório. As redes têm sementes 1, 2 e 3. |
 | **Sem pop (`-sempop`)** | Controle do Plano 2: a rede sem as duas entradas de popularidade (68 em vez de 70). |
 | **Teste-2** | 20% das notas dos usuários 1–462, escondidas dentro do `u1.base` e usadas como teste no Plano 3. |
-| **`u1.base` / `u1.test`** | Divisão pronta do MovieLens em treino (80.000 notas) e teste (20.000). O `u1.test` foi lido uma vez, no Plano 2. |
+| **`u1.base` / `u1.test`** | Divisão pronta do MovieLens em treino (80.000 notas) e teste (20.000). O `u1.test` foi lido uma vez, no Plano 2 (segundo o registro do autor; o script recusa sobrescrever o resultado). |
 | **v1 / v2** | v1 = sistema do Plano 2 (S2). v2 = sistema escolhido no Plano 3 (S1). |
 | **Validação** | 40% das notas dos usuários 463–943 escondidas para fazer escolhas. Nunca é o número final. |
 | **Vetor de busca** | Pesquisa (Planos 1 e 2): 23 posições (19 gêneros + 3 épocas + 1 popularidade). Plano 3: vetor FC de 943 posições (uma por usuário). |
