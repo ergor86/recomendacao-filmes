@@ -35,6 +35,5 @@ Algumas pastas existem só na máquina de quem rodou o projeto, por licença ou 
 | `artefatos/` | Arquivos intermediários grandes (candidatos, réguas, previsões) | Rodar os scripts da fase correspondente |
 | `modelos/` | Pesos das redes treinadas (vários MB por modelo) | `npm run treinar` |
 | `.superpowers/` | Diário de execução dos agentes de IA (briefs, relatórios, revisões) | Não é recriável; é registro histórico local |
+| `.playwright-mcp/` | Capturas de tela e registros das verificações visuais da aplicação | Não é necessária para rodar nada; é gerada ao verificar a interface no navegador |
 
-
-A pasta `.playwright-mcp/` (capturas de tela e registros das verificações visuais da aplicação) **não** está no `.gitignore`. Ela não é necessária para rodar nada. Decida se quer versioná-la ou acrescentá-la ao `.gitignore`.
