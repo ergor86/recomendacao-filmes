@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import Monograma from './Monograma.jsx';
+import SeletorTema from './SeletorTema.jsx';
 import { ProvedorAviso } from './AvisoAcao.jsx';
 
 const ITENS = [
@@ -12,13 +13,21 @@ const ITENS = [
 ];
 
 /** Cabeçalho (perfil ativo e navegação, que vira menu em telas estreitas), conteúdo, rodapé e a única região aria-live. */
-export default function Moldura({ perfil, onTrocarPerfil, children }) {
+export default function Moldura({ perfil, onTrocarPerfil, onInicio, children }) {
   const [menuAberto, setMenuAberto] = useState(false);
+  // clique normal em "Top 10"/logo com os primeiros filmes por concluir: conclui (o link continua um link de verdade)
+  const aoIrParaInicio = (e) => {
+    setMenuAberto(false);
+    if (!onInicio || !perfil || perfil.onboardingConcluido === true) return; // undefined: perfil ainda carregando, vale como não concluído (o PATCH é idempotente)
+    if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    onInicio();
+  };
   return (
     <ProvedorAviso>
       <div className="moldura">
         <header className="moldura-topo">
-          <Link to="/" className="moldura-nome" onClick={() => setMenuAberto(false)}>
+          <Link to="/" className="moldura-nome" onClick={aoIrParaInicio}>
             <svg className="marca-icone" viewBox="0 0 30 30" aria-hidden="true" focusable="false">
               <rect x="3" y="5" width="6" height="18" rx="1" fill="currentColor" />
               <rect x="11" y="3" width="6" height="20" rx="1" fill="currentColor" opacity=".55" />
@@ -42,7 +51,7 @@ export default function Moldura({ perfil, onTrocarPerfil, children }) {
               <div id="menu-painel" className={menuAberto ? 'menu-painel aberta' : 'menu-painel'}>
                 <nav id="navegacao-principal" className="navegacao" aria-label="Principal">
                   {ITENS.map((i) => (
-                    <NavLink key={i.para} to={i.para} end={i.fim} onClick={() => setMenuAberto(false)}>{i.rotulo}</NavLink>
+                    <NavLink key={i.para} to={i.para} end={i.fim} onClick={i.para === '/' ? aoIrParaInicio : () => setMenuAberto(false)}>{i.rotulo}</NavLink>
                   ))}
                 </nav>
                 <div className="moldura-perfil">
@@ -53,6 +62,7 @@ export default function Moldura({ perfil, onTrocarPerfil, children }) {
               </div>
             </>
           )}
+          <SeletorTema />
         </header>
         <main className="moldura-conteudo">{children}</main>
         <footer className="moldura-rodape">

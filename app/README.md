@@ -7,6 +7,8 @@ Aplicação local que recomenda filmes a partir das suas notas, usando a técnic
 
 As capturas em `docs/capturas/` são ilustrativas: usam só o perfil de exemplo, agregados do conjunto de dados e cartazes gerados localmente.
 
+O tema (claro ou escuro) segue o sistema. O botão de tema do cabeçalho (ícone de meio círculo, sol ou lua) alterna entre Automático, Claro e Escuro; a escolha fica só neste navegador.
+
 ## Atribuição
 
 Os dados vêm do MovieLens 100K, do GroupLens Research (Universidade de Minnesota). Este projeto não é endossado nem apoiado pelo GroupLens nem pela Universidade de Minnesota.

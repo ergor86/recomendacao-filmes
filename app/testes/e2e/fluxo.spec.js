@@ -445,3 +445,30 @@ test('segredos: as senhas de credenciais.json não aparecem em docker compose lo
   // só booleano na asserção: a senha nunca entra numa mensagem de falha
   expect(senhas.some((x) => logs.includes(x))).toBe(false);
 });
+
+test('"Top 10" no menu, durante os primeiros filmes, conclui o onboarding e mostra o Top 10', async ({ page, trafego }) => {
+  test.setTimeout(120_000);
+  const nome = nomeUnico('menu-top10');
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Quem está usando?' })).toBeVisible();
+  await criarPerfil(page, nome);
+  await expect(page.getByRole('heading', { name: 'Comece pelos filmes que você conhece' })).toBeVisible();
+  const gostei = page.locator('ul.grade-filmes').getByRole('button', { name: 'Gostei', exact: true });
+  await expect(gostei.first()).toBeVisible();
+  for (let i = 0; i < 3; i++) {
+    await gostei.nth(i).click();
+    await expect(gostei.nth(i)).toHaveAttribute('aria-pressed', 'true');
+  }
+  await page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Top 10' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Top 10' })).toBeVisible();
+  await expect(page.locator(LISTA)).toHaveCount(10);
+  await expect(page.getByText('Porque você curtiu').first()).toBeVisible();
+  await page.reload();
+  await expect(page.getByText(`Perfil: ${nome}`).first()).toBeAttached(); // o perfil guardado já foi resolvido
+  await expect(page.getByRole('heading', { level: 1, name: 'Top 10' })).toBeVisible();
+  await expect(page.locator(LISTA)).toHaveCount(10);
+  await page.waitForTimeout(1000); // se o servidor não tivesse concluído, o onboarding voltaria logo depois
+  expect(new URL(page.url()).pathname).toBe('/');
+  await expect(page.getByRole('heading', { name: 'Comece pelos filmes que você conhece' })).toHaveCount(0);
+  await expect(page.locator(LISTA)).toHaveCount(10);
+}); // o perfil (prefixo "E2E ") é apagado pelo afterAll do arquivo

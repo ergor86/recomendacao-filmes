@@ -17,14 +17,13 @@ function consulta(perfilId, filtros, cursor) {
 }
 
 /** Grade curada para marcar filmes que a pessoa já viu e gostou. */
-export default function Onboarding({ perfilId, aoConcluir }) {
+/** `aoConcluir` é a conclusão única do App (PATCH, navegação); `concluindo` e `erroConcluir` vêm dela. */
+export default function Onboarding({ perfilId, aoConcluir, concluindo = false, erroConcluir = null }) {
   const [filtros, setFiltros] = useState({ q: '', genero: '' });
   const [pagina, setPagina] = useState({ itens: [], proximoCursor: null });
   const [fase, setFase] = useState('carregando');
   const [erro, setErro] = useState(null);
   const [marcados, setMarcados] = useState(0);
-  const [concluindo, setConcluindo] = useState(false);
-  const [erroConcluir, setErroConcluir] = useState(null);
   const pedido = useRef(0);
   const pedidoContagem = useRef(0);
 
@@ -60,19 +59,6 @@ export default function Onboarding({ perfilId, aoConcluir }) {
     recontar();
   };
 
-  const concluir = async () => {
-    setConcluindo(true);
-    setErroConcluir(null);
-    try {
-      await chamar('PATCH', `/api/perfis/${perfilId}`, { onboardingConcluido: true });
-      aoConcluir?.();
-    } catch (e) {
-      setErroConcluir(e);
-    } finally {
-      setConcluindo(false);
-    }
-  };
-
   const suficiente = marcados >= SUGERIDOS;
   const rotuloBotao = marcados === 0 ? 'Pular por enquanto' : 'Ver minhas recomendações';
 
@@ -105,7 +91,7 @@ export default function Onboarding({ perfilId, aoConcluir }) {
           <button type="button" onClick={() => carregar(filtros, pagina.proximoCursor)}>Não reconheço nenhum: mostrar outros</button>
         )}
         {!suficiente && <p className="contador">{marcados} marcados · sugerimos pelo menos 3</p>}
-        <button type="button" className={suficiente ? 'principal destaque' : 'principal'} disabled={concluindo} onClick={concluir}>
+        <button type="button" className={suficiente ? 'principal destaque' : 'principal'} disabled={concluindo} onClick={() => aoConcluir?.()}>
           {rotuloBotao}
         </button>
         {erroConcluir && <p className="erro-texto" role="alert">{erroConcluir.mensagem}</p>}

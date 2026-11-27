@@ -140,3 +140,48 @@ describe('símbolos gerados por CSS não entram no nome acessível', () => {
     expect(semAlternativo).toEqual([]);
   });
 });
+
+describe('seletor de tema (decisão do usuário, 2026-11-25)', () => {
+  test('o escuro do sistema só vale fora do tema Claro forçado', () => {
+    expect(escuro).toContain(':root:not([data-tema="claro"])');
+    expect(escuro).not.toMatch(/(^|\n)\s*:root\s*\{/);
+  });
+  test('o tema Escuro forçado tem os mesmos tokens escuros', () => {
+    const r = bloco(':root[data-tema="escuro"]').toLowerCase();
+    for (const t of ['--papel: #17151f', '--ficha: #221f2e', '--tinta: #eeecf5', '--grafite: #b5afc9', '--carimbo: #b9a5ff',
+      '--sobre-carimbo: #17151f', '--carimbo-veu: #2f2752', '--perigo: #ff8fa0', '--contorno: #8a83a3', '--prateleira: #3e3856',
+      '--prateleira-luz: #6b6390', '--risco: #35304a',
+      '--sombra-cartaz: 0 0 0 1px rgb(255 255 255 / 0.10), 0 12px 20px -10px rgb(0 0 0 / 0.9)']) expect(r).toContain(t);
+    expect(r).toContain('color-scheme: dark');
+  });
+  test('color-scheme acompanha: claro, escuro e automático', () => {
+    expect(bloco(':root[data-tema="claro"]')).toContain('color-scheme: light');
+    expect(claro).toContain('color-scheme: light dark');
+  });
+});
+
+describe('botão de tema: layout', () => {
+  test('44 px de largura, sem restos do seletor', () => {
+    expect(css).toMatch(/\.botao-tema\s*\{[^}]*width: 44px/);
+    expect(css).not.toContain('.seletor-tema');
+  });
+  test('sem perfil (desktop) o botão de tema vai para o canto direito do cabeçalho', () => {
+    expect(css).toMatch(/\.moldura-nome \+ \.botao-tema\s*\{\s*margin-left: auto/);
+  });
+  test('no celular a linha não quebra: marca encolhe, tema vem logo antes do Menu', () => {
+    const m = bloco('@media (max-width: 760px)');
+    expect(m).toMatch(/\.moldura-nome\s*\{\s*flex: 1 1 0;\s*min-width: 0/);
+    expect(m).toMatch(/\.botao-tema\s*\{\s*order: 1/);
+    expect(m).toMatch(/\.menu-botao\s*\{\s*order: 2/);
+    expect(m).not.toMatch(/\.menu-botao\s*\{\s*margin-left: auto/);
+  });
+});
+
+describe('cabeçalho compacto do celular (igual à main)', () => {
+  test('marca e Menu mantêm a tipografia e o espaçamento compactos', () => {
+    const m = bloco('@media (max-width: 760px)');
+    expect(m).toMatch(/\.moldura-nome\s*\{\s*gap: 6px;\s*\}/);
+    expect(m).toMatch(/\.moldura-nome span\s*\{\s*font-size: 1\.25rem;\s*\}/);
+    expect(m).toMatch(/\.menu-botao\s*\{\s*gap: 6px;\s*padding-inline: 10px;\s*\}/);
+  });
+});
