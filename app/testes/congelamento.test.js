@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,7 +17,12 @@ const gitRaiz = (args, opcoes = {}) =>
 const mostrar = (commit, caminho) => JSON.parse(gitRaiz(['show', `${commit}:${caminho}`]).stdout);
 
 const CAMINHOS_CODIGO = ['src', 'scripts', 'package.json', 'package-lock.json'];
-const CAMINHOS_PESQUISA = ['resultados', 'docker-compose.yml', '.env.example'];
+const CAMINHOS_PESQUISA = ['resultados', '.env.example'];
+
+// Desvio D1 (registrado em docs/guia/08-registro-completo.md, "Desvios depois do congelamento"):
+// o docker-compose.yml da pesquisa passou a publicar a porta do banco só em 127.0.0.1.
+// Ele pode diferir de 6077974 exatamente nessa linha, e em nada mais.
+const DESVIO_D1 = { arquivo: 'docker-compose.yml', de: '      - "5433:5432"\n', para: '      - "127.0.0.1:5433:5432"\n' };
 
 test('congelamento: código da pesquisa idêntico a c048537', () => {
   assert.equal(COMMIT_CODIGO.slice(0, 7), 'c048537');
@@ -29,6 +34,14 @@ test('congelamento: resultados idênticos a 6077974', () => {
   assert.equal(COMMIT_PESQUISA.slice(0, 7), '6077974');
   const r = conferirCongelamento(raiz, COMMIT_PESQUISA, CAMINHOS_PESQUISA);
   assert.deepEqual(r, { ok: true, alterados: [] });
+});
+
+test('desvio D1: docker-compose.yml difere de 6077974 só na publicação da porta', () => {
+  const original = gitRaiz(['show', `${COMMIT_PESQUISA}:${DESVIO_D1.arquivo}`]).stdout;
+  assert.equal(original.split(DESVIO_D1.de).length, 2, 'a linha original da porta deve aparecer uma vez em 6077974');
+  const esperado = original.replace(DESVIO_D1.de, DESVIO_D1.para);
+  const atual = readFileSync(path.join(raiz, DESVIO_D1.arquivo), 'utf8').replace(/\r\n/g, '\n');
+  assert.equal(atual, esperado);
 });
 
 test('congelamento: rodar de dentro de app/ não muda o resultado', () => {

@@ -295,6 +295,16 @@ As revisões por IA **não substituem a revisão humana nem a replicação indep
 - **Herdadas do Plano 2:** divisão não temporal, viés de coleta, usuário novo não medido, falsos negativos, parada aproximada e só 3 sementes.
 - **Sem replicação independente:** as revisões por IA não a substituem.
 
+## Desvios depois do congelamento
+
+Desde o fim do Plano 3 (commit `6077974`), os arquivos da pesquisa são conferidos contra os commits congelados: `app/testes/congelamento.test.js` e o job `congelamento` do CI falham se algo mudar. Toda mudança posterior precisa ser registrada aqui, com o motivo, e as duas conferências passam a aceitar **só** aquela mudança.
+
+| Id | Data | Arquivo | Mudança | Motivo | Efeito nos resultados |
+|---|---|---|---|---|---|
+| D1 | 26/11/2026 | `docker-compose.yml` | A porta do banco da pesquisa passou de `"5433:5432"` para `"127.0.0.1:5433:5432"` | Na forma original, o Postgres aceitava conexões de qualquer máquina da rede, com superusuário e a senha padrão do `.env.example` se a pessoa não a trocasse. Agora só aceita conexões do próprio computador. Achado da revisão pré-publicação. | **Nenhum.** A mudança só define quem pode se conectar ao banco; dados, código, régua, vetores e resultados são os mesmos. |
+
+Como a conferência funciona para o D1: o teste lê o `docker-compose.yml` do commit `6077974`, aplica exatamente a troca da linha da porta e exige que o resultado seja idêntico ao arquivo atual. Qualquer outra diferença, ou a volta à linha antiga, faz o teste e o CI falharem. Os demais arquivos (`src/`, `scripts/`, `package.json`, `package-lock.json`, `resultados/` e `.env.example`) continuam conferidos sem exceção.
+
 ## Ambiente
 
 - Node: v22.23.3 (`.nvmrc` = 22, `engines` >=22 <23)

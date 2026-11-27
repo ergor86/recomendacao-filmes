@@ -48,7 +48,7 @@ Pré-requisitos: **Git**, **Node.js 22** e **Docker**. O `npm install` baixa o b
 git clone https://github.com/ergor86/recomendacao-filmes.git
 cd recomendacao-filmes
 cp .env.example .env      # edite PGPASSWORD antes de subir o banco
-docker compose up -d      # Postgres + pgvector na porta 5433
+docker compose up -d      # Postgres + pgvector em 127.0.0.1:5433 (só aceita conexões locais)
 npm install
 npm run baixar-dados      # MovieLens 100K em data/ml-100k
 npm run ambiente          # verifica TensorFlow.js e o banco

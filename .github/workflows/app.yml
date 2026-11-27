@@ -90,7 +90,11 @@ jobs:
             (
               cd "$dir"
               git -C "$(git rev-parse --show-toplevel)" diff --exit-code c048537911c14313c4e85c516270513871a14a88 -- :/src :/scripts :/package.json :/package-lock.json
-              git -C "$(git rev-parse --show-toplevel)" diff --exit-code 6077974fb015c31c870eb5c4995a3a6f45682ca7 -- :/resultados :/docker-compose.yml :/.env.example
+              git -C "$(git rev-parse --show-toplevel)" diff --exit-code 6077974fb015c31c870eb5c4995a3a6f45682ca7 -- :/resultados :/.env.example
+              # desvio D1: docker-compose.yml só pode diferir de 6077974 na publicação da porta (127.0.0.1)
+              git -C "$(git rev-parse --show-toplevel)" show 6077974fb015c31c870eb5c4995a3a6f45682ca7:docker-compose.yml \
+                | sed 's|      - "5433:5432"|      - "127.0.0.1:5433:5432"|' \
+                | diff -u - "$(git rev-parse --show-toplevel)/docker-compose.yml"
             )
           done
       - name: Constantes de app/integridade.js iguais às de 6077974 e testes de congelamento
