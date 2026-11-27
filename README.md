@@ -151,7 +151,7 @@ app/         aplicação Minha Prateleira    docs/       guia, specs e planos
 
 | Material | Licença ou termos |
 |---|---|
-| Código-fonte, testes, scripts e documentação autorais | MIT (arquivo [`LICENSE`](LICENSE)), © 2026 André de Souza Rosa |
+| Código-fonte, testes, scripts e documentação autorais | MIT (arquivo [`LICENSE`](LICENSE)), © 2026 André de Souza Rosa. O escopo da licença está em [`NOTICE.md`](NOTICE.md) |
 | MovieLens 100K | Termos de uso do GroupLens Research (Universidade de Minnesota): uso não comercial, sem redistribuição e com citação, salvo permissão do GroupLens. Os dados não estão no repositório; cada pessoa os baixa do site do GroupLens |
 | `resultados/` | Fora da MIT. Resultados científicos publicados para reprodutibilidade, derivados do MovieLens, incluindo métricas por usuário (NDCG@10 por id anônimo de usuário do MovieLens em `avaliacao-final.json` e `avaliacao-v2.json`). Seguem sujeitos aos termos do GroupLens |
 | Capturas em `app/docs/capturas/` e o GIF `app/docs/demonstracao.gif` | Fora da MIT. Mostram títulos, médias agregadas do MovieLens, o perfil de exemplo e cartazes gerados localmente; seguem sujeitas aos termos do GroupLens |
