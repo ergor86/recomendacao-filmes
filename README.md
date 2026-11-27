@@ -7,6 +7,8 @@ Um sistema de recomendação de filmes construído e avaliado passo a passo com 
 
 ![Top 10 da Minha Prateleira](app/docs/capturas/03-top10.png)
 
+[Demonstração animada](app/docs/demonstracao.gif) (GIF de 71 s, 5,5 MB): perfil novo, primeiros filmes, Top 10, notas, Minha lista, detalhe, catálogo, Sobre e troca de tema.
+
 <details>
 <summary>Mais capturas da aplicação</summary>
 
