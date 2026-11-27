@@ -7,12 +7,12 @@ Este arquivo é preenchido pela pessoa que executa o aceite (spec §13, critéri
 Num clone novo, sem `.env` e sem dados anteriores, em Windows com Docker Desktop (e, se houver acesso, em Mac ARM):
 
 1. Conferir os pré-requisitos do README (Docker, 3 GB livres, internet).
-2. Clonar e entrar em `app/`. Enquanto o PR #4 não for incorporado à `main`, a `main` ainda não tem a pasta `app/`; clone a branch:
+2. Clonar e entrar em `app/`:
    ```
-   git clone -b app-etapa1 --single-branch https://github.com/ergor86/recomendacao-filmes.git
+   git clone https://github.com/ergor86/recomendacao-filmes.git
    cd recomendacao-filmes/app
    ```
-   Depois do merge, vale o comando do README: `git clone https://github.com/ergor86/recomendacao-filmes.git`. Anote no registro qual dos dois foi usado e o commit (`git log -1 --format=%h`).
+   Para testar uma versão publicada, use `git clone --branch v1.0 ...` (ou a tag da versão). Anote no registro o comando usado e o commit (`git log -1 --format=%h`).
 3. `docker compose up --build`. Marcar o tempo até aparecer `Pronto: abra http://localhost:3000`.
 4. Abrir http://localhost:3000 e acompanhar a tela de preparação até a aplicação abrir.
 5. Criar um perfil, marcar 3 filmes com "Gostei" e conferir o Top 10 com "Porque você curtiu".
@@ -34,7 +34,7 @@ Transcrito do arquivo de respostas do executor (André de Souza Rosa). Só foram
 | Campo | Valor |
 |---|---|
 | Data | 21/11/2026 |
-| Comando de clone usado (branch ou `main`) e commit testado | `git clone -b app-etapa1 --single-branch https://github.com/ergor86/recomendacao-filmes.git` (commit no clone: `da5175a`, conferido por quem transcreveu) |
+| Comando de clone usado e commit testado | `git clone -b app-etapa1 --single-branch https://github.com/ergor86/recomendacao-filmes.git` (commit no clone: `da5175a`, conferido por quem transcreveu) |
 | Versão do Docker (`docker version`) | Docker version 29.9.3, build 5457199 |
 | Sistema (nome e versão; arquitetura) | Ubuntu 26.04.1 LTS; x86_64; kernel 6.18.58.1-microsoft-standard-WSL2 |
 | Tempo da primeira preparação (do `up --build` até `Pronto`) | poucos segundos; o build: Building 10.2s (29/29) FINISHED |
