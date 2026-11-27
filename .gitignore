@@ -10,6 +10,7 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+.playwright-mcp/
 coverage/
 *.tsbuildinfo
 app/compose.dev.override.yml
